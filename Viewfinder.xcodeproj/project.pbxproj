@@ -1,0 +1,636 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2375046B2FBCDA8B006000F8 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 2375046A2FBCDA8B006000F8 /* FirebaseAuth */; };
+		2375046D2FBCDA8B006000F8 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 2375046C2FBCDA8B006000F8 /* FirebaseFirestore */; };
+		2375046F2FBCDA8B006000F8 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 2375046E2FBCDA8B006000F8 /* FirebaseStorage */; };
+		237504732FBCDD30006000F8 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 237504722FBCDD30006000F8 /* GoogleService-Info.plist */; };
+		237504762FBCDEE4006000F8 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 237504752FBCDEE4006000F8 /* GoogleSignIn */; };
+		237504782FBCDEE4006000F8 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 237504772FBCDEE4006000F8 /* GoogleSignInSwift */; };
+		CD1000000000000000000200 /* ViewfinderApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000100 /* ViewfinderApp.swift */; };
+		CD1000000000000000000201 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000101 /* ContentView.swift */; };
+		CD1000000000000000000202 /* PhotoSpot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000102 /* PhotoSpot.swift */; };
+		CD1000000000000000000203 /* PhotoSpotSampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000103 /* PhotoSpotSampleData.swift */; };
+		CD1000000000000000000204 /* SearchBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000104 /* SearchBarView.swift */; };
+		CD1000000000000000000205 /* InterestChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000105 /* InterestChipView.swift */; };
+		CD1000000000000000000206 /* KoreaMapBackdropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000106 /* KoreaMapBackdropView.swift */; };
+		CD1000000000000000000207 /* SpotPreviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000107 /* SpotPreviewCard.swift */; };
+		CD1000000000000000000208 /* CommunityPreviewRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000108 /* CommunityPreviewRow.swift */; };
+		CD1000000000000000000209 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000132 /* LaunchScreen.storyboard */; };
+		CD100000000000000000020A /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000109 /* SearchView.swift */; };
+		CD100000000000000000020B /* GPTRecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD100000000000000000010B /* GPTRecommendationService.swift */; };
+		CD100000000000000000020C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000133 /* Assets.xcassets */; };
+		CD100000000000000000020D /* AIPhotoSpotResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD100000000000000000010C /* AIPhotoSpotResolver.swift */; };
+		CD100000000000000000020E /* PhotoSpotSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD100000000000000000010D /* PhotoSpotSearchModels.swift */; };
+		CD100000000000000000020F /* GeminiRecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD100000000000000000010E /* GeminiRecommendationService.swift */; };
+		CD1000000000000000000210 /* PlaceVerificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD100000000000000000010F /* PlaceVerificationService.swift */; };
+		CD1000000000000000000211 /* PhotoSpotSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000110 /* PhotoSpotSearchViewModel.swift */; };
+		CD1000000000000000000212 /* LocalSeedDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000111 /* LocalSeedDataService.swift */; };
+		CD1000000000000000000213 /* PhotoSpotCacheService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000112 /* PhotoSpotCacheService.swift */; };
+		CD1000000000000000000214 /* photo_spots_seed.json in Resources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000134 /* photo_spots_seed.json */; };
+		CD1000000000000000000215 /* NMapsMap in Frameworks */ = {isa = PBXBuildFile; productRef = CD1000000000000000000701 /* NMapsMap */; };
+		CD1000000000000000000216 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000113 /* AuthService.swift */; };
+		CD3000000000000000000200 /* SearchProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3000000000000000000100 /* SearchProvider.swift */; };
+		CD3000000000000000000201 /* CafeRecommendationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3000000000000000000101 /* CafeRecommendationPolicy.swift */; };
+
+		CD2000000000000000000200 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2000000000000000000100 /* LoginView.swift */; };
+		CD2000000000000000000201 /* HomeFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2000000000000000000101 /* HomeFeedView.swift */; };
+		CD2000000000000000000202 /* PhotoSpotImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2000000000000000000102 /* PhotoSpotImageView.swift */; };
+		CD2000000000000000000203 /* MapCategoryFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2000000000000000000103 /* MapCategoryFilter.swift */; };
+		CD2000000000000000000204 /* MapTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2000000000000000000104 /* MapTabView.swift */; };
+		CD2000000000000000000205 /* SpotDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2000000000000000000105 /* SpotDetailView.swift */; };
+		CD2000000000000000000206 /* SavedSpotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2000000000000000000106 /* SavedSpotStore.swift */; };
+		CD2000000000000000000207 /* CommunityModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2000000000000000000107 /* CommunityModels.swift */; };
+		CD2000000000000000000208 /* CommunityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2000000000000000000108 /* CommunityService.swift */; };
+		CD2000000000000000000209 /* CommunityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2000000000000000000109 /* CommunityViewModel.swift */; };
+		CD200000000000000000020A /* CommunityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD200000000000000000010A /* CommunityViews.swift */; };
+		CD200000000000000000020B /* SavedSpotsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD200000000000000000010B /* SavedSpotsView.swift */; };
+		CD200000000000000000020C /* WeatherViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD200000000000000000010C /* WeatherViews.swift */; };
+		CD200000000000000000020D /* DiscoveryTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD200000000000000000010D /* DiscoveryTabView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		237504722FBCDD30006000F8 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		CD1000000000000000000100 /* ViewfinderApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderApp.swift; sourceTree = "<group>"; };
+		CD1000000000000000000101 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		CD1000000000000000000102 /* PhotoSpot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSpot.swift; sourceTree = "<group>"; };
+		CD1000000000000000000103 /* PhotoSpotSampleData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSpotSampleData.swift; sourceTree = "<group>"; };
+		CD1000000000000000000104 /* SearchBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchBarView.swift; sourceTree = "<group>"; };
+		CD1000000000000000000105 /* InterestChipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterestChipView.swift; sourceTree = "<group>"; };
+		CD1000000000000000000106 /* KoreaMapBackdropView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KoreaMapBackdropView.swift; sourceTree = "<group>"; };
+		CD1000000000000000000107 /* SpotPreviewCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotPreviewCard.swift; sourceTree = "<group>"; };
+		CD1000000000000000000108 /* CommunityPreviewRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPreviewRow.swift; sourceTree = "<group>"; };
+		CD1000000000000000000109 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
+		CD100000000000000000010B /* GPTRecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPTRecommendationService.swift; sourceTree = "<group>"; };
+		CD100000000000000000010C /* AIPhotoSpotResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIPhotoSpotResolver.swift; sourceTree = "<group>"; };
+		CD100000000000000000010D /* PhotoSpotSearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSpotSearchModels.swift; sourceTree = "<group>"; };
+		CD100000000000000000010E /* GeminiRecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiRecommendationService.swift; sourceTree = "<group>"; };
+		CD100000000000000000010F /* PlaceVerificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceVerificationService.swift; sourceTree = "<group>"; };
+		CD1000000000000000000110 /* PhotoSpotSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSpotSearchViewModel.swift; sourceTree = "<group>"; };
+		CD1000000000000000000111 /* LocalSeedDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSeedDataService.swift; sourceTree = "<group>"; };
+		CD1000000000000000000112 /* PhotoSpotCacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSpotCacheService.swift; sourceTree = "<group>"; };
+		CD1000000000000000000113 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		CD3000000000000000000100 /* SearchProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchProvider.swift; sourceTree = "<group>"; };
+		CD3000000000000000000101 /* CafeRecommendationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CafeRecommendationPolicy.swift; sourceTree = "<group>"; };
+		CD1000000000000000000130 /* App-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "App-Info.plist"; sourceTree = "<group>"; };
+		CD1000000000000000000132 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		CD1000000000000000000133 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CD1000000000000000000134 /* photo_spots_seed.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = photo_spots_seed.json; sourceTree = "<group>"; };
+		CD1000000000000000000135 /* Viewfinder.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Viewfinder.entitlements; sourceTree = "<group>"; };
+		CD1000000000000000000140 /* Viewfinder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Viewfinder.app; sourceTree = BUILT_PRODUCTS_DIR; };
+
+		CD2000000000000000000100 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		CD2000000000000000000101 /* HomeFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeFeedView.swift; sourceTree = "<group>"; };
+		CD2000000000000000000102 /* PhotoSpotImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSpotImageView.swift; sourceTree = "<group>"; };
+		CD2000000000000000000103 /* MapCategoryFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapCategoryFilter.swift; sourceTree = "<group>"; };
+		CD2000000000000000000104 /* MapTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapTabView.swift; sourceTree = "<group>"; };
+		CD2000000000000000000105 /* SpotDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotDetailView.swift; sourceTree = "<group>"; };
+		CD2000000000000000000106 /* SavedSpotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSpotStore.swift; sourceTree = "<group>"; };
+		CD2000000000000000000107 /* CommunityModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityModels.swift; sourceTree = "<group>"; };
+		CD2000000000000000000108 /* CommunityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityService.swift; sourceTree = "<group>"; };
+		CD2000000000000000000109 /* CommunityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityViewModel.swift; sourceTree = "<group>"; };
+		CD200000000000000000010A /* CommunityViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityViews.swift; sourceTree = "<group>"; };
+		CD200000000000000000010B /* SavedSpotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSpotsView.swift; sourceTree = "<group>"; };
+		CD200000000000000000010C /* WeatherViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherViews.swift; sourceTree = "<group>"; };
+		CD200000000000000000010D /* DiscoveryTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryTabView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CD1000000000000000000400 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				237504762FBCDEE4006000F8 /* GoogleSignIn in Frameworks */,
+				CD1000000000000000000215 /* NMapsMap in Frameworks */,
+				2375046F2FBCDA8B006000F8 /* FirebaseStorage in Frameworks */,
+				237504782FBCDEE4006000F8 /* GoogleSignInSwift in Frameworks */,
+				2375046B2FBCDA8B006000F8 /* FirebaseAuth in Frameworks */,
+				2375046D2FBCDA8B006000F8 /* FirebaseFirestore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		CD1000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				CD1000000000000000000300 /* App */,
+				CD2000000000000000000300 /* Auth */,
+				CD1000000000000000000301 /* Models */,
+				CD1000000000000000000302 /* Data */,
+				CD1000000000000000000305 /* Services */,
+				CD2000000000000000000301 /* Stores */,
+				CD2000000000000000000302 /* Community */,
+				CD1000000000000000000303 /* Views */,
+				CD1000000000000000000304 /* Supporting */,
+				CD1000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		CD1000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CD1000000000000000000140 /* Viewfinder.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CD1000000000000000000300 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				CD1000000000000000000100 /* ViewfinderApp.swift */,
+				CD1000000000000000000101 /* ContentView.swift */,
+			);
+			name = App;
+			path = Viewfinder;
+			sourceTree = "<group>";
+		};
+		CD1000000000000000000301 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				CD1000000000000000000102 /* PhotoSpot.swift */,
+				CD100000000000000000010D /* PhotoSpotSearchModels.swift */,
+			);
+			name = Models;
+			path = Viewfinder/Models;
+			sourceTree = "<group>";
+		};
+		CD1000000000000000000302 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				CD1000000000000000000103 /* PhotoSpotSampleData.swift */,
+				CD1000000000000000000134 /* photo_spots_seed.json */,
+			);
+			name = Data;
+			path = Viewfinder/Data;
+			sourceTree = "<group>";
+		};
+		CD1000000000000000000303 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				CD2000000000000000000303 /* Auth */,
+				CD2000000000000000000304 /* Home */,
+				CD2000000000000000000305 /* Map */,
+				CD2000000000000000000306 /* SpotDetail */,
+				CD2000000000000000000307 /* Saved */,
+				CD200000000000000000030A /* Discover */,
+				CD2000000000000000000308 /* Weather */,
+				CD2000000000000000000309 /* Shared */,
+				CD1000000000000000000104 /* SearchBarView.swift */,
+				CD1000000000000000000109 /* SearchView.swift */,
+				CD1000000000000000000105 /* InterestChipView.swift */,
+				CD1000000000000000000107 /* SpotPreviewCard.swift */,
+				CD1000000000000000000108 /* CommunityPreviewRow.swift */,
+			);
+			name = Views;
+			path = Viewfinder/Views;
+			sourceTree = "<group>";
+		};
+		CD1000000000000000000304 /* Supporting */ = {
+			isa = PBXGroup;
+			children = (
+				CD1000000000000000000130 /* App-Info.plist */,
+				CD1000000000000000000135 /* Viewfinder.entitlements */,
+				CD1000000000000000000133 /* Assets.xcassets */,
+				CD1000000000000000000132 /* LaunchScreen.storyboard */,
+			);
+			name = Supporting;
+			path = Viewfinder/Supporting;
+			sourceTree = "<group>";
+		};
+		CD1000000000000000000305 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				237504722FBCDD30006000F8 /* GoogleService-Info.plist */,
+				CD100000000000000000010B /* GPTRecommendationService.swift */,
+				CD100000000000000000010C /* AIPhotoSpotResolver.swift */,
+				CD100000000000000000010E /* GeminiRecommendationService.swift */,
+				CD100000000000000000010F /* PlaceVerificationService.swift */,
+				CD1000000000000000000111 /* LocalSeedDataService.swift */,
+				CD1000000000000000000112 /* PhotoSpotCacheService.swift */,
+				CD1000000000000000000110 /* PhotoSpotSearchViewModel.swift */,
+				CD3000000000000000000100 /* SearchProvider.swift */,
+				CD3000000000000000000101 /* CafeRecommendationPolicy.swift */,
+			);
+			name = Services;
+			path = Viewfinder/Services;
+			sourceTree = "<group>";
+		};
+
+		CD2000000000000000000300 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				CD1000000000000000000113 /* AuthService.swift */,
+			);
+			name = Auth;
+			path = Viewfinder/Auth;
+			sourceTree = "<group>";
+		};
+		CD2000000000000000000301 /* Stores */ = {
+			isa = PBXGroup;
+			children = (
+				CD2000000000000000000106 /* SavedSpotStore.swift */,
+			);
+			name = Stores;
+			path = Viewfinder/Stores;
+			sourceTree = "<group>";
+		};
+		CD2000000000000000000302 /* Community */ = {
+			isa = PBXGroup;
+			children = (
+				CD2000000000000000000107 /* CommunityModels.swift */,
+				CD2000000000000000000108 /* CommunityService.swift */,
+				CD2000000000000000000109 /* CommunityViewModel.swift */,
+				CD200000000000000000010A /* CommunityViews.swift */,
+			);
+			name = Community;
+			path = Viewfinder/Community;
+			sourceTree = "<group>";
+		};
+		CD2000000000000000000303 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				CD2000000000000000000100 /* LoginView.swift */,
+			);
+			name = Auth;
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		CD2000000000000000000304 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				CD2000000000000000000101 /* HomeFeedView.swift */,
+			);
+			name = Home;
+			path = Home;
+			sourceTree = "<group>";
+		};
+		CD2000000000000000000305 /* Map */ = {
+			isa = PBXGroup;
+			children = (
+				CD1000000000000000000106 /* KoreaMapBackdropView.swift */,
+				CD2000000000000000000103 /* MapCategoryFilter.swift */,
+				CD2000000000000000000104 /* MapTabView.swift */,
+			);
+			name = Map;
+			path = Map;
+			sourceTree = "<group>";
+		};
+		CD2000000000000000000306 /* SpotDetail */ = {
+			isa = PBXGroup;
+			children = (
+				CD2000000000000000000105 /* SpotDetailView.swift */,
+			);
+			name = SpotDetail;
+			path = SpotDetail;
+			sourceTree = "<group>";
+		};
+		CD2000000000000000000307 /* Saved */ = {
+			isa = PBXGroup;
+			children = (
+				CD200000000000000000010B /* SavedSpotsView.swift */,
+			);
+			name = Saved;
+			path = Saved;
+			sourceTree = "<group>";
+		};
+		CD2000000000000000000308 /* Weather */ = {
+			isa = PBXGroup;
+			children = (
+				CD200000000000000000010C /* WeatherViews.swift */,
+			);
+			name = Weather;
+			path = Weather;
+			sourceTree = "<group>";
+		};
+		CD200000000000000000030A /* Discover */ = {
+			isa = PBXGroup;
+			children = (
+				CD200000000000000000010D /* DiscoveryTabView.swift */,
+			);
+			name = Discover;
+			path = Discover;
+			sourceTree = "<group>";
+		};
+		CD2000000000000000000309 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				CD2000000000000000000102 /* PhotoSpotImageView.swift */,
+			);
+			name = Shared;
+			path = Shared;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		CD1000000000000000000010 /* Viewfinder */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CD1000000000000000000631 /* Build configuration list for PBXNativeTarget "Viewfinder" */;
+			buildPhases = (
+				CD1000000000000000000410 /* Sources */,
+				CD1000000000000000000400 /* Frameworks */,
+				CD1000000000000000000420 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Viewfinder;
+			packageProductDependencies = (
+				CD1000000000000000000701 /* NMapsMap */,
+				2375046A2FBCDA8B006000F8 /* FirebaseAuth */,
+				2375046C2FBCDA8B006000F8 /* FirebaseFirestore */,
+				2375046E2FBCDA8B006000F8 /* FirebaseStorage */,
+				237504752FBCDEE4006000F8 /* GoogleSignIn */,
+				237504772FBCDEE4006000F8 /* GoogleSignInSwift */,
+			);
+			productName = Viewfinder;
+			productReference = CD1000000000000000000140 /* Viewfinder.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		CD1000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2620;
+				LastUpgradeCheck = 2620;
+				TargetAttributes = {
+					CD1000000000000000000010 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+				};
+			};
+			buildConfigurationList = CD1000000000000000000004 /* Build configuration list for PBXProject "Viewfinder" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = ko;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				ko,
+				en,
+				Base,
+			);
+			mainGroup = CD1000000000000000000002;
+			packageReferences = (
+				CD1000000000000000000700 /* XCRemoteSwiftPackageReference "SPM-NMapsMap" */,
+				237504692FBCDA8B006000F8 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				237504742FBCDEE4006000F8 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
+			productRefGroup = CD1000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				CD1000000000000000000010 /* Viewfinder */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		CD1000000000000000000420 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CD1000000000000000000209 /* LaunchScreen.storyboard in Resources */,
+				237504732FBCDD30006000F8 /* GoogleService-Info.plist in Resources */,
+				CD100000000000000000020C /* Assets.xcassets in Resources */,
+				CD1000000000000000000214 /* photo_spots_seed.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		CD1000000000000000000410 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CD1000000000000000000200 /* ViewfinderApp.swift in Sources */,
+				CD1000000000000000000201 /* ContentView.swift in Sources */,
+				CD1000000000000000000202 /* PhotoSpot.swift in Sources */,
+				CD1000000000000000000203 /* PhotoSpotSampleData.swift in Sources */,
+				CD1000000000000000000204 /* SearchBarView.swift in Sources */,
+				CD1000000000000000000205 /* InterestChipView.swift in Sources */,
+				CD1000000000000000000206 /* KoreaMapBackdropView.swift in Sources */,
+				CD1000000000000000000207 /* SpotPreviewCard.swift in Sources */,
+				CD1000000000000000000208 /* CommunityPreviewRow.swift in Sources */,
+				CD100000000000000000020A /* SearchView.swift in Sources */,
+				CD100000000000000000020B /* GPTRecommendationService.swift in Sources */,
+				CD100000000000000000020D /* AIPhotoSpotResolver.swift in Sources */,
+				CD100000000000000000020E /* PhotoSpotSearchModels.swift in Sources */,
+				CD100000000000000000020F /* GeminiRecommendationService.swift in Sources */,
+				CD1000000000000000000210 /* PlaceVerificationService.swift in Sources */,
+				CD1000000000000000000212 /* LocalSeedDataService.swift in Sources */,
+				CD1000000000000000000213 /* PhotoSpotCacheService.swift in Sources */,
+				CD1000000000000000000211 /* PhotoSpotSearchViewModel.swift in Sources */,
+				CD1000000000000000000216 /* AuthService.swift in Sources */,
+				CD3000000000000000000200 /* SearchProvider.swift in Sources */,
+				CD3000000000000000000201 /* CafeRecommendationPolicy.swift in Sources */,
+				CD2000000000000000000200 /* LoginView.swift in Sources */,
+				CD2000000000000000000201 /* HomeFeedView.swift in Sources */,
+				CD2000000000000000000202 /* PhotoSpotImageView.swift in Sources */,
+				CD2000000000000000000203 /* MapCategoryFilter.swift in Sources */,
+				CD2000000000000000000204 /* MapTabView.swift in Sources */,
+				CD2000000000000000000205 /* SpotDetailView.swift in Sources */,
+				CD2000000000000000000206 /* SavedSpotStore.swift in Sources */,
+				CD2000000000000000000207 /* CommunityModels.swift in Sources */,
+				CD2000000000000000000208 /* CommunityService.swift in Sources */,
+				CD2000000000000000000209 /* CommunityViewModel.swift in Sources */,
+				CD200000000000000000020A /* CommunityViews.swift in Sources */,
+				CD200000000000000000020B /* SavedSpotsView.swift in Sources */,
+				CD200000000000000000020C /* WeatherViews.swift in Sources */,
+				CD200000000000000000020D /* DiscoveryTabView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		CD1000000000000000000600 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M8M62H2D94;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CD1000000000000000000601 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M8M62H2D94;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		CD1000000000000000000610 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M8M62H2D94;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Viewfinder/Supporting/App-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lkh.photoshoot;
+				PRODUCT_MODULE_NAME = Viewfinder;
+				PRODUCT_NAME = Viewfinder;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CD1000000000000000000611 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M8M62H2D94;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Viewfinder/Supporting/App-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lkh.photoshoot;
+				PRODUCT_MODULE_NAME = Viewfinder;
+				PRODUCT_NAME = Viewfinder;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CD1000000000000000000004 /* Build configuration list for PBXProject "Viewfinder" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CD1000000000000000000600 /* Debug */,
+				CD1000000000000000000601 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CD1000000000000000000631 /* Build configuration list for PBXNativeTarget "Viewfinder" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CD1000000000000000000610 /* Debug */,
+				CD1000000000000000000611 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		237504692FBCDA8B006000F8 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.13.0;
+			};
+		};
+		237504742FBCDEE4006000F8 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.1.0;
+			};
+		};
+		CD1000000000000000000700 /* XCRemoteSwiftPackageReference "SPM-NMapsMap" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/navermaps/SPM-NMapsMap";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.23.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2375046A2FBCDA8B006000F8 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 237504692FBCDA8B006000F8 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		2375046C2FBCDA8B006000F8 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 237504692FBCDA8B006000F8 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		2375046E2FBCDA8B006000F8 /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 237504692FBCDA8B006000F8 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
+		};
+		237504752FBCDEE4006000F8 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 237504742FBCDEE4006000F8 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		237504772FBCDEE4006000F8 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 237504742FBCDEE4006000F8 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+		CD1000000000000000000701 /* NMapsMap */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD1000000000000000000700 /* XCRemoteSwiftPackageReference "SPM-NMapsMap" */;
+			productName = NMapsMap;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = CD1000000000000000000001 /* Project object */;
+}

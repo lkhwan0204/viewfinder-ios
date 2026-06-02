@@ -1,0 +1,6537 @@
+[
+  {
+    "id": "seed-seoul-national-museum",
+    "name": "국립중앙박물관",
+    "regions": [
+      "서울",
+      "용산",
+      "용산구"
+    ],
+    "address": "서울특별시 용산구 서빙고로 137",
+    "description": "넓은 외부 공간과 실내 전시를 함께 담기 좋은 박물관 출사지",
+    "bestTime": "오전 자연광, 비 오는 날 실내",
+    "reason": "실내와 야외 동선이 모두 있어 날씨 영향을 덜 받아요",
+    "tags": [
+      "박물관",
+      "실내",
+      "건축",
+      "서울"
+    ],
+    "latitude": 37.52385,
+    "longitude": 126.98047,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/5/57/Exterior_of_the_National_Museum_of_Korea_in_Seoul.jpg",
+    "theme": "indoor",
+    "openingHours": "10:00 - 18:00, 운영일 확인 필요",
+    "feeInfo": "상설전시 무료, 특별전 별도",
+    "parkingInfo": "유료 주차장 이용 가능",
+    "nearbyParkingInfo": "국립중앙박물관 주차장",
+    "region": "서울",
+    "category": "indoor",
+    "season": [],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "calm",
+      "museum"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-seoul-forest",
+    "name": "서울숲",
+    "regions": [
+      "서울",
+      "성동",
+      "성동구",
+      "성수"
+    ],
+    "address": "서울특별시 성동구 뚝섬로 273",
+    "description": "숲길, 잔디, 호수, 산책 컷을 한 번에 찍기 좋은 도심 공원",
+    "bestTime": "오전 자연광, 해질녘 역광",
+    "reason": "넓은 공원이라 인물 스냅과 산책 컷을 다양하게 찍기 좋아요",
+    "tags": [
+      "공원",
+      "스냅",
+      "성수",
+      "서울",
+      "데이지",
+      "벚꽃"
+    ],
+    "latitude": 37.54439,
+    "longitude": 127.03744,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/2/25/Seongsu_seoul_4.jpg",
+    "theme": "healing",
+    "openingHours": "상시 개방 구역 중심, 시설별 상이",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "서울숲 공영주차장",
+    "region": "서울",
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "walk",
+      "green",
+      "flower"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-seongsu-cloud-bridge",
+    "name": "성수구름다리",
+    "regions": [
+      "서울",
+      "성동",
+      "성동구",
+      "성수"
+    ],
+    "address": "서울특별시 성동구 성수동1가",
+    "description": "성수동과 서울숲을 잇는 보행 다리와 나무길, 비 온 뒤 도로 반영을 함께 담기 좋은 도시 스냅 포인트",
+    "bestTime": "비 온 뒤 저녁, 블루아워부터 야경까지",
+    "reason": "가로수와 도로 반영, 다리 선이 겹쳐 비 오는 날 서울 필름 감성 컷을 만들기 좋아요",
+    "tags": [
+      "도시",
+      "성수",
+      "야경",
+      "다리",
+      "비오는날",
+      "필름감성",
+      "반영"
+    ],
+    "latitude": 37.53782,
+    "longitude": 127.04168,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/7/79/Seoul_Forest_%EC%84%9C%EC%9A%B8%EC%88%B2.jpg",
+    "theme": "city",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 없음",
+    "nearbyParkingInfo": "서울숲 공영주차장",
+    "region": "서울",
+    "category": "walk",
+    "season": [],
+    "weather": [
+      "rain",
+      "rainy",
+      "비"
+    ],
+    "mood": [
+      "도시",
+      "산책",
+      "야경",
+      "비분위기",
+      "필름감성",
+      "반영"
+    ],
+    "crowdLevel": "low",
+    "imageName": null
+  },
+  {
+    "id": "seed-seonyudo-park",
+    "name": "선유도공원",
+    "regions": [
+      "서울",
+      "영등포",
+      "영등포구",
+      "한강"
+    ],
+    "address": "서울특별시 영등포구 선유로 343",
+    "description": "식물원 같은 산책길과 정수장 콘크리트 구조물이 어우러져 흐린 날 필름 스냅이 잘 어울리는 한강 위 공원",
+    "bestTime": "오전 자연광, 흐린 날 오후",
+    "reason": "나무 사이로 들어오는 빛과 구조물의 선이 차분해 인물 스냅과 산책 컷을 만들기 좋아요",
+    "tags": [
+      "공원",
+      "한강",
+      "노을",
+      "건축",
+      "감성산책",
+      "피크닉",
+      "한적함",
+      "식물감성",
+      "필름무드",
+      "콘크리트구조물",
+      "자연광스냅"
+    ],
+    "latitude": 37.54332,
+    "longitude": 126.90005,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/7/77/Seoul_Seonyudo_Park.jpg",
+    "theme": "water",
+    "openingHours": "상시 개방 구역 중심",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "양화한강공원 주차장",
+    "region": "서울",
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn",
+      "summer"
+    ],
+    "weather": [
+      "cloudy",
+      "clear"
+    ],
+    "mood": [
+      "walk",
+      "architecture",
+      "film",
+      "green",
+      "calm",
+      "picnic"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null,
+    "isHiddenSpot": false
+  },
+  {
+    "id": "seed-seoul-botanic-park",
+    "name": "서울식물원",
+    "regions": [
+      "서울",
+      "강서",
+      "강서구",
+      "마곡"
+    ],
+    "address": "서울특별시 강서구 마곡동로 161",
+    "description": "온실, 호수, 계절 정원을 모두 담기 좋은 강서 대표 출사지",
+    "bestTime": "오전 자연광, 흐린 날 온실",
+    "reason": "실내 온실이 있어 비 오는 날에도 촬영 동선이 안정적이에요",
+    "tags": [
+      "식물원",
+      "꽃",
+      "실내",
+      "강서"
+    ],
+    "latitude": 37.56987,
+    "longitude": 126.83535,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/6/68/Seoul_botanic_park_03.jpg",
+    "theme": "flower",
+    "openingHours": "시설별 운영시간 확인 필요",
+    "feeInfo": "온실 및 주제정원 유료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "서울식물원 주차장",
+    "region": "서울",
+    "category": "indoor",
+    "season": [
+      "spring",
+      "winter"
+    ],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "flower",
+      "green"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-gungsan-park",
+    "name": "궁산근린공원",
+    "regions": [
+      "서울",
+      "강서",
+      "강서구"
+    ],
+    "address": "서울특별시 강서구 가양동",
+    "description": "한강과 도심을 내려다보는 강서구 전망 산책 포인트",
+    "bestTime": "노을 전후",
+    "reason": "가볍게 올라가 한강 방향 노을과 도시 실루엣을 담기 좋아요",
+    "tags": [
+      "전망",
+      "노을",
+      "산책",
+      "강서"
+    ],
+    "latitude": 37.57315,
+    "longitude": 126.83972,
+    "source": "local",
+    "theme": "city",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "가양동 공영주차장 확인",
+    "region": "서울",
+    "category": "trail",
+    "season": [
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "walk",
+      "view"
+    ],
+    "crowdLevel": "low",
+    "imageName": null
+  },
+  {
+    "id": "seed-bukchon",
+    "name": "북촌한옥마을",
+    "regions": [
+      "서울",
+      "종로",
+      "종로구",
+      "북촌"
+    ],
+    "address": "서울특별시 종로구 계동길 37",
+    "description": "한옥 골목과 서울 도심 배경을 같이 담기 좋은 전통 스냅 코스",
+    "bestTime": "이른 오전, 해질녘",
+    "reason": "생활 동네라 이른 시간에 조용하고 골목 빛이 좋아요",
+    "tags": [
+      "한옥",
+      "골목",
+      "스냅",
+      "서울"
+    ],
+    "latitude": 37.5826,
+    "longitude": 126.983,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/4/41/Bukchon-ro_11-gil_street_with_hanok_houses_at_blue_hour_in_Bukchon_Hanok_Village_Seoul.jpg",
+    "theme": "city",
+    "openingHours": "생활지역 예절 시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 없음",
+    "nearbyParkingInfo": "정독도서관 공영주차장 확인",
+    "region": "서울",
+    "category": "walk",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "골목",
+      "레트로",
+      "한옥"
+    ],
+    "crowdLevel": "crowded",
+    "imageName": null
+  },
+  {
+    "id": "seed-ikseondong",
+    "name": "익선동 한옥거리",
+    "regions": [
+      "서울",
+      "종로",
+      "종로구",
+      "익선동"
+    ],
+    "address": "서울특별시 종로구 익선동",
+    "description": "한옥 골목과 작은 카페 외관을 이어 찍기 좋은 도심 스냅 코스",
+    "bestTime": "오전, 해질녘 전",
+    "reason": "좁은 골목과 한옥 카페가 이어져 감성적인 인물 스냅을 만들기 좋아요",
+    "tags": [
+      "한옥",
+      "골목",
+      "스냅",
+      "레트로"
+    ],
+    "latitude": 37.57318,
+    "longitude": 126.98994,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Ikseon-dong_%EC%9D%B5%EC%84%A0%EB%8F%99_October_1_2020_10.jpg",
+    "theme": "city",
+    "openingHours": "골목 상시 접근 가능, 매장별 상이",
+    "feeInfo": "외부 촬영 무료, 매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 없음",
+    "nearbyParkingInfo": "종로3가 인근 공영주차장 확인",
+    "region": "서울",
+    "category": "walk",
+    "season": [],
+    "weather": [],
+    "mood": [
+      "골목",
+      "빈티지",
+      "한옥"
+    ],
+    "crowdLevel": "crowded",
+    "imageName": null
+  },
+  {
+    "id": "seed-ddp",
+    "name": "동대문디자인플라자 DDP",
+    "regions": [
+      "서울",
+      "중구",
+      "동대문",
+      "동대문디자인플라자"
+    ],
+    "address": "서울특별시 중구 을지로 281",
+    "description": "곡선형 건축과 실내 전시 동선을 함께 담기 좋은 도심 건축 출사지",
+    "bestTime": "흐린 날 오후, 야간 조명",
+    "reason": "실내외 동선이 이어져 비 오는 날에도 구조적인 사진을 찍기 좋아요",
+    "tags": [
+      "서울",
+      "실내",
+      "건축",
+      "야경"
+    ],
+    "latitude": 37.56652,
+    "longitude": 127.0092,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Dongdaemun_Design_Plaza_at_night%2C_Seoul%2C_Korea.jpg",
+    "theme": "indoor",
+    "openingHours": "시설별 운영시간 확인 필요",
+    "feeInfo": "외부 공간 무료, 전시별 상이",
+    "parkingInfo": "유료 주차장 이용 가능",
+    "nearbyParkingInfo": "DDP 주차장",
+    "region": "서울",
+    "category": "indoor",
+    "season": [],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "city",
+      "architecture"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-starfield-library",
+    "name": "별마당도서관",
+    "regions": [
+      "서울",
+      "강남",
+      "강남구",
+      "코엑스",
+      "삼성"
+    ],
+    "address": "서울특별시 강남구 영동대로 513",
+    "description": "높은 책장과 실내 광장을 담는 강남 대표 실내 출사지",
+    "bestTime": "오전 또는 평일 낮",
+    "reason": "비 오는 날에도 밝은 실내 공간에서 대칭 구도와 인물 스냅을 찍기 좋아요",
+    "tags": [
+      "서울",
+      "실내",
+      "도서관",
+      "강남"
+    ],
+    "latitude": 37.51167,
+    "longitude": 127.05922,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/f/fe/Starfield_Library_COEX_20240218.jpg",
+    "theme": "indoor",
+    "openingHours": "10:30 - 22:00, 운영 변동 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "유료 주차장 이용 가능",
+    "nearbyParkingInfo": "스타필드 코엑스몰 주차장",
+    "region": "서울",
+    "category": "indoor",
+    "season": [],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "indoor",
+      "book"
+    ],
+    "crowdLevel": "crowded",
+    "imageName": null
+  },
+  {
+    "id": "seed-leeum-museum",
+    "name": "리움미술관",
+    "regions": [
+      "서울",
+      "용산",
+      "용산구",
+      "한남"
+    ],
+    "address": "서울특별시 용산구 이태원로55길 60-16",
+    "description": "현대적인 미술관 외관과 실내 전시 분위기를 담기 좋은 한남동 출사지",
+    "bestTime": "오전 예약 시간대, 흐린 날",
+    "reason": "비 오는 날에도 건축 디테일과 차분한 실내 분위기를 안정적으로 담을 수 있어요",
+    "tags": [
+      "서울",
+      "실내",
+      "미술관",
+      "건축"
+    ],
+    "latitude": 37.53847,
+    "longitude": 126.99915,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/c/c4/Leeum%2C_Samsung_Museum_of_Art.jpg",
+    "theme": "indoor",
+    "openingHours": "운영일 및 예약 시간 확인 필요",
+    "feeInfo": "전시별 상이",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "리움미술관 주차장",
+    "region": "서울",
+    "category": "indoor",
+    "season": [],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "museum",
+      "architecture"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-banpo-fountain",
+    "name": "반포대교 달빛무지개분수",
+    "regions": [
+      "서울",
+      "서초",
+      "서초구",
+      "한강",
+      "반포"
+    ],
+    "address": "서울특별시 서초구 반포동",
+    "description": "분수쇼와 한강 야경을 함께 담는 대표 야경 포인트",
+    "bestTime": "분수 운영 시간, 블루아워 이후",
+    "reason": "물줄기와 조명이 같이 움직여 야경 사진에 리듬이 생겨요",
+    "tags": [
+      "야경",
+      "한강",
+      "분수",
+      "서울"
+    ],
+    "latitude": 37.51256,
+    "longitude": 126.99602,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/b/ba/Banpo_Moonlight_Rainbow_Fountain.jpg",
+    "theme": "water",
+    "openingHours": "분수 운영시간 계절별 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "반포한강공원 주차장",
+    "region": "서울",
+    "category": "spot",
+    "season": [
+      "summer"
+    ],
+    "weather": [],
+    "mood": [
+      "night",
+      "river"
+    ],
+    "crowdLevel": "crowded",
+    "imageName": null
+  },
+  {
+    "id": "seed-nodeulseom",
+    "name": "노들섬",
+    "regions": [
+      "서울",
+      "용산",
+      "용산구",
+      "한강"
+    ],
+    "address": "서울특별시 용산구 양녕로 445",
+    "description": "한강 중앙에서 도심과 물길을 함께 담는 산책형 출사지",
+    "bestTime": "노을, 블루아워",
+    "reason": "강 위 시야가 열려 있어 노을과 도시 실루엣을 담기 좋아요",
+    "tags": [
+      "한강",
+      "노을",
+      "공연장",
+      "서울"
+    ],
+    "latitude": 37.51763,
+    "longitude": 126.9582,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/1/18/Nodeulseom_%2814005438206%29.jpg",
+    "theme": "water",
+    "openingHours": "외부 공간 상시, 시설별 상이",
+    "feeInfo": "외부 공간 무료",
+    "parkingInfo": "주차 제한",
+    "nearbyParkingInfo": "노들섬 주차 정보 확인",
+    "region": "서울",
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "walk",
+      "river"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-suwon-hwahongmun",
+    "name": "수원화성 화홍문",
+    "regions": [
+      "경기",
+      "경기도",
+      "수원",
+      "수원시"
+    ],
+    "address": "경기도 수원시 팔달구 북수동",
+    "description": "성곽과 수문, 물길을 함께 담는 수원 대표 야경 포인트",
+    "bestTime": "해질녘부터 야간 조명",
+    "reason": "성곽 조명과 물길 반영이 좋아 수원 출사 첫 코스로 좋아요",
+    "tags": [
+      "수원",
+      "성곽",
+      "야경",
+      "경기도"
+    ],
+    "latitude": 37.28746,
+    "longitude": 127.01789,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/a/aa/Hwahongmun_01.jpg",
+    "theme": "night",
+    "openingHours": "외부 상시 접근 가능",
+    "feeInfo": "외부 촬영 무료",
+    "parkingInfo": "공영주차장 이용",
+    "nearbyParkingInfo": "화홍문 공영주차장 확인",
+    "region": "경기",
+    "category": "spot",
+    "season": [
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "night",
+      "heritage"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-suwon-haenggungdong",
+    "name": "행궁동 카페거리",
+    "regions": [
+      "경기",
+      "경기도",
+      "수원",
+      "수원시"
+    ],
+    "address": "경기도 수원시 팔달구 행궁동",
+    "description": "낮은 골목, 카페 외관, 성곽 산책을 이어 찍기 좋은 스냅 코스",
+    "bestTime": "오후 늦은 빛",
+    "reason": "카페와 골목 분위기가 이어져 인물 스냅 동선이 좋아요",
+    "tags": [
+      "수원",
+      "골목",
+      "스냅",
+      "레트로"
+    ],
+    "latitude": 37.28292,
+    "longitude": 127.01382,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/7/7b/Hwaseong_Haenggung_Palace.jpg",
+    "theme": "indoor",
+    "openingHours": "매장별 상이",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "공영주차장 이용",
+    "nearbyParkingInfo": "화성행궁 공영주차장",
+    "region": "경기",
+    "category": "walk",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "골목",
+      "레트로",
+      "빈티지"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-gwanggyo-lake",
+    "name": "광교호수공원",
+    "regions": [
+      "경기",
+      "경기도",
+      "수원",
+      "수원시",
+      "광교"
+    ],
+    "address": "경기도 수원시 영통구 광교호수로 165",
+    "description": "호수 산책로와 야경 반영을 찍기 좋은 광교 대표 출사지",
+    "bestTime": "노을, 야간 조명",
+    "reason": "물 반영과 산책로 조명이 안정적으로 나와요",
+    "tags": [
+      "호수",
+      "야경",
+      "노을",
+      "수원"
+    ],
+    "latitude": 37.28362,
+    "longitude": 127.0652,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/b/b0/%EA%B4%91%EA%B5%90%ED%98%B8%EC%88%98%EA%B3%B5%EC%9B%90.jpg",
+    "theme": "water",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "광교호수공원 제1주차장",
+    "region": "경기",
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "walk",
+      "lake"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-paju-majang-bridge",
+    "name": "마장호수 출렁다리",
+    "regions": [
+      "경기",
+      "경기도",
+      "파주",
+      "파주시"
+    ],
+    "address": "경기도 파주시 광탄면 기산로 313",
+    "description": "호수 위 출렁다리와 산 능선을 함께 담는 드라이브 출사지",
+    "bestTime": "오전, 늦은 오후",
+    "reason": "물, 다리, 산 배경이 한 프레임에 들어와 여행 사진 느낌이 좋아요",
+    "tags": [
+      "파주",
+      "호수",
+      "다리",
+      "서울근교"
+    ],
+    "latitude": 37.77595,
+    "longitude": 126.93278,
+    "source": "local",
+    "theme": "water",
+    "openingHours": "운영시간 확인 필요",
+    "feeInfo": "입장료 및 주차비 확인 필요",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "마장호수 제1주차장",
+    "region": "경기",
+    "category": "trail",
+    "season": [
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "drive",
+      "lake"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-ilsan-lake-park",
+    "name": "일산호수공원",
+    "regions": [
+      "경기",
+      "경기도",
+      "고양",
+      "고양시",
+      "일산"
+    ],
+    "address": "경기도 고양시 일산동구 호수로 595",
+    "description": "넓은 호수와 산책로, 계절 꽃을 담기 좋은 공원 출사지",
+    "bestTime": "오전, 노을",
+    "reason": "평일 오전처럼 한산한 시간대에만 넓은 호수 산책 컷을 노려볼 만해요",
+    "tags": [
+      "고양",
+      "호수",
+      "꽃",
+      "공원",
+      "노을"
+    ],
+    "latitude": 37.65398,
+    "longitude": 126.76813,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/1/16/Goyang_Lake_Park.jpg",
+    "theme": "flower",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "일산호수공원 공영주차장",
+    "region": "경기",
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "walk",
+      "flower"
+    ],
+    "crowdLevel": "crowded",
+    "isHiddenSpot": false,
+    "imageName": null
+  },
+  {
+    "id": "seed-dumulmeori",
+    "name": "두물머리",
+    "regions": [
+      "경기",
+      "경기도",
+      "양평",
+      "양평군"
+    ],
+    "address": "경기도 양평군 양서면 두물머리길",
+    "description": "강물과 나무 실루엣을 담는 새벽 물안개 명소",
+    "bestTime": "새벽, 일출 직후",
+    "reason": "물안개와 나무 실루엣이 살아나 풍경 사진에 좋아요",
+    "tags": [
+      "양평",
+      "일출",
+      "물안개",
+      "서울근교"
+    ],
+    "latitude": 37.53843,
+    "longitude": 127.31134,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/5/54/Yangpyeong_Dumulmeori_2019-11-11.jpg",
+    "theme": "water",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "두물머리 공영주차장",
+    "region": "경기",
+    "category": "trail",
+    "season": [
+      "autumn",
+      "winter"
+    ],
+    "weather": [],
+    "mood": [
+      "quiet",
+      "mist"
+    ],
+    "crowdLevel": "crowded",
+    "isHiddenSpot": false,
+    "imageName": null
+  },
+  {
+    "id": "seed-gamcheon",
+    "name": "감천문화마을",
+    "regions": [
+      "부산",
+      "사하",
+      "사하구"
+    ],
+    "address": "부산광역시 사하구 감내2로 203",
+    "description": "알록달록한 집과 골목 계단을 담는 부산 대표 스냅 명소",
+    "bestTime": "오전, 오후 늦은 빛",
+    "reason": "언덕 골목과 색감 있는 벽이 많아 여행 사진 느낌이 강해요",
+    "tags": [
+      "부산",
+      "골목",
+      "색감",
+      "전망"
+    ],
+    "latitude": 35.09749,
+    "longitude": 129.01063,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/b/b8/Colorful_houses_in_Gamcheon_Culture_Village_at_sunset_in_Busan_South_Korea.jpg",
+    "theme": "city",
+    "openingHours": "생활지역 예절 시간 확인 필요",
+    "feeInfo": "외부 촬영 무료",
+    "parkingInfo": "공영주차장 이용",
+    "nearbyParkingInfo": "감천문화마을 공영주차장",
+    "region": "부산",
+    "category": "walk",
+    "season": [],
+    "weather": [],
+    "mood": [
+      "골목",
+      "색감",
+      "레트로"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-huinnyeoul",
+    "name": "흰여울문화마을",
+    "regions": [
+      "부산",
+      "영도",
+      "영도구"
+    ],
+    "address": "부산광역시 영도구 흰여울길",
+    "description": "바다 옆 골목과 카페, 해안 산책로를 함께 담는 부산 출사지",
+    "bestTime": "오전, 노을 전",
+    "reason": "흰 벽 골목과 바다 배경이 같이 잡혀 청량한 사진이 나와요",
+    "tags": [
+      "부산",
+      "바다",
+      "골목",
+      "산책"
+    ],
+    "latitude": 35.07991,
+    "longitude": 129.04461,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/e/eb/Huinnyeoul_Culture_Village.jpg",
+    "theme": "water",
+    "openingHours": "생활지역 예절 시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "주차 제한",
+    "nearbyParkingInfo": "절영해안산책로 공영주차장 확인",
+    "region": "부산",
+    "category": "walk",
+    "season": [
+      "summer"
+    ],
+    "weather": [],
+    "mood": [
+      "골목",
+      "바다"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-thebay101",
+    "name": "더베이101",
+    "regions": [
+      "부산",
+      "해운대",
+      "해운대구"
+    ],
+    "address": "부산광역시 해운대구 동백로 52",
+    "description": "마린시티 고층 빌딩 반영을 담는 부산 야경 명소",
+    "bestTime": "블루아워 이후",
+    "reason": "물 반영과 빌딩 조명이 선명해 야경 사진 완성도가 높아요",
+    "tags": [
+      "부산",
+      "해운대",
+      "야경",
+      "반영"
+    ],
+    "latitude": 35.15686,
+    "longitude": 129.15212,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/3/3e/Marine_City_Night_2022_01.jpg",
+    "theme": "night",
+    "openingHours": "시설별 상이",
+    "feeInfo": "외부 촬영 무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "더베이101 주차장",
+    "region": "부산",
+    "category": "spot",
+    "season": [],
+    "weather": [],
+    "mood": [
+      "night",
+      "city"
+    ],
+    "crowdLevel": "crowded",
+    "imageName": null
+  },
+  {
+    "id": "seed-cheongsapo",
+    "name": "청사포 다릿돌전망대",
+    "regions": [
+      "부산",
+      "해운대",
+      "해운대구",
+      "청사포"
+    ],
+    "address": "부산광역시 해운대구 청사포로",
+    "description": "바다 위 전망대와 해안선을 담는 청사포 포인트",
+    "bestTime": "오전, 해질녘",
+    "reason": "해안선과 바다색이 깨끗하게 보여 여행 컷으로 좋아요",
+    "tags": [
+      "부산",
+      "바다",
+      "전망대",
+      "청사포",
+      "노을"
+    ],
+    "latitude": 35.16053,
+    "longitude": 129.19128,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/6/68/Cheongsapo.jpg",
+    "theme": "water",
+    "openingHours": "운영시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 확인 필요",
+    "nearbyParkingInfo": "청사포 공영주차장 확인",
+    "region": "부산",
+    "category": "walk",
+    "season": [
+      "summer"
+    ],
+    "weather": [],
+    "mood": [
+      "sea",
+      "walk"
+    ],
+    "crowdLevel": "normal",
+    "imageName": null
+  },
+  {
+    "id": "seed-hakrim-dabang",
+    "name": "학림다방",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "종로",
+      "종로구",
+      "대학로"
+    ],
+    "address": "서울특별시 종로구 대학로 119",
+    "description": "오래된 다방의 목재 인테리어와 레트로 분위기를 담기 좋은 감성 카페",
+    "bestTime": "오후 느린 시간, 비 오는 날 실내",
+    "reason": "1956년 문을 연 오래된 다방 분위기가 필름 감성 스냅에 잘 어울려요",
+    "tags": [
+      "카페",
+      "레트로",
+      "실내",
+      "필름"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "필름",
+      "레트로",
+      "빈티지"
+    ],
+    "crowdLevel": "normal",
+    "latitude": 37.5818,
+    "longitude": 127.0016,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/4/46/Hakrim_Dabang_01.jpg",
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "대학로 인근 공영주차장 확인",
+    "imageCredit": "Wikimedia Commons",
+    "imageSourceURL": "https://commons.wikimedia.org/wiki/File:Hakrim%20Dabang%2001.jpg"
+  },
+  {
+    "id": "seed-seongsu-local-cafe-street",
+    "name": "성수동 로컬 카페거리",
+    "region": "성수",
+    "regions": [
+      "서울",
+      "성동",
+      "성동구",
+      "성수"
+    ],
+    "address": "서울특별시 성동구 연무장길 일대",
+    "description": "낡은 공장 외관과 로컬 카페 쇼윈도를 이어 담기 좋은 성수 감성 카페 출사지",
+    "bestTime": "오전 늦게, 오후 부드러운 빛",
+    "reason": "벽돌 건물과 작은 쇼윈도, 골목 동선이 이어져 로컬 카페 스냅을 만들기 좋아요",
+    "tags": [
+      "성수",
+      "로컬카페",
+      "감성카페",
+      "데이트",
+      "필름감성"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "로컬카페",
+      "필름감성",
+      "데이트",
+      "빈티지"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5439,
+    "longitude": 127.0561,
+    "source": "local",
+    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Cafe%20storefront%20in%20Seongsu-dong.jpg?width=960",
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "카페별 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "성수역 인근 공영주차장 확인"
+  },
+  {
+    "id": "seed-mullae-local-cafe-alley",
+    "name": "문래창작촌",
+    "region": "문래",
+    "regions": [
+      "서울",
+      "영등포",
+      "영등포구",
+      "문래"
+    ],
+    "address": "서울특별시 영등포구 도림로128가길 일대",
+    "description": "철공소 골목과 오래된 간판, 작은 로컬 공간의 질감을 담기 좋은 빈티지 출사지",
+    "bestTime": "오후 늦은 빛, 흐린 날",
+    "reason": "공업사 질감과 골목 조명이 섞여 프랜차이즈 느낌 없는 필름 감성이 좋아요",
+    "tags": [
+      "문래",
+      "로컬카페",
+      "빈티지",
+      "필름감성",
+      "골목"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "로컬카페",
+      "필름감성",
+      "빈티지",
+      "골목"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": false,
+    "latitude": 37.5143,
+    "longitude": 126.8973,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_mullae_creative_village",
+    "theme": "indoor",
+    "openingHours": "카페별 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "골목 주차 제한",
+    "nearbyParkingInfo": "문래역 인근 공영주차장 확인"
+  },
+  {
+    "id": "seed-euljiro-local-cafe-alley",
+    "name": "을지로 카페골목",
+    "region": "을지로",
+    "regions": [
+      "서울",
+      "중구",
+      "을지로",
+      "을지로3가"
+    ],
+    "address": "서울특별시 중구 을지로12길 일대",
+    "description": "인쇄소와 작은 로컬 카페가 섞인 골목 야경과 실내 스냅 출사지",
+    "bestTime": "해질녘 이후, 비 오는 날",
+    "reason": "네온과 오래된 간판, 작은 카페 조명이 겹쳐 필름 감성 야경을 찍기 좋아요",
+    "tags": [
+      "을지로",
+      "로컬카페",
+      "야경",
+      "필름감성",
+      "빈티지"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "로컬카페",
+      "필름감성",
+      "빈티지",
+      "night"
+    ],
+    "crowdLevel": "crowded",
+    "isHiddenSpot": false,
+    "latitude": 37.5664,
+    "longitude": 126.9916,
+    "source": "local",
+    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/LED%20shop%20in%20Euljiro%20Seoul.jpg?width=960",
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "카페별 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "을지로3가역 인근 공영주차장 확인"
+  },
+  {
+    "id": "seed-yeonnam-local-cafe-street",
+    "name": "연남동 경의선 숲길",
+    "region": "연남",
+    "regions": [
+      "서울",
+      "마포",
+      "마포구",
+      "연남"
+    ],
+    "address": "서울특별시 마포구 연남동 경의선숲길 일대",
+    "description": "나무길과 산책 동선, 계절감을 자연스럽게 담기 좋은 연남 출사지",
+    "bestTime": "오전 산책빛, 해질녘",
+    "reason": "길게 이어지는 산책로와 나무 프레임이 좋아 인물 스냅과 필름 감성 컷에 잘 맞아요",
+    "tags": [
+      "연남",
+      "경의선숲길",
+      "데이트",
+      "산책",
+      "필름감성"
+    ],
+    "category": "walk",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "경의선숲길",
+      "데이트",
+      "산책",
+      "필름감성"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5629,
+    "longitude": 126.9236,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_yeonnam_gyeongui_forest",
+    "theme": "healing",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "연남동 공영주차장 또는 홍대입구역 인근 주차장 확인"
+  },
+  {
+    "id": "seed-haebangchon-sinheung-market",
+    "name": "해방촌 신흥시장",
+    "region": "해방촌",
+    "regions": [
+      "서울",
+      "용산",
+      "용산구",
+      "해방촌"
+    ],
+    "address": "서울특별시 용산구 신흥로 일대",
+    "description": "오래된 시장 골목과 작은 로컬 카페, 남산 방향 골목 분위기를 담기 좋은 출사지",
+    "bestTime": "오후 늦은 빛, 야경 직전",
+    "reason": "높낮이 있는 골목과 작은 가게 조명이 섞여 한적한 도심 스냅에 좋아요",
+    "tags": [
+      "해방촌",
+      "로컬카페",
+      "골목",
+      "야경",
+      "한적함"
+    ],
+    "category": "walk",
+    "season": [],
+    "weather": [],
+    "mood": [
+      "골목",
+      "로컬카페",
+      "필름감성",
+      "한적함"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5439,
+    "longitude": 126.9875,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/7/78/Seoul_Yongsan_Haebangchon_20250206.jpg",
+    "imageName": null,
+    "theme": "city",
+    "openingHours": "상점별 운영시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "골목 주차 제한",
+    "nearbyParkingInfo": "용산구 공영주차장 확인"
+  },
+  {
+    "id": "seed-starbucks-gyeongju-daereungwon",
+    "name": "스타벅스 경주대릉원점",
+    "region": "경북",
+    "regions": [
+      "경북",
+      "경상북도",
+      "경주",
+      "경주시"
+    ],
+    "address": "경상북도 경주시 첨성로 125",
+    "description": "한옥형 외관과 경주 여행 동선을 함께 담기 좋은 카페 출사지",
+    "bestTime": "오전, 오후 늦은 빛",
+    "reason": "대릉원 주변 한옥형 카페 외관이 경주 여행 사진의 분위기를 살려줘요",
+    "tags": [
+      "카페",
+      "한옥",
+      "경주",
+      "여행"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "한옥",
+      "여행"
+    ],
+    "crowdLevel": "crowded",
+    "latitude": 35.8379,
+    "longitude": 129.2116,
+    "source": "local",
+    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Starbucks_Gyeongju_Daereungwon_branch.jpg?width=960",
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "주변 공영주차장 이용",
+    "nearbyParkingInfo": "대릉원 인근 공영주차장 확인"
+  },
+  {
+    "id": "seed-london-bagel-jamsil",
+    "name": "런던베이글뮤지엄 잠실점",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "송파",
+      "송파구",
+      "잠실"
+    ],
+    "address": "서울특별시 송파구 올림픽로 300",
+    "description": "베이커리 진열과 실내 소품을 담기 좋은 밝은 카페 스팟",
+    "bestTime": "오전 오픈 직후",
+    "reason": "사람이 몰리기 전 테이블과 베이커리 디테일을 깔끔하게 담기 좋아요",
+    "tags": [
+      "카페",
+      "베이커리",
+      "실내",
+      "잠실"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "cafe",
+      "bright"
+    ],
+    "crowdLevel": "crowded",
+    "latitude": 37.5137,
+    "longitude": 127.1044,
+    "source": "local",
+    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/%EB%9F%B0%EB%8D%98%EB%B2%A0%EC%9D%B4%EA%B8%80%EB%AE%A4%EC%A7%80%EC%97%84_%EC%9E%A0%EC%8B%A4%EC%A0%90_%EA%B0%88%EB%A6%AD_%EB%B2%A0%EC%9D%B4%EA%B8%80.jpg?width=960",
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "몰 주차장 이용",
+    "nearbyParkingInfo": "롯데월드몰 주차장 확인"
+  },
+  {
+    "id": "seed-guro-hangdong-railroad",
+    "name": "항동철길",
+    "region": "구로",
+    "regions": [
+      "서울",
+      "구로",
+      "구로구",
+      "항동"
+    ],
+    "address": "서울특별시 구로구 항동 일대",
+    "description": "낡은 철길과 숲길이 이어져 필름 감성 산책 컷을 담기 좋은 출사지",
+    "bestTime": "오후 늦은 빛, 해질녘",
+    "reason": "철길 선과 나무 그림자가 살아 있어 인물 스냅과 감성 컷에 잘 맞아요",
+    "tags": [
+      "구로구",
+      "항동",
+      "철길",
+      "필름감성",
+      "산책"
+    ],
+    "category": "walk",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "필름감성",
+      "산책",
+      "한적함"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.4858,
+    "longitude": 126.8226,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/7/79/%ED%95%AD%EB%8F%99_%EC%B2%A0%EA%B8%B8_%EC%82%AC%EC%A7%84.png",
+    "imageName": null,
+    "theme": "city",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "푸른수목원 주차장 또는 항동 인근 공영주차장 확인",
+    "imageCredit": "Wikimedia Commons",
+    "imageSourceURL": "https://commons.wikimedia.org/wiki/File:%ED%95%AD%EB%8F%99%20%EC%B2%A0%EA%B8%B8%20%EC%82%AC%EC%A7%84.png"
+  },
+  {
+    "id": "seed-guro-pureun-arboretum",
+    "name": "푸른수목원",
+    "region": "구로",
+    "regions": [
+      "서울",
+      "구로",
+      "구로구",
+      "항동"
+    ],
+    "address": "서울특별시 구로구 연동로 240",
+    "description": "오색정원과 철길, 저수지까지 한 동선에서 담기 좋은 구로구 수목원 출사지",
+    "bestTime": "오전 자연광, 봄꽃과 가을 단풍철",
+    "reason": "호수와 계절 꽃길, 철길이 가까이 이어져 산책하면서 서로 다른 분위기의 사진을 만들기 좋아요",
+    "tags": [
+      "구로구",
+      "푸른수목원",
+      "꽃",
+      "산책",
+      "계절"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "green",
+      "flower",
+      "walk"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.4835,
+    "longitude": 126.8249,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "시설별 운영시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "주차 가능",
+    "nearbyParkingInfo": "푸른수목원 주차장"
+  },
+  {
+    "id": "seed-guro-oryudong-alley",
+    "name": "오류동역 주변 골목",
+    "region": "구로",
+    "regions": [
+      "서울",
+      "구로",
+      "구로구",
+      "오류동"
+    ],
+    "address": "서울특별시 구로구 오류동역 일대",
+    "description": "생활감 있는 간판과 낮은 골목이 남아 있는 필름 감성 동네 스냅 포인트",
+    "bestTime": "오후 늦은 빛, 비 온 뒤",
+    "reason": "오래된 골목 질감과 역 주변 일상 분위기가 자연스러운 사진을 만들어줘요",
+    "tags": [
+      "구로구",
+      "오류동",
+      "골목",
+      "필름감성",
+      "빈티지"
+    ],
+    "category": "walk",
+    "season": [],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "골목",
+      "필름감성",
+      "빈티지"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.4945,
+    "longitude": 126.8448,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/d/db/%EC%98%A4%EB%A5%98%EB%8F%99%EC%97%AD_%EC%97%AD%EC%82%AC.JPG",
+    "imageName": null,
+    "theme": "city",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "골목 주차 제한",
+    "nearbyParkingInfo": "오류동역 인근 공영주차장 확인",
+    "imageCredit": "Wikimedia Commons",
+    "imageSourceURL": "https://commons.wikimedia.org/wiki/File:%EC%98%A4%EB%A5%98%EB%8F%99%EC%97%AD%20%EC%97%AD%EC%82%AC.JPG"
+  },
+  {
+    "id": "seed-guro-gocheok-sky-dome",
+    "name": "고척스카이돔 외부",
+    "region": "구로",
+    "regions": [
+      "서울",
+      "구로",
+      "구로구",
+      "고척"
+    ],
+    "address": "서울특별시 구로구 경인로 430",
+    "description": "곡선형 대형 건축 외관과 광장 동선을 담기 좋은 도시 건축 출사지",
+    "bestTime": "해질녘, 야간 조명 시간",
+    "reason": "돔 외관의 반복되는 선과 야간 조명이 도시적인 컷을 만들기 좋아요",
+    "tags": [
+      "구로구",
+      "고척",
+      "건축",
+      "야경",
+      "도시"
+    ],
+    "category": "spot",
+    "season": [],
+    "weather": [],
+    "mood": [
+      "city",
+      "architecture",
+      "night"
+    ],
+    "crowdLevel": "crowded",
+    "isHiddenSpot": false,
+    "latitude": 37.4982,
+    "longitude": 126.8671,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/d/d2/Gocheok_Sky_Dome_%2836530170325%29.jpg",
+    "imageName": null,
+    "theme": "night",
+    "openingHours": "외부 광장 상시 접근 가능, 행사일 혼잡",
+    "feeInfo": "외부 촬영 무료",
+    "parkingInfo": "행사일 주차 혼잡",
+    "nearbyParkingInfo": "고척스카이돔 주차장 또는 구일역 인근 주차장 확인",
+    "imageCredit": "Wikimedia Commons",
+    "imageSourceURL": "https://commons.wikimedia.org/wiki/File:Gocheok%20Sky%20Dome%20(36530170325).jpg"
+  },
+  {
+    "id": "seed-guro-anyangcheon",
+    "name": "안양천 구로 구간",
+    "region": "구로",
+    "regions": [
+      "서울",
+      "구로",
+      "구로구",
+      "안양천"
+    ],
+    "address": "서울특별시 구로구 신도림동 안양천 일대",
+    "description": "하천 산책로와 다리, 자전거길이 이어지는 노을 산책 출사지",
+    "bestTime": "노을 직전, 맑은 날 오후",
+    "reason": "하천 라인과 서쪽 하늘이 열려 있어 노을 실루엣과 산책 컷에 좋아요",
+    "tags": [
+      "구로구",
+      "안양천",
+      "노을",
+      "산책",
+      "한강"
+    ],
+    "category": "walk",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "walk",
+      "sunset",
+      "calm"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": false,
+    "latitude": 37.5051,
+    "longitude": 126.8794,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/b/b7/Anyangcheon%2C_Seoul.jpg",
+    "imageName": null,
+    "theme": "sunset",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "신도림역 또는 구일역 인근 공영주차장 확인",
+    "imageCredit": "Wikimedia Commons",
+    "imageSourceURL": "https://commons.wikimedia.org/wiki/File:Anyangcheon%2C%20Seoul.jpg"
+  },
+  {
+    "id": "seed-incheon-bupyeong-camp-market",
+    "name": "부평 캠프마켓",
+    "region": "부평",
+    "regions": [
+      "인천",
+      "부평",
+      "부평구"
+    ],
+    "address": "인천광역시 부평구 산곡동 캠프마켓 일대",
+    "description": "넓은 잔디와 오래된 기지 건물 질감이 남아 있어 차분한 필름 감성 컷을 담기 좋은 출사지",
+    "bestTime": "오후 늦은 빛, 해질녘",
+    "reason": "낮은 건물과 열린 잔디가 배경을 단순하게 만들어 인물 스냅 구도가 좋아요",
+    "tags": [
+      "인천",
+      "부평",
+      "필름감성",
+      "산책",
+      "오래된거리"
+    ],
+    "category": "walk",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "필름감성",
+      "로컬감성",
+      "산책",
+      "조용함"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5082,
+    "longitude": 126.7057,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "city",
+    "openingHours": "공원 개방 시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "주변 공영주차장 확인",
+    "nearbyParkingInfo": "캠프마켓 인근 공영주차장 또는 부평구청역 주변 주차장 확인"
+  },
+  {
+    "id": "seed-incheon-bupyeong-culture-street",
+    "name": "부평 문화의거리",
+    "region": "부평",
+    "regions": [
+      "인천",
+      "부평",
+      "부평구"
+    ],
+    "address": "인천광역시 부평구 부평문화로 일대",
+    "description": "로컬 상점 간판과 좁은 거리의 생활감이 남아 있어 가벼운 스냅과 야간 거리 컷에 좋은 곳",
+    "bestTime": "해질녘부터 저녁 조명 시간",
+    "reason": "상점 조명과 골목 깊이가 살아 있어 필름 느낌의 거리 사진을 만들기 좋아요",
+    "tags": [
+      "인천",
+      "부평",
+      "골목감성",
+      "야경",
+      "로컬"
+    ],
+    "category": "walk",
+    "season": [],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "골목감성",
+      "로컬감성",
+      "야경",
+      "필름감성"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.4939,
+    "longitude": 126.7229,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/9/9e/%EC%9D%B8%EC%B2%9C%EA%B4%91%EC%97%AD%EC%8B%9C_%EB%B6%80%ED%8F%89%EA%B5%AC_%EB%B6%80%ED%8F%89%EB%AC%B8%ED%99%94%EB%A1%9C_%EB%AC%B8%ED%99%94%EC%9D%98%EA%B1%B0%EB%A6%AC.jpg",
+    "imageName": null,
+    "theme": "night",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "부평역 공영주차장 또는 부평 문화의거리 주변 주차장 확인",
+    "imageCredit": "Wikimedia Commons",
+    "imageSourceURL": "https://commons.wikimedia.org/wiki/File:%EC%9D%B8%EC%B2%9C%EA%B4%91%EC%97%AD%EC%8B%9C%20%EB%B6%80%ED%8F%89%EA%B5%AC%20%EB%B6%80%ED%8F%89%EB%AC%B8%ED%99%94%EB%A1%9C%20%EB%AC%B8%ED%99%94%EC%9D%98%EA%B1%B0%EB%A6%AC.jpg"
+  },
+  {
+    "id": "seed-incheon-gulpocheon-walk",
+    "name": "굴포천 산책로",
+    "region": "부평",
+    "regions": [
+      "인천",
+      "부평",
+      "부평구",
+      "굴포천"
+    ],
+    "address": "인천광역시 부평구 굴포천 일대",
+    "description": "물길과 낮은 산책로가 이어져 산책하면서 자연스러운 커플 스냅을 찍기 좋은 근거리 출사지",
+    "bestTime": "오전 산책 시간, 노을 전",
+    "reason": "수변 라인과 다리, 나무 그림자가 반복되어 편안한 산책 컷 구도가 나와요",
+    "tags": [
+      "인천",
+      "부평",
+      "산책",
+      "수변",
+      "노을"
+    ],
+    "category": "walk",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "산책",
+      "수변",
+      "조용함",
+      "노을"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5165,
+    "longitude": 126.7375,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "굴포천역 또는 부평구청역 주변 공영주차장 확인"
+  },
+  {
+    "id": "seed-bucheon-sangdong-lake-park",
+    "name": "상동호수공원",
+    "region": "부천",
+    "regions": [
+      "경기",
+      "부천",
+      "상동",
+      "부평권"
+    ],
+    "address": "경기도 부천시 원미구 조마루로 15",
+    "description": "호수 산책길과 넓은 하늘이 열려 있어 부평 근처에서 노을과 산책 컷을 담기 좋은 공원",
+    "bestTime": "오후 늦은 빛, 노을",
+    "reason": "수면과 산책로가 함께 보여 인물과 풍경을 한 프레임에 담기 좋아요",
+    "tags": [
+      "부천",
+      "상동",
+      "호수",
+      "산책",
+      "노을"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "산책",
+      "노을",
+      "수변",
+      "초록"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5053,
+    "longitude": 126.7537,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "공원 주차장 확인",
+    "nearbyParkingInfo": "상동호수공원 주차장 또는 상동역 주변 주차장 확인"
+  },
+  {
+    "id": "seed-incheon-gyeyang-ara-waterway",
+    "name": "아라뱃길 계양대교",
+    "region": "계양",
+    "regions": [
+      "인천",
+      "계양",
+      "계양구",
+      "아라뱃길"
+    ],
+    "address": "인천광역시 계양구 아라뱃길 계양대교 일대",
+    "description": "긴 수로와 다리 선이 열려 있어 노을 실루엣과 자전거길 스냅을 담기 좋은 서쪽 출사지",
+    "bestTime": "노을 직전, 블루아워",
+    "reason": "수로의 직선과 다리 구조가 사진 구도를 잡기 쉬워 노을 컷이 안정적으로 나와요",
+    "tags": [
+      "인천",
+      "계양",
+      "아라뱃길",
+      "노을",
+      "산책"
+    ],
+    "category": "walk",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "노을",
+      "수변",
+      "산책",
+      "강변"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5713,
+    "longitude": 126.7377,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/c/ce/Ara_waterway-Gyeyang_Bridge.jpg",
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "주변 주차장 확인",
+    "nearbyParkingInfo": "계양대교 인근 아라뱃길 주차장 확인",
+    "imageCredit": "Wikimedia Commons",
+    "imageSourceURL": "https://commons.wikimedia.org/wiki/File:Ara%20waterway-Gyeyang%20Bridge.jpg"
+  },
+  {
+    "id": "seed-gimpo-laveniche",
+    "name": "김포 라베니체",
+    "region": "김포",
+    "regions": [
+      "경기",
+      "김포",
+      "장기동",
+      "인천서부권"
+    ],
+    "address": "경기도 김포시 장기동 라베니체 수변상가 일대",
+    "description": "수변 상가 조명과 반영이 살아 있어 저녁 산책 스냅과 야경 컷을 찍기 좋은 곳",
+    "bestTime": "해질녘부터 야간 조명 시간",
+    "reason": "물가 반영과 따뜻한 상가 조명이 있어 여행지 느낌보다 감성 산책 사진에 잘 맞아요",
+    "tags": [
+      "김포",
+      "수변",
+      "야경",
+      "노을",
+      "산책"
+    ],
+    "category": "walk",
+    "season": [],
+    "weather": [
+      "rain"
+    ],
+    "mood": [
+      "야경",
+      "수변",
+      "산책",
+      "조명"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.644,
+    "longitude": 126.696,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "night",
+    "openingHours": "상시 접근 가능, 상가별 운영시간 상이",
+    "feeInfo": "무료",
+    "parkingInfo": "상가 주차장 확인",
+    "nearbyParkingInfo": "라베니체 공영주차장 또는 장기동 주변 주차장 확인"
+  },
+  {
+    "id": "seed-incheon-grand-park",
+    "name": "인천대공원",
+    "region": "인천",
+    "regions": [
+      "인천",
+      "남동구",
+      "부평권",
+      "장수동"
+    ],
+    "address": "인천광역시 남동구 장수동 인천대공원 일대",
+    "description": "넓은 산책로와 호수, 계절 나무가 이어져 부평 근처에서 자연광 스냅을 찍기 좋은 공원",
+    "bestTime": "오전 자연광, 오후 늦은 빛",
+    "reason": "길게 이어지는 나무길과 호수 배경이 안정적이라 계절감 있는 인물 사진에 좋아요",
+    "tags": [
+      "인천",
+      "공원",
+      "산책",
+      "계절",
+      "초록"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "산책",
+      "초록",
+      "계절",
+      "조용함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.4563,
+    "longitude": 126.7523,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/7/76/%EC%9D%B8%EC%B2%9C%EB%8C%80%EA%B3%B5%EC%9B%90.JPG",
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "공원 운영시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "공원 주차장 있음",
+    "nearbyParkingInfo": "인천대공원 주차장 확인",
+    "imageCredit": "Wikimedia Commons",
+    "imageSourceURL": "https://commons.wikimedia.org/wiki/File:%EC%9D%B8%EC%B2%9C%EB%8C%80%EA%B3%B5%EC%9B%90.JPG"
+  },
+  {
+    "id": "seed-banpo-hangang-park",
+    "name": "반포한강공원",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "서초",
+      "서초구",
+      "한강",
+      "반포"
+    ],
+    "address": "서울특별시 서초구 신반포로11길 40",
+    "description": "봄철 서래섬 꽃 동선과 반포대교 야경을 함께 묶기 좋은 한강 출사지로, 노을 실루엣과 무지개분수 컷이 강한 장소",
+    "bestTime": "해질녘, 블루아워, 무지개분수 야경",
+    "reason": "노을 시간 인물 실루엣을 찍고 블루아워 이후 반포대교 조명과 분수 야경까지 이어가기 좋아요",
+    "tags": [
+      "한강",
+      "노을",
+      "산책",
+      "야경",
+      "피크닉",
+      "남산타워뷰",
+      "커플스냅",
+      "봄꽃",
+      "한강야경",
+      "무지개분수",
+      "인물사진",
+      "촬영후기"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear"
+    ],
+    "mood": [
+      "산책",
+      "노을",
+      "여유",
+      "도시",
+      "야경",
+      "sunset",
+      "blueHour",
+      "night",
+      "river",
+      "city",
+      "picnic",
+      "coupleSnap"
+    ],
+    "crowdLevel": "crowded",
+    "isHiddenSpot": false,
+    "latitude": 37.5126,
+    "longitude": 126.9958,
+    "source": "local",
+    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/b/ba/Banpo_Moonlight_Rainbow_Fountain.jpg",
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "상시 접근 가능, 시설별 상이",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "반포한강공원 주차장"
+  },
+  {
+    "id": "seed-yeouido-hangang-park",
+    "name": "여의도한강공원",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "영등포",
+      "영등포구",
+      "한강",
+      "여의도"
+    ],
+    "address": "서울특별시 영등포구 여의동로 330",
+    "description": "잔디, 강변 스카이라인, 넓은 하늘을 같이 담기 좋은 서울 대표 한강 산책 출사지",
+    "bestTime": "오후 피크닉, 노을부터 야경까지",
+    "reason": "하늘이 크게 열려 있어 인물 스냅과 도시 실루엣을 같이 잡기 좋아요",
+    "tags": [
+      "한강",
+      "노을",
+      "산책",
+      "야경",
+      "피크닉"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "산책",
+      "노을",
+      "여유",
+      "도시",
+      "피크닉"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5285,
+    "longitude": 126.9342,
+    "source": "local",
+    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Yeouido_Hangang_Park_from_Mapo_Bridge_1.jpg?width=960",
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "여의도한강공원 주차장"
+  },
+  {
+    "id": "seed-mangwon-hangang-park",
+    "name": "망원한강공원",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "마포",
+      "마포구",
+      "한강",
+      "망원"
+    ],
+    "address": "서울특별시 마포구 마포나루길 467",
+    "description": "성산대교와 낮은 강변 산책로가 어우러져 노을빛 로컬 스냅을 담기 좋은 감성 한강 출사지",
+    "bestTime": "해질녘 노을, 블루아워 전",
+    "reason": "성산대교 라인과 강변 생활감이 자연스러워 필름 톤의 산책 사진과 인물 컷에 좋아요",
+    "tags": [
+      "한강",
+      "노을",
+      "산책",
+      "야경",
+      "피크닉",
+      "성산대교",
+      "한강감성",
+      "필름감성",
+      "인물사진",
+      "커플스냅",
+      "노을산책"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn",
+      "summer"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "산책",
+      "노을",
+      "여유",
+      "로컬감성",
+      "강변",
+      "sunset",
+      "walk",
+      "river",
+      "film",
+      "local",
+      "calm"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5559,
+    "longitude": 126.8996,
+    "source": "local",
+    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Mangwon_Hangang_Park.png?width=960",
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "망원한강공원 주차장"
+  },
+  {
+    "id": "seed-nanji-hangang-park",
+    "name": "난지한강공원",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "마포",
+      "마포구",
+      "한강",
+      "난지"
+    ],
+    "address": "서울특별시 마포구 한강난지로 162",
+    "description": "넓은 초지와 강변 산책길이 이어져 여유 있는 피크닉 스냅을 담기 좋은 한강공원",
+    "bestTime": "오후 피크닉, 해질녘 노을",
+    "reason": "공간이 넓어 배경을 단순하게 잡기 좋고 늦은 오후 빛이 부드러워요",
+    "tags": [
+      "한강",
+      "노을",
+      "산책",
+      "피크닉",
+      "초록"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "산책",
+      "노을",
+      "여유",
+      "초록",
+      "피크닉"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5668,
+    "longitude": 126.8754,
+    "source": "local",
+    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Hangang_Park_Overview_201604.jpg?width=960",
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "난지한강공원 주차장"
+  },
+  {
+    "id": "seed-jamwon-hangang-park",
+    "name": "잠원한강공원",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "서초",
+      "서초구",
+      "한강",
+      "잠원"
+    ],
+    "address": "서울특별시 서초구 잠원로 221-124",
+    "description": "반포보다 비교적 여유로운 강변 산책로와 피크닉 분위기를 담기 좋은 한강 출사지",
+    "bestTime": "오후 피크닉, 해질녘 노을",
+    "reason": "길게 이어진 강변 라인 덕분에 걷는 컷과 돗자리 스냅을 차분하게 찍기 좋아요",
+    "tags": [
+      "한강",
+      "노을",
+      "산책",
+      "야경",
+      "피크닉",
+      "조용함",
+      "커플스냅",
+      "감성산책",
+      "노을산책",
+      "한강감성"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn",
+      "summer"
+    ],
+    "weather": [
+      "clear"
+    ],
+    "mood": [
+      "산책",
+      "노을",
+      "여유",
+      "도시",
+      "강변",
+      "calm",
+      "walk",
+      "picnic",
+      "river",
+      "sunset"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5204,
+    "longitude": 127.0126,
+    "source": "local",
+    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/%EC%9E%A0%EC%9B%90%ED%95%9C%EA%B0%95%EA%B3%B5%EC%9B%90_02.jpg?width=960",
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "잠원한강공원 주차장"
+  },
+  {
+    "id": "seed-ttukseom-hangang-park",
+    "name": "뚝섬한강공원",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "광진",
+      "광진구",
+      "한강",
+      "뚝섬"
+    ],
+    "address": "서울특별시 광진구 강변북로 139",
+    "description": "노을과 서울 스카이라인, 남산타워 실루엣을 함께 담기 좋고 봄 장미 시즌에는 인물 촬영 수요가 높은 한강 출사지",
+    "bestTime": "해질녘 노을, 야경, 장미 시즌 오전",
+    "reason": "강변에서 남산타워 실루엣을 잡기 좋고 장미정원 동선까지 있어 계절 인물샷을 함께 찍기 좋아요",
+    "tags": [
+      "한강",
+      "노을",
+      "산책",
+      "야경",
+      "피크닉",
+      "남산타워",
+      "남산타워뷰",
+      "장미정원",
+      "한강스냅",
+      "인물사진",
+      "서울스카이라인",
+      "촬영후기"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear"
+    ],
+    "mood": [
+      "산책",
+      "노을",
+      "야경",
+      "도시",
+      "강변",
+      "sunset",
+      "night",
+      "city",
+      "river",
+      "flower",
+      "coupleSnap"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5294,
+    "longitude": 127.0695,
+    "source": "local",
+    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Korea_Ttukseom_Island_Park_01_(14472520147).jpg?width=960",
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "뚝섬한강공원 주차장"
+  },
+  {
+    "id": "seed-ichon-hangang-park",
+    "name": "이촌한강공원",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "용산",
+      "용산구",
+      "한강",
+      "이촌"
+    ],
+    "address": "서울특별시 용산구 이촌로72길 62",
+    "description": "63빌딩과 한강철교, 강변 산책로를 한 프레임에 정리하기 좋은 차분한 노을 산책 출사지",
+    "bestTime": "오후 늦은 빛, 해질녘 노을",
+    "reason": "강 건너 스카이라인과 철교 라인이 깔끔해 피크닉 스냅과 노을 인물 컷에 좋아요",
+    "tags": [
+      "한강",
+      "노을",
+      "산책",
+      "야경",
+      "피크닉",
+      "63빌딩뷰",
+      "한강철교",
+      "인물사진",
+      "감성산책",
+      "노을산책"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn",
+      "summer"
+    ],
+    "weather": [
+      "clear"
+    ],
+    "mood": [
+      "산책",
+      "노을",
+      "여유",
+      "도시",
+      "강변",
+      "walk",
+      "sunset",
+      "calm",
+      "river",
+      "picnic",
+      "city"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5172,
+    "longitude": 126.9707,
+    "source": "local",
+    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Korea_Ichon_Hangang_Park_20140912_03_(15213656755).jpg?width=960",
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "이촌한강공원 주차장"
+  },
+  {
+    "id": "seed-gwangnaru-hangang-park",
+    "name": "광나루한강공원",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "강동",
+      "강동구",
+      "한강",
+      "광나루"
+    ],
+    "address": "서울특별시 강동구 선사로 83-106",
+    "description": "상대적으로 차분한 강변 길과 자전거길, 넓은 하늘이 살아 있는 동쪽 한강 출사지",
+    "bestTime": "오후 산책, 해질녘부터 야경까지",
+    "reason": "도심 밀도가 낮아 여유로운 강변 스냅과 노을 실루엣을 담기 좋아요",
+    "tags": [
+      "한강",
+      "노을",
+      "산책",
+      "야경",
+      "피크닉"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [],
+    "mood": [
+      "산책",
+      "노을",
+      "여유",
+      "강변",
+      "조용함"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5504,
+    "longitude": 127.1219,
+    "source": "local",
+    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Hangang_Park_Overview_201604.jpg?width=960",
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "광나루한강공원 주차장"
+  },
+  {
+    "id": "seed-seoraeseom",
+    "name": "서래섬",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "서초",
+      "서초구",
+      "반포",
+      "한강",
+      "서래섬"
+    ],
+    "address": "서울특별시 서초구 반포동 1333-1 일대",
+    "description": "봄철 유채꽃과 한강, 남산타워 구도를 함께 담을 수 있는 대표 한강 꽃 출사지",
+    "bestTime": "해질녘 노을, 블루아워 전, 봄꽃 시즌 오전",
+    "reason": "유채꽃 너머 남산타워를 걸고 찍는 구도와 노을 시간 인물 실루엣이 특히 좋아요",
+    "tags": [
+      "한강",
+      "유채꽃",
+      "남산타워뷰",
+      "노을",
+      "피크닉",
+      "커플스냅",
+      "봄꽃",
+      "봄출사",
+      "인물사진",
+      "촬영후기"
+    ],
+    "category": "park",
+    "season": [
+      "spring"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "flower",
+      "sunset",
+      "walk",
+      "film",
+      "picnic",
+      "coupleSnap"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5101,
+    "longitude": 126.9942,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "상시 접근 가능, 계절 꽃밭 상태 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "반포한강공원 주차장 이용",
+    "nearbyParkingInfo": "반포한강공원 주차장"
+  },
+  {
+    "id": "seed-yanghwa-hangang-park",
+    "name": "양화한강공원",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "영등포",
+      "영등포구",
+      "한강",
+      "양화",
+      "선유도"
+    ],
+    "address": "서울특별시 영등포구 노들로 113 일대",
+    "description": "넓은 잔디와 산책길, 국회의사당 뷰가 어우러져 자연스러운 피크닉 스냅을 찍기 좋은 한강공원",
+    "bestTime": "오후 피크닉, 해질녘 노을",
+    "reason": "언덕 산책로와 강변 잔디가 넓어 유럽 공원 같은 여유로운 인물 사진을 만들기 좋아요",
+    "tags": [
+      "한강",
+      "피크닉",
+      "산책",
+      "유럽감성",
+      "국회의사당뷰",
+      "한강감성",
+      "인물사진",
+      "감성산책"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "walk",
+      "picnic",
+      "calm",
+      "river",
+      "city",
+      "sunset"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5438,
+    "longitude": 126.8956,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_yanghwa_hangang_park",
+    "theme": "water",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "양화한강공원 주차장"
+  },
+  {
+    "id": "seed-donong-sports-park",
+    "name": "도농체육공원",
+    "region": "경기",
+    "regions": [
+      "경기",
+      "경기도",
+      "남양주",
+      "구리",
+      "도농",
+      "다산"
+    ],
+    "address": "경기도 남양주시 다산동 4316-1",
+    "description": "샤스타데이지 꽃밭과 지나가는 기차, 해질녘 하늘을 한 프레임에 담기 좋은 봄 꽃밭 출사지",
+    "bestTime": "5월 데이지 시즌, 해질녘부터 블루아워까지",
+    "reason": "낮은 데이지 꽃밭 뒤로 철도와 노을빛이 겹쳐 필름 느낌의 봄 스냅을 만들기 좋아요",
+    "tags": [
+      "샤스타데이지",
+      "꽃밭",
+      "한적한출사",
+      "감성꽃밭",
+      "인물사진",
+      "꽃시즌",
+      "촬영후기",
+      "데이지",
+      "노을",
+      "기차",
+      "구리"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "flower",
+      "calm",
+      "portrait",
+      "goldenHour",
+      "sunset",
+      "train",
+      "railway"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.6089,
+    "longitude": 127.1573,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "공원 주차장 확인 필요",
+    "nearbyParkingInfo": "도농체육공원 또는 구리역 환승 주차장 확인"
+  },
+  {
+    "id": "seed-haneul-park-metasequoia-road",
+    "name": "하늘공원 메타세콰이어길",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "마포",
+      "마포구",
+      "상암",
+      "하늘공원",
+      "월드컵공원"
+    ],
+    "address": "서울특별시 마포구 하늘공원로 108-2 일대",
+    "description": "메타세콰이어 숲길의 원근감과 계절 꽃이 어우러져 인물 스냅 구도가 잘 살아나는 숲길 출사지",
+    "bestTime": "오전 산책, 해질녘 전",
+    "reason": "나무가 만드는 세로선과 꽃무릇의 붉은 색감이 대비되어 가을 필름 무드에 좋아요",
+    "tags": [
+      "꽃무릇",
+      "숲길",
+      "메타세콰이어",
+      "가을감성",
+      "붉은꽃",
+      "인물사진",
+      "필름감성",
+      "촬영후기"
+    ],
+    "category": "walk",
+    "season": [
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "forest",
+      "walk",
+      "film",
+      "flower",
+      "autumn",
+      "calm"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5686,
+    "longitude": 126.8841,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "공원 운영시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "월드컵공원 주차장 이용",
+    "nearbyParkingInfo": "난지천공원 유아숲체험원 방면 주차장"
+  },
+  {
+    "id": "seed-baekbin-railroad-crossing",
+    "name": "백빈건널목",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "용산",
+      "용산구",
+      "철도",
+      "백빈"
+    ],
+    "address": "서울특별시 용산구 한강대로23길 일대",
+    "description": "오래된 철도 건널목과 지나는 열차, 주변 도시 배경을 함께 담는 레트로 철도 출사 포인트",
+    "bestTime": "오후 빛, 해질녘 전",
+    "reason": "건널목 신호와 열차가 지나가는 순간을 잡으면 도시와 철도의 필름감성이 선명하게 살아나요",
+    "tags": [
+      "철도출사",
+      "레트로",
+      "건널목",
+      "필름감성",
+      "서울철도",
+      "인물사진",
+      "도시출사",
+      "촬영후기"
+    ],
+    "category": "spot",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "railroad",
+      "retro",
+      "film",
+      "city",
+      "street"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": true,
+    "latitude": 37.5309,
+    "longitude": 126.9637,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "city",
+    "openingHours": "상시 접근 가능, 열차와 도로 안전 유의",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 없음",
+    "nearbyParkingInfo": "용산역 또는 주변 공영주차장 확인"
+  },
+  {
+    "id": "seed-namyangju-sampae-hangang-park",
+    "name": "남양주한강공원 삼패지구",
+    "region": "경기",
+    "regions": [
+      "경기",
+      "경기도",
+      "남양주",
+      "남양주시",
+      "삼패",
+      "한강"
+    ],
+    "address": "경기도 남양주시 고산로 254-2",
+    "description": "수레국화 꽃밭과 한강 산책로, 다리 구조물을 함께 담기 좋은 계절 꽃 출사지",
+    "bestTime": "오전 꽃길, 해질녘 노을",
+    "reason": "꽃밭 사이 산책로가 길게 이어져 대칭 구도와 인물 스냅을 안정적으로 만들기 좋아요",
+    "tags": [
+      "수레국화",
+      "꽃밭",
+      "강변",
+      "한강산책",
+      "꽃시즌",
+      "인물사진",
+      "촬영후기"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "flower",
+      "walk",
+      "강변",
+      "계절",
+      "피크닉"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": true,
+    "latitude": 37.586,
+    "longitude": 127.1709,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "상시 접근 가능, 꽃 개화 상태 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 정보 확인 필요",
+    "nearbyParkingInfo": "남양주한강공원 삼패지구 인근 주차장 확인"
+  },
+  {
+    "id": "seed-hangang-elementary-pedestrian-overpass",
+    "name": "한강초교앞보도육교",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "용산",
+      "용산구",
+      "한강로",
+      "남산타워뷰"
+    ],
+    "address": "서울특별시 용산구 한강대로 51 일대",
+    "description": "도로의 선과 남산타워가 중앙으로 정리되어 도심 배경 인물 사진을 찍기 좋은 육교 포인트",
+    "bestTime": "해질녘, 블루아워",
+    "reason": "육교 난간과 도로 원근감을 이용하면 남산타워가 들어간 서울 시티뷰 인물샷을 만들기 좋아요",
+    "tags": [
+      "남산타워뷰",
+      "서울시티뷰",
+      "육교감성",
+      "인물사진",
+      "도심야경",
+      "블루아워",
+      "촬영후기"
+    ],
+    "category": "spot",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear"
+    ],
+    "mood": [
+      "city",
+      "portrait",
+      "blueHour",
+      "sunset",
+      "night"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": true,
+    "latitude": 37.5278,
+    "longitude": 126.9647,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "city",
+    "openingHours": "상시 접근 가능, 보행 안전 유의",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 없음",
+    "nearbyParkingInfo": "용산역 또는 주변 공영주차장 확인"
+  },
+  {
+    "id": "seed-yeongcheon-eco-park-flower-field",
+    "name": "영천생태지구공원 꽃밭",
+    "region": "경북",
+    "regions": [
+      "경북",
+      "경상북도",
+      "영천",
+      "영천시",
+      "완산동"
+    ],
+    "address": "경상북도 영천시 완산동 1035 일대",
+    "description": "청유채와 작약, 샤스타데이지, 양귀비가 한 동선에 모여 계절 꽃밭 사진을 찍기 좋은 출사지",
+    "bestTime": "오전 꽃밭, 해질녘 전",
+    "reason": "넓은 꽃밭 사이 길을 따라 걷는 구도가 좋아 꽃 시즌 인물 스냅과 여행 컷에 잘 어울려요",
+    "tags": [
+      "청유채",
+      "작약",
+      "샤스타데이지",
+      "양귀비",
+      "안개초",
+      "꽃밭",
+      "꽃시즌",
+      "인물사진"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "flower",
+      "walk",
+      "picnic",
+      "bright"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 35.9719,
+    "longitude": 128.9326,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "공원 운영시간 및 개화 상태 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 확인 필요",
+    "nearbyParkingInfo": "영천생태지구공원 주변 주차장 확인"
+  },
+  {
+    "id": "seed-apgujeong-underpass",
+    "name": "압구정나들목",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "강남",
+      "강남구",
+      "압구정",
+      "한강"
+    ],
+    "address": "서울특별시 강남구 압구정동 한강공원 진입로 일대",
+    "description": "한강으로 이어지는 나들목 구조와 빛의 대비가 좋아 도심 산책 스냅을 찍기 좋은 숨은 포인트",
+    "bestTime": "오전 빛, 해질녘 전",
+    "reason": "터널 프레임과 바깥 자연광을 함께 활용하면 미니멀한 인물 구도가 잘 살아나요",
+    "tags": [
+      "나들목",
+      "한강",
+      "도심산책",
+      "인물사진",
+      "숨은출사지",
+      "필름감성"
+    ],
+    "category": "walk",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy",
+      "rain"
+    ],
+    "mood": [
+      "walk",
+      "city",
+      "film",
+      "hidden",
+      "calm"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5287,
+    "longitude": 127.0344,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "city",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "한강공원 주차장 확인 필요",
+    "nearbyParkingInfo": "잠원한강공원 또는 압구정 주변 주차장 확인"
+  },
+  {
+    "id": "seed-boramae-park",
+    "name": "보라매공원",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "동작",
+      "동작구",
+      "보라매",
+      "신대방"
+    ],
+    "address": "서울특별시 동작구 여의대방로20길 33",
+    "description": "넓은 잔디와 산책로, 비 온 뒤 나무길 반영까지 담기 좋은 도심 공원 출사지",
+    "bestTime": "오전 산책, 비 온 뒤 저녁",
+    "reason": "도심 공원이지만 배경이 넓게 정리되고 비 오는 날에는 길 위 반영과 가로등 분위기가 좋아요",
+    "tags": [
+      "공원",
+      "감성산책",
+      "피크닉",
+      "초여름출사",
+      "인물사진",
+      "한적함",
+      "비오는날",
+      "반영"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy",
+      "rain",
+      "비"
+    ],
+    "mood": [
+      "산책",
+      "피크닉",
+      "초록",
+      "차분함",
+      "인물사진",
+      "비분위기",
+      "반영"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.4912,
+    "longitude": 126.9199,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "상시 개방 구역 중심, 시설별 상이",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "보라매공원 공영주차장"
+  },
+  {
+    "id": "seed-seochon-rainy-alley",
+    "name": "서촌 골목",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "종로",
+      "종로구",
+      "서촌",
+      "경복궁역"
+    ],
+    "address": "서울특별시 종로구 필운대로 일대",
+    "description": "낮은 골목, 작은 가게, 오래된 담장과 빗길 반영이 살아 있는 서촌 필름 감성 출사지",
+    "bestTime": "비 온 뒤 오후, 해질녘 전",
+    "reason": "좁은 골목과 오래된 가게 간판, 젖은 도로의 반영이 겹쳐 차분한 서울 스냅을 만들기 좋아요",
+    "tags": [
+      "서울",
+      "서촌",
+      "골목",
+      "필름감성",
+      "비오는날",
+      "레트로",
+      "산책"
+    ],
+    "category": "walk",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [
+      "rain",
+      "비",
+      "cloudy"
+    ],
+    "mood": [
+      "골목감성",
+      "필름감성",
+      "로컬감성",
+      "비분위기",
+      "산책",
+      "오래된거리"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5796,
+    "longitude": 126.9707,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "city",
+    "openingHours": "생활 골목 상시 접근 가능, 주민 생활권 촬영 매너 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 없음",
+    "nearbyParkingInfo": "경복궁역 또는 종로구 공영주차장 확인"
+  },
+  {
+    "id": "seed-buam-dong-rainy-walk",
+    "name": "부암동 산책길",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "종로",
+      "종로구",
+      "부암동",
+      "북악산"
+    ],
+    "address": "서울특별시 종로구 부암동 일대",
+    "description": "언덕길, 담장, 오래된 주택가 분위기가 이어져 비 오는 날 차분한 골목 스냅을 찍기 좋은 곳",
+    "bestTime": "비 온 뒤 오후, 흐린 날 저녁",
+    "reason": "언덕 골목의 깊이감과 젖은 도로 반영이 있어 조용한 필름 감성 사진에 잘 맞아요",
+    "tags": [
+      "서울",
+      "부암동",
+      "골목",
+      "필름감성",
+      "비오는날",
+      "산책",
+      "한적함"
+    ],
+    "category": "walk",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [
+      "rain",
+      "비",
+      "cloudy"
+    ],
+    "mood": [
+      "골목감성",
+      "필름감성",
+      "로컬감성",
+      "비분위기",
+      "산책",
+      "조용함"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5924,
+    "longitude": 126.9663,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "city",
+    "openingHours": "생활 골목 상시 접근 가능, 야간 방문 시 조명 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "부암동 주민센터 또는 인근 공영주차장 확인"
+  },
+  {
+    "id": "seed-yongwangsan-skywalk",
+    "name": "용왕산 스카이워크",
+    "region": "서울",
+    "regions": [
+      "서울",
+      "양천",
+      "양천구",
+      "목동",
+      "용왕산"
+    ],
+    "address": "서울특별시 양천구 용왕정길 43",
+    "description": "용왕산 정상부에서 한강과 서울 야경을 내려다보는 전망형 스카이워크 출사지",
+    "bestTime": "해질녘부터 블루아워, 야경 시간",
+    "reason": "높은 데크와 난간 실루엣, 멀리 보이는 도시 불빛이 겹쳐 야경 인물 스냅에 좋아요",
+    "tags": [
+      "서울",
+      "양천구",
+      "목동",
+      "스카이워크",
+      "야경",
+      "전망",
+      "필름감성"
+    ],
+    "category": "walk",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "야경",
+      "전망",
+      "도시",
+      "산책",
+      "필름감성",
+      "조용함"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5429,
+    "longitude": 126.8768,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "night",
+    "openingHours": "상시 접근 가능, 야간 방문 시 조명 및 안전 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "용왕산근린공원 또는 목동 인근 공영주차장 확인"
+  },
+  {
+    "id": "seed-uijeongbu-singok-saebit-garden",
+    "name": "신곡새빛정원",
+    "region": "의정부",
+    "regions": [
+      "경기",
+      "경기도",
+      "의정부",
+      "의정부시",
+      "신곡동"
+    ],
+    "address": "경기도 의정부시 신곡동 1-1",
+    "description": "경전철과 유채꽃밭, 계절 꽃밭을 함께 담기 좋은 의정부 근교 꽃 출사지",
+    "bestTime": "오전 맑은 날, 오후 늦은 빛",
+    "reason": "노란 유채꽃밭 위로 경전철이 지나가는 구도가 이국적이고 봄 피크닉 사진에 좋아요",
+    "tags": [
+      "의정부",
+      "유채꽃",
+      "수레국화",
+      "해바라기",
+      "꽃밭",
+      "경전철",
+      "봄"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "꽃",
+      "계절",
+      "피크닉",
+      "이국적",
+      "산책"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.7542,
+    "longitude": 127.0773,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "상시 접근 가능, 꽃 개화 시기 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차장 없음",
+    "nearbyParkingInfo": "효자역 공영주차장 이용 가능, 30분당 1,000원 / 일최대 10,000원"
+  },
+  {
+    "id": "seed-namyangju-dasan-ecological-park",
+    "name": "다산생태공원",
+    "region": "남양주",
+    "regions": [
+      "경기",
+      "경기도",
+      "남양주",
+      "남양주시",
+      "조안면",
+      "다산"
+    ],
+    "address": "경기도 남양주시 조안면 다산로 767",
+    "description": "수변 산책로와 산 능선, 계절 꽃이 어우러지는 남양주 자연 출사지",
+    "bestTime": "오전 맑은 날, 오후 늦은 빛",
+    "reason": "호수 반영과 산 배경이 넓게 열려 있어 풍경 사진과 산책 스냅을 같이 찍기 좋아요",
+    "tags": [
+      "남양주",
+      "생태공원",
+      "수변",
+      "꽃",
+      "산책",
+      "반영",
+      "초록"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "수변",
+      "초록",
+      "산책",
+      "반영",
+      "힐링"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5131,
+    "longitude": 127.2992,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "상시 접근 가능, 시설별 정보 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 정보 확인 필요",
+    "nearbyParkingInfo": "다산생태공원 인근 주차장 확인"
+  },
+  {
+    "id": "seed-namyangju-mul-ui-jeongwon",
+    "name": "물의정원",
+    "region": "남양주",
+    "regions": [
+      "경기",
+      "경기도",
+      "남양주",
+      "남양주시",
+      "조안면",
+      "북한강"
+    ],
+    "address": "경기도 남양주시 조안면 북한강로 398",
+    "description": "북한강 수변과 양귀비 꽃밭, 계절 꽃길을 함께 담기 좋은 남양주 대표 꽃 출사지",
+    "bestTime": "오전 자연광, 노을 전 오후",
+    "reason": "붉은 양귀비 꽃밭과 강변 나무가 겹쳐 6월 계절감이 강한 사진을 만들기 좋아요",
+    "tags": [
+      "남양주",
+      "물의정원",
+      "양귀비",
+      "꽃밭",
+      "북한강",
+      "산책",
+      "계절"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "꽃",
+      "강변",
+      "산책",
+      "계절",
+      "초록"
+    ],
+    "crowdLevel": "crowded",
+    "isHiddenSpot": false,
+    "latitude": 37.5569,
+    "longitude": 127.3133,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "상시 접근 가능, 꽃 개화 시기 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "물의정원 주차장 또는 운길산역 인근 주차장 확인"
+  },
+  {
+    "id": "seed-cafe-house-of-vinyl-yeonhui",
+    "name": "하우스오브바이닐 연희점",
+    "region": "연희",
+    "regions": [
+      "서울",
+      "서대문",
+      "서대문구",
+      "연희",
+      "연희동"
+    ],
+    "address": "서울특별시 서대문구 연희맛로 17-43",
+    "description": "바이닐과 따뜻한 조명, 창가 좌석을 함께 담기 좋은 연희동 로컬 감성 카페",
+    "bestTime": "오후 늦은 빛, 비 오는 날 실내",
+    "reason": "레코드와 낮은 조도, 창밖 초록이 겹쳐 필름 감성 실내 스냅에 잘 맞아요",
+    "tags": [
+      "연희",
+      "로컬카페",
+      "바이닐",
+      "디저트",
+      "실내",
+      "필름감성"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "독립카페",
+      "바이닐",
+      "실내",
+      "필름감성",
+      "따뜻한조명"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5682,
+    "longitude": 126.931,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_house_of_vinyl_yeonhui",
+    "theme": "cafe",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "연희동 공영주차장 또는 인근 유료주차장 확인"
+  },
+  {
+    "id": "seed-cafe-rewind-seoul",
+    "name": "리와인드 서울",
+    "region": "안국",
+    "regions": [
+      "서울",
+      "종로",
+      "종로구",
+      "안국",
+      "북촌"
+    ],
+    "address": "서울특별시 종로구 안국동 175-87",
+    "description": "그림 같은 통창뷰와 스페셜티 커피, 말차를 즐길 수 있는 안국 카페",
+    "bestTime": "오전 자연광, 오후 창가 빛",
+    "reason": "정원과 낮은 건물을 바라보는 창가가 액자처럼 보여 차분한 카페 스냅을 담기 좋아요",
+    "tags": [
+      "안국",
+      "북촌",
+      "로컬카페",
+      "뷰카페",
+      "실내",
+      "디저트"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "뷰좋은카페",
+      "실내",
+      "차분함",
+      "창가"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5786,
+    "longitude": 126.9832,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "cafe",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "서울공예박물관 또는 안국역 인근 공영주차장 확인"
+  },
+  {
+    "id": "seed-cafe-plad-seoul-forest",
+    "name": "플래드카페 서울숲",
+    "region": "서울숲",
+    "regions": [
+      "서울",
+      "성동",
+      "성동구",
+      "서울숲",
+      "성수"
+    ],
+    "address": "서울특별시 성동구 서울숲2길 일대",
+    "description": "서울숲 초록과 실내 가구, 디저트를 함께 담기 좋은 밝은 감성 카페",
+    "bestTime": "오전 자연광, 오후 창가 빛",
+    "reason": "창밖 나무와 컬러 가구가 함께 보여 실내에서도 계절감 있는 사진을 만들기 좋아요",
+    "tags": [
+      "서울숲",
+      "성수",
+      "로컬카페",
+      "디저트",
+      "창가",
+      "초록"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "독립카페",
+      "초록",
+      "실내",
+      "창가",
+      "밝은공간"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5448,
+    "longitude": 127.043,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "cafe",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "서울숲 공영주차장 또는 성수동 인근 유료주차장 확인"
+  },
+  {
+    "id": "seed-cafe-gwalho",
+    "name": "괄호",
+    "region": "부암동",
+    "regions": [
+      "서울",
+      "종로",
+      "종로구",
+      "부암동",
+      "인왕산"
+    ],
+    "address": "서울특별시 종로구 부암동 일대",
+    "description": "빈티지 소파와 창밖 초록, 낮은 조도가 어우러지는 조용한 감성 카페",
+    "bestTime": "오후 늦은 빛, 흐린 날 실내",
+    "reason": "가죽 소파와 패브릭 소품, 넓은 창의 초록 배경이 묵직한 필름 무드를 만들어줘요",
+    "tags": [
+      "부암동",
+      "인왕산",
+      "로컬카페",
+      "빈티지",
+      "실내",
+      "필름감성"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "독립카페",
+      "빈티지",
+      "필름감성",
+      "조용함",
+      "초록"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5932,
+    "longitude": 126.9651,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "cafe",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "부암동 주민센터 또는 인근 공영주차장 확인"
+  },
+  {
+    "id": "seed-cafe-huijak",
+    "name": "희작",
+    "region": "인왕산",
+    "regions": [
+      "서울",
+      "종로",
+      "종로구",
+      "인왕산",
+      "부암동"
+    ],
+    "address": "서울특별시 종로구 인왕산 일대",
+    "description": "콘크리트 질감과 산 능선 전망, 테라스 빛을 담기 좋은 산뷰 감성 카페",
+    "bestTime": "오후 늦은 빛, 해질녘 전",
+    "reason": "테라스에서 보이는 산 능선과 콘크리트 벽면 그림자가 겹쳐 차분한 뷰 컷이 좋아요",
+    "tags": [
+      "인왕산",
+      "부암동",
+      "로컬카페",
+      "뷰카페",
+      "테라스",
+      "산뷰"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "뷰좋은카페",
+      "산뷰",
+      "테라스",
+      "콘크리트",
+      "차분함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": true,
+    "latitude": 37.5928,
+    "longitude": 126.9668,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "cafe",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "부암동 또는 인왕산 인근 공영주차장 확인"
+  },
+  {
+    "id": "seed-cafe-forest-seoul-forest",
+    "name": "포레스트 서울숲",
+    "region": "서울숲",
+    "regions": [
+      "서울",
+      "성동",
+      "성동구",
+      "서울숲",
+      "성수"
+    ],
+    "address": "서울특별시 성동구 서울숲 일대",
+    "description": "서울숲 초록을 창밖으로 두고 디저트와 창가 자리를 함께 담기 좋은 카페",
+    "bestTime": "오전 자연광, 오후 창가 빛",
+    "reason": "숲을 향한 창과 야외 테라스 색감이 좋아 봄과 여름 카페 스냅에 잘 어울려요",
+    "tags": [
+      "서울숲",
+      "성수",
+      "로컬카페",
+      "디저트",
+      "숲뷰",
+      "테라스"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "뷰좋은카페",
+      "숲뷰",
+      "창가",
+      "초록",
+      "디저트"
+    ],
+    "crowdLevel": "crowded",
+    "isHiddenSpot": false,
+    "latitude": 37.5451,
+    "longitude": 127.0437,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "cafe",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "서울숲 공영주차장 또는 성수동 인근 유료주차장 확인"
+  },
+  {
+    "id": "seed-cafe-period",
+    "name": "피리어드",
+    "region": "한남",
+    "regions": [
+      "서울",
+      "용산",
+      "용산구",
+      "한남",
+      "이태원"
+    ],
+    "address": "서울특별시 용산구 한남동 일대",
+    "description": "벽돌 건물과 초록 창가, 에그타르트 디저트를 함께 담기 좋은 로컬 카페",
+    "bestTime": "오후 창가 빛, 비 오는 날 실내",
+    "reason": "커스터드 디저트와 녹음이 들어오는 창가 구도가 차분한 카페 사진에 좋아요",
+    "tags": [
+      "한남",
+      "용산",
+      "로컬카페",
+      "에그타르트",
+      "창가",
+      "디저트"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "독립카페",
+      "창가",
+      "초록",
+      "디저트",
+      "차분함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5352,
+    "longitude": 127.0006,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "cafe",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "한남동 인근 유료주차장 확인"
+  },
+  {
+    "id": "seed-cafe-sono-trinity-commons",
+    "name": "소노트리니티 커먼스",
+    "region": "강남",
+    "regions": [
+      "서울",
+      "강남",
+      "강남구",
+      "역삼",
+      "도심"
+    ],
+    "address": "서울특별시 강남구 테헤란로 일대",
+    "description": "큰 서가와 실내 조경, 호텔 라운지 같은 분위기를 담기 좋은 도심 북카페형 공간",
+    "bestTime": "오후 실내광, 비 오는 날 실내",
+    "reason": "곡선형 서가와 식재, 따뜻한 조명이 겹쳐 도심 속 고급스러운 실내 컷에 좋아요",
+    "tags": [
+      "강남",
+      "북카페",
+      "실내",
+      "서가",
+      "라운지",
+      "도심"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "실내",
+      "북카페",
+      "공간",
+      "도심",
+      "차분함",
+      "따뜻한조명"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5048,
+    "longitude": 127.0491,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "cafe",
+    "openingHours": "공간 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "건물 주차 확인 필요",
+    "nearbyParkingInfo": "강남역 또는 역삼역 인근 유료주차장 확인"
+  },
+  {
+    "id": "seed-cafe-inwangsan-daechung-yuwonji",
+    "name": "인왕산 대충유원지",
+    "region": "서촌",
+    "regions": [
+      "서울",
+      "종로",
+      "종로구",
+      "서촌",
+      "인왕산"
+    ],
+    "address": "서울특별시 종로구 옥인동 일대",
+    "description": "인왕산과 서촌 골목 풍경을 내려다보며 차분한 낮빛을 담기 좋은 뷰 카페",
+    "bestTime": "오후 늦은 빛, 해질녘 전",
+    "reason": "산 능선과 낮은 주택가가 함께 보여 서울 안에서도 조용한 전망 사진을 찍기 좋아요",
+    "tags": [
+      "서촌",
+      "인왕산",
+      "로컬카페",
+      "뷰카페",
+      "산뷰",
+      "필름감성"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "뷰좋은카페",
+      "산뷰",
+      "서촌",
+      "필름감성",
+      "조용함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5807,
+    "longitude": 126.9653,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "cafe",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "서촌 또는 경복궁역 인근 공영주차장 확인"
+  },
+  {
+    "id": "seed-cafe-nutten",
+    "name": "누뗀",
+    "region": "청계산",
+    "regions": [
+      "서울",
+      "서초",
+      "서초구",
+      "청계산",
+      "원지동"
+    ],
+    "address": "서울특별시 서초구 청계산로 일대",
+    "description": "화이트 인테리어와 큰 창, 초록 산책길 분위기를 함께 담기 좋은 휴식형 카페",
+    "bestTime": "오전 자연광, 오후 창가 빛",
+    "reason": "밝은 실내와 채광창, 창밖 초록이 어우러져 깨끗한 카페 스냅 구도가 좋아요",
+    "tags": [
+      "청계산",
+      "서초",
+      "로컬카페",
+      "화이트",
+      "창가",
+      "디저트"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "밝은공간",
+      "실내",
+      "초록",
+      "창가",
+      "휴식"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.4475,
+    "longitude": 127.0559,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "cafe",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "청계산입구역 인근 주차장 확인"
+  },
+  {
+    "id": "seed-cafe-one-in-one-jan",
+    "name": "1인1잔",
+    "region": "은평",
+    "regions": [
+      "서울",
+      "은평",
+      "은평구",
+      "진관동",
+      "은평한옥마을"
+    ],
+    "address": "서울특별시 은평구 연서로 534",
+    "description": "북한산과 은평한옥마을 지붕선을 한눈에 담을 수 있는 한옥 뷰 카페",
+    "bestTime": "오후 늦은 빛, 해질녘 전",
+    "reason": "둥근 창 너머로 북한산과 한옥 지붕선이 겹쳐 한국적인 뷰 카페 사진에 좋아요",
+    "tags": [
+      "은평",
+      "한옥마을",
+      "북한산",
+      "뷰카페",
+      "한옥",
+      "디저트"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "autumn",
+      "winter"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "뷰좋은카페",
+      "한옥",
+      "산뷰",
+      "한국적",
+      "실내",
+      "디저트"
+    ],
+    "crowdLevel": "crowded",
+    "isHiddenSpot": false,
+    "latitude": 37.6411,
+    "longitude": 126.938,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "cafe",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "은평한옥마을 공영주차장 확인"
+  },
+  {
+    "id": "seed-cafe-fourstones-samcheong",
+    "name": "포스톤즈 삼청점",
+    "region": "삼청",
+    "regions": [
+      "서울",
+      "종로",
+      "종로구",
+      "삼청",
+      "북촌"
+    ],
+    "address": "서울특별시 종로구 삼청동 105-10",
+    "description": "거대한 통창과 루프탑, 목재 인테리어가 어우러지는 삼청동 대형 카페",
+    "bestTime": "오전 자연광, 오후 늦은 빛",
+    "reason": "큰 창 너머 녹지와 넓은 실내 좌석이 겹쳐 여유로운 카페 스냅을 담기 좋아요",
+    "tags": [
+      "삼청",
+      "북촌",
+      "로컬카페",
+      "목재",
+      "산뷰",
+      "디저트"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "autumn",
+      "winter"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "뷰좋은카페",
+      "목재",
+      "실내",
+      "산뷰",
+      "따뜻한조명"
+    ],
+    "crowdLevel": "crowded",
+    "isHiddenSpot": false,
+    "latitude": 37.5848,
+    "longitude": 126.9817,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "cafe",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "삼청동 공영주차장 또는 국립현대미술관 서울 주차장 확인"
+  },
+  {
+    "id": "seed-cafe-sanarae",
+    "name": "카페 산아래",
+    "region": "북한산",
+    "regions": [
+      "서울",
+      "강북",
+      "강북구",
+      "우이동",
+      "북한산"
+    ],
+    "address": "서울특별시 강북구 삼양로181길 일대",
+    "description": "북한산 아래 숲과 큰 창, 초록 마당을 함께 담기 좋은 고요한 산뷰 카페",
+    "bestTime": "오전 자연광, 오후 숲 그림자",
+    "reason": "고소한 라떼와 흑임자 디저트, 창밖 숲이 함께 보여 자연스러운 휴식 컷에 좋아요",
+    "tags": [
+      "북한산",
+      "우이동",
+      "로컬카페",
+      "산뷰",
+      "숲뷰",
+      "디저트"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "뷰좋은카페",
+      "산뷰",
+      "숲뷰",
+      "초록",
+      "조용함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.6658,
+    "longitude": 127.0122,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "cafe",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "북한산우이역 또는 우이동 인근 주차장 확인"
+  },
+  {
+    "id": "seed-medong-gol-garden",
+    "name": "메덩골정원",
+    "region": "양평",
+    "regions": [
+      "경기",
+      "경기도",
+      "양평",
+      "양평군",
+      "양동면"
+    ],
+    "address": "경기도 양평군 양동면 메덩골길 1",
+    "description": "물과 바위, 숲이 어우러진 정원형 공간으로 잔잔한 반영과 초록 질감을 함께 담기 좋은 근교 출사지",
+    "bestTime": "오전 자연광, 흐린 날 정원 산책",
+    "reason": "정원의 수공간과 단정한 구조물이 겹쳐 차분한 숲속 스냅과 공간 사진에 좋아요",
+    "tags": [
+      "양평",
+      "정원",
+      "숲뷰",
+      "근교카페",
+      "반영",
+      "봄나들이",
+      "로컬공간"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy",
+      "rain"
+    ],
+    "mood": [
+      "로컬카페",
+      "정원",
+      "숲뷰",
+      "조용함",
+      "반영",
+      "초록"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": true,
+    "latitude": 37.4216,
+    "longitude": 127.7459,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "10:00~18:00, 월요일 휴무",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "주차장 있음",
+    "nearbyParkingInfo": "메덩골정원 주차장"
+  },
+  {
+    "id": "seed-eham-campus",
+    "name": "이함캠퍼스",
+    "region": "양평",
+    "regions": [
+      "경기",
+      "경기도",
+      "양평",
+      "강하면",
+      "남한강"
+    ],
+    "address": "경기도 양평군 강하면 강남로 370-10",
+    "description": "캠퍼스 같은 넓은 공간과 건축적인 동선이 있어 실내외를 오가며 차분한 공간 컷을 만들기 좋은 곳",
+    "bestTime": "오전 자연광, 오후 느린 산책",
+    "reason": "넓은 창과 여백 있는 공간 구성이 깔끔해 감성 카페보다 공간 출사 느낌으로 담기 좋아요",
+    "tags": [
+      "양평",
+      "공간",
+      "건축",
+      "근교카페",
+      "실내",
+      "정원",
+      "로컬공간"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy",
+      "rain"
+    ],
+    "mood": [
+      "로컬카페",
+      "건축",
+      "실내",
+      "정원",
+      "조용함",
+      "공간감"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5008,
+    "longitude": 127.4018,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "10:00~18:00, 토/일 ~19:30, 월요일 휴무",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "이함캠퍼스 주차장"
+  },
+  {
+    "id": "seed-moss-bundang",
+    "name": "모쓰",
+    "region": "분당",
+    "regions": [
+      "경기",
+      "경기도",
+      "성남",
+      "성남시",
+      "분당",
+      "분당구"
+    ],
+    "address": "경기도 성남시 분당구 새마을로 257",
+    "description": "도심 가까이에서 초록 창가와 차분한 테이블 컷을 만들기 좋은 분당 로컬 카페",
+    "bestTime": "오전 자연광, 흐린 날 창가",
+    "reason": "창밖 녹음과 실내의 낮은 톤이 잘 어울려 비 오는 날이나 흐린 날에도 분위기 있는 사진을 남기기 좋아요",
+    "tags": [
+      "분당",
+      "성남",
+      "로컬카페",
+      "창가",
+      "초록",
+      "디저트",
+      "실내"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "실내",
+      "초록",
+      "창가",
+      "조용함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.3632,
+    "longitude": 127.1524,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "09:00~21:00, 일요일 휴무",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "매장 인근 주차 가능 여부 확인"
+  },
+  {
+    "id": "seed-lodeurwood",
+    "name": "로더우드",
+    "region": "고양",
+    "regions": [
+      "경기",
+      "경기도",
+      "고양",
+      "고양시",
+      "덕양구"
+    ],
+    "address": "경기도 고양시 덕양구 호국로1283번길 43",
+    "description": "나무와 목재 톤, 정원 뷰가 함께 보여 따뜻한 근교 카페 스냅을 찍기 좋은 곳",
+    "bestTime": "오전 자연광, 오후 창가",
+    "reason": "실내의 따뜻한 톤과 바깥 정원의 초록이 겹쳐 디저트 컷과 공간 컷 모두 안정적으로 나와요",
+    "tags": [
+      "고양",
+      "덕양",
+      "로컬카페",
+      "정원",
+      "목재",
+      "디저트",
+      "근교카페"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy",
+      "rain"
+    ],
+    "mood": [
+      "로컬카페",
+      "정원",
+      "목재",
+      "따뜻한조명",
+      "초록"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.6864,
+    "longitude": 126.8997,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "10:00~19:00, 수요일 휴무",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "매장 인근 주차 가능 여부 확인"
+  },
+  {
+    "id": "seed-sayusek",
+    "name": "사유색",
+    "region": "포천",
+    "regions": [
+      "경기",
+      "경기도",
+      "포천",
+      "포천시",
+      "소흘읍",
+      "광릉수목원"
+    ],
+    "address": "경기도 포천시 소흘읍 광릉수목원로779번길 9-1",
+    "description": "광릉수목원 근처의 초록 정원과 차분한 실내가 어우러져 숲 나들이 컷을 만들기 좋은 공간",
+    "bestTime": "오전 자연광, 오후 정원 산책",
+    "reason": "실내외 모두 녹음이 풍부해 차와 디저트를 곁들인 근교 감성 사진에 잘 어울려요",
+    "tags": [
+      "포천",
+      "광릉수목원",
+      "로컬카페",
+      "정원",
+      "숲뷰",
+      "디저트",
+      "근교카페"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy",
+      "rain"
+    ],
+    "mood": [
+      "로컬카페",
+      "정원",
+      "숲뷰",
+      "초록",
+      "조용함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.7615,
+    "longitude": 127.1502,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "10:00~21:00, 토/일 ~22:00",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "광릉수목원로 인근 주차 가능 여부 확인"
+  },
+  {
+    "id": "seed-brique-cafe",
+    "name": "브리끄",
+    "region": "남양주",
+    "regions": [
+      "경기",
+      "경기도",
+      "남양주",
+      "화도읍",
+      "북한강"
+    ],
+    "address": "경기도 남양주시 화도읍 북한강로 1696-2 브리끄",
+    "description": "북한강과 낮은 산 능선이 보이는 구조적인 공간으로 해질녘 근교 카페 사진에 잘 어울리는 곳",
+    "bestTime": "오후 늦은 빛, 해질녘",
+    "reason": "건축적인 입구와 강변 숲이 함께 보여 여행지 느낌보다 차분한 공간 출사 무드가 좋아요",
+    "tags": [
+      "남양주",
+      "북한강",
+      "근교카페",
+      "건축",
+      "강변",
+      "노을",
+      "로컬카페"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "강변",
+      "건축",
+      "노을",
+      "숲뷰"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.6194,
+    "longitude": 127.3421,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "매일 10:00~22:00",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "브리끄 주차장 또는 북한강로 인근 주차 확인"
+  },
+  {
+    "id": "seed-montbreneu",
+    "name": "몽브레뉴",
+    "region": "가평",
+    "regions": [
+      "경기",
+      "경기도",
+      "가평",
+      "가평군",
+      "설악면"
+    ],
+    "address": "경기도 가평군 설악면 신천중앙로 76-136",
+    "description": "가평 산자락과 여유로운 테라스 감성이 있어 조용한 숲멍 카페 컷을 만들기 좋은 곳",
+    "bestTime": "오전 자연광, 오후 숲 그림자",
+    "reason": "창밖 산세와 초록이 넓게 보여 흐린 날에도 차분한 근교 감성 사진이 잘 나와요",
+    "tags": [
+      "가평",
+      "설악",
+      "숲뷰",
+      "근교카페",
+      "테라스",
+      "로컬카페",
+      "산뷰"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy",
+      "rain"
+    ],
+    "mood": [
+      "로컬카페",
+      "숲뷰",
+      "산뷰",
+      "조용함",
+      "테라스"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.6786,
+    "longitude": 127.4892,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "10:00~19:30, 토/일 ~20:00, 화요일 휴무",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "매장 인근 주차 가능 여부 확인"
+  },
+  {
+    "id": "seed-hoam-cafe-yongin",
+    "name": "호암카페",
+    "region": "용인",
+    "regions": [
+      "경기",
+      "경기도",
+      "용인",
+      "용인시",
+      "처인구",
+      "포곡읍"
+    ],
+    "address": "경기도 용인시 처인구 포곡읍 에버랜드로562번길 38",
+    "description": "정원과 전시 공간을 함께 즐길 수 있어 비 오는 날에도 조용한 실내 출사가 가능한 용인 카페",
+    "bestTime": "오전 자연광, 비 오는 날 실내",
+    "reason": "큰 창과 정원, 차분한 내부 분위기가 있어 사진과 휴식을 함께 가져가기 좋아요",
+    "tags": [
+      "용인",
+      "정원",
+      "실내",
+      "전시",
+      "로컬카페",
+      "비오는날",
+      "디저트"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "정원",
+      "실내",
+      "전시",
+      "차분함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.2923,
+    "longitude": 127.2147,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "10:00~18:00, 월요일 휴무",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "호암카페 주차장 확인"
+  },
+  {
+    "id": "seed-concrete-wall-jecheon",
+    "name": "콘크리트월",
+    "region": "제천",
+    "regions": [
+      "충북",
+      "충청북도",
+      "제천",
+      "제천시",
+      "청풍호"
+    ],
+    "address": "충청북도 제천시 금성면 청풍호로 1566",
+    "description": "청풍호 주변의 낮은 콘크리트 구조와 산 능선이 맞물려 미니멀한 공간 사진을 찍기 좋은 카페",
+    "bestTime": "오후 늦은 빛, 해질녘",
+    "reason": "절제된 건축선과 호수 주변 풍경이 대비되어 차분한 원거리 출사 코스로 좋아요",
+    "tags": [
+      "제천",
+      "청풍호",
+      "콘크리트",
+      "건축",
+      "호수뷰",
+      "근교카페",
+      "미니멀"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "건축",
+      "호수뷰",
+      "미니멀",
+      "노을"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.0235,
+    "longitude": 128.1808,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "10:00~17:30, 수/토 ~19:00, 화요일 휴무",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "콘크리트월 주차장 확인"
+  },
+  {
+    "id": "seed-lily-gapyeong",
+    "name": "릴리",
+    "region": "가평",
+    "regions": [
+      "경기",
+      "경기도",
+      "가평",
+      "가평군",
+      "청평면"
+    ],
+    "address": "경기도 가평군 청평면 솔틀로 152-14 릴리",
+    "description": "한국적인 숲길과 신상 카페 무드가 함께 보여 흐린 날에도 운치 있게 담기는 가평 숲속 카페",
+    "bestTime": "흐린 날 오후, 비 오는 날 테라스",
+    "reason": "테라스에서 내려다보는 숲의 깊이가 좋아 사람 없는 휴식 컷과 비 분위기 컷에 잘 어울려요",
+    "tags": [
+      "가평",
+      "청평",
+      "숲뷰",
+      "테라스",
+      "비오는날",
+      "근교카페",
+      "로컬카페"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "숲뷰",
+      "비분위기",
+      "테라스",
+      "조용함"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.735,
+    "longitude": 127.4204,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "매일 10:00~19:00",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "릴리 주차장 확인"
+  },
+  {
+    "id": "seed-dongjak-station-wood-deck",
+    "name": "동작역 3번출구 나무데크",
+    "region": "동작",
+    "regions": [
+      "서울",
+      "동작",
+      "동작구",
+      "동작역",
+      "한강"
+    ],
+    "address": "서울특별시 동작구 동작동 동작역 3번출구 일대",
+    "description": "나무 사이로 지나는 열차와 한강 방향 풍경을 내려다볼 수 있는 서울의 조용한 철도 스냅 포인트",
+    "bestTime": "오후 자연광, 초록이 짙은 계절",
+    "reason": "나뭇잎 사이로 보이는 지상철과 강변 구도가 겹쳐 도시 속 비밀 기차 스팟처럼 담겨요",
+    "tags": [
+      "동작역",
+      "기차",
+      "철도",
+      "나무데크",
+      "한강",
+      "필름감성",
+      "서울"
+    ],
+    "category": "walk",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "철도출사",
+      "필름감성",
+      "초록",
+      "도시",
+      "산책",
+      "조용함"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5026,
+    "longitude": 126.9803,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "city",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 없음",
+    "nearbyParkingInfo": "동작역 환승주차장 또는 반포한강공원 주차장 확인"
+  },
+  {
+    "id": "seed-lowood-yangpyeong",
+    "name": "로우드",
+    "region": "양평",
+    "regions": [
+      "경기",
+      "경기도",
+      "양평",
+      "양평군",
+      "강상면"
+    ],
+    "address": "경기도 양평군 강상면 강남로 1604 1층 로우드",
+    "description": "푸릇푸릇한 정원을 보며 힐링하기 좋은 양평 숲속 카페로 제철 과일 케이크 컷이 잘 어울리는 곳",
+    "bestTime": "오전 자연광, 오후 정원 산책",
+    "reason": "하얀 외관과 정원, 계절 디저트가 함께 보여 밝은 근교 나들이 사진을 만들기 좋아요",
+    "tags": [
+      "양평",
+      "숲멍",
+      "정원",
+      "근교카페",
+      "디저트",
+      "로컬카페",
+      "초록"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "정원",
+      "숲뷰",
+      "초록",
+      "디저트"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.4881,
+    "longitude": 127.4882,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "로우드 주차장 확인"
+  },
+  {
+    "id": "seed-hoas-baegun",
+    "name": "호아스",
+    "region": "의왕",
+    "regions": [
+      "경기",
+      "경기도",
+      "의왕",
+      "의왕시",
+      "백운호수"
+    ],
+    "address": "경기도 의왕시 백운안길 57-1 토브빌딩",
+    "description": "백운호수 근처 숲속 통창뷰가 있는 카페로 사계절 초록과 하늘을 함께 담기 좋은 곳",
+    "bestTime": "오전 창가, 맑은 날 오후",
+    "reason": "큰 통창으로 들어오는 빛과 호수 주변 녹음이 깨끗하게 보여 여유로운 창가 사진에 좋아요",
+    "tags": [
+      "의왕",
+      "백운호수",
+      "통창",
+      "숲뷰",
+      "근교카페",
+      "로컬카페",
+      "초록"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn",
+      "winter"
+    ],
+    "weather": [
+      "clear",
+      "cloudy",
+      "rain"
+    ],
+    "mood": [
+      "로컬카페",
+      "통창",
+      "숲뷰",
+      "호수뷰",
+      "초록"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.3831,
+    "longitude": 127.0009,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "백운호수 인근 주차장 확인"
+  },
+  {
+    "id": "seed-couler-yongin",
+    "name": "코울러",
+    "region": "용인",
+    "regions": [
+      "경기",
+      "경기도",
+      "용인",
+      "용인시",
+      "수지구",
+      "고기리"
+    ],
+    "address": "경기도 용인시 수지구 샘말로 2",
+    "description": "고기리 계곡 앞의 유럽 감성 숲멍 카페로 테라스와 체크 바닥, 초록 외관이 사진 포인트가 되는 곳",
+    "bestTime": "오전 테라스, 오후 브런치",
+    "reason": "계곡길과 외관, 테라스가 함께 보여 산책 후 가볍게 찍기 좋은 근교 카페 컷을 만들 수 있어요",
+    "tags": [
+      "용인",
+      "고기리",
+      "숲멍",
+      "테라스",
+      "근교카페",
+      "로컬카페",
+      "브런치"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "숲뷰",
+      "테라스",
+      "유럽감성",
+      "브런치"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.3448,
+    "longitude": 127.0766,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "고기리 계곡 인근 주차 가능 여부 확인"
+  },
+  {
+    "id": "seed-repark-paju",
+    "name": "리파크",
+    "region": "파주",
+    "regions": [
+      "경기",
+      "경기도",
+      "파주",
+      "파주시",
+      "출판도시"
+    ],
+    "address": "경기도 파주시 회동길 145 지지향 3관 1층",
+    "description": "출판도시의 숲과 책장이 함께 보여 조용히 독서하는 듯한 북카페 감성 사진을 찍기 좋은 곳",
+    "bestTime": "오전 자연광, 흐린 날 창가",
+    "reason": "큰 창 너머 초록과 낮은 목재 가구가 어울려 힐링 북캉스 컷과 커피 컷에 잘 맞아요",
+    "tags": [
+      "파주",
+      "출판도시",
+      "북카페",
+      "숲뷰",
+      "책",
+      "로컬카페",
+      "조용함"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "북카페",
+      "숲뷰",
+      "조용함",
+      "실내"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.7088,
+    "longitude": 126.6877,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "지지향 또는 출판도시 주차장 확인",
+    "nearbyParkingInfo": "파주출판도시 공영주차장"
+  },
+  {
+    "id": "seed-awesomebread-pantry",
+    "name": "어썸브레드 팬트리점",
+    "region": "남양주",
+    "regions": [
+      "경기",
+      "경기도",
+      "남양주",
+      "남양주시",
+      "화도읍"
+    ],
+    "address": "경기도 남양주시 화도읍 경춘로2180번길 24-10",
+    "description": "메타세쿼이아와 넓은 마당이 있는 남양주 숲속 베이커리 카페로 초록 배경 사진을 찍기 좋은 곳",
+    "bestTime": "오전 자연광, 오후 야외 좌석",
+    "reason": "큰 나무와 외부 테이블, 흰 외관이 밝게 어울려 피톤치드 가득한 힐링 컷에 좋아요",
+    "tags": [
+      "남양주",
+      "베이커리",
+      "숲속카페",
+      "메타세쿼이아",
+      "초록",
+      "로컬카페",
+      "근교카페"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "숲뷰",
+      "베이커리",
+      "초록",
+      "마당"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.6379,
+    "longitude": 127.3128,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "어썸브레드 팬트리점 주차장 확인"
+  },
+  {
+    "id": "seed-foreast-uijeongbu",
+    "name": "포어레스트",
+    "region": "의정부",
+    "regions": [
+      "경기",
+      "경기도",
+      "의정부",
+      "의정부시",
+      "녹양"
+    ],
+    "address": "경기도 의정부시 녹양로 181 포어레스트",
+    "description": "숲 안에 있는 듯한 정원과 빈티지한 야외 소품이 있어 동화 같은 숲멍 카페 사진을 찍기 좋은 곳",
+    "bestTime": "오전 자연광, 오후 정원 산책",
+    "reason": "넓은 정원과 낮은 숲길, 테라스가 있어 아이나 반려견과 함께한 자연스러운 스냅에 좋아요",
+    "tags": [
+      "의정부",
+      "숲속카페",
+      "정원",
+      "테라스",
+      "근교카페",
+      "로컬카페",
+      "빈티지"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "숲뷰",
+      "정원",
+      "빈티지",
+      "동화감성"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.7603,
+    "longitude": 127.0327,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "매장 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "포어레스트 주차장 확인"
+  },
+  {
+    "id": "seed-anyangcheon-daisy-bisan",
+    "name": "안양천 데이지 꽃길",
+    "region": "안양",
+    "regions": [
+      "경기",
+      "경기도",
+      "안양",
+      "안양시",
+      "비산동",
+      "안양천"
+    ],
+    "address": "경기도 안양시 동안구 비산동 비산한화 꿈에그린아파트 101동 앞 안양천 일대",
+    "description": "안양역과 명학역 사이 안양천변에 피는 데이지 꽃밭으로 낮은 시야와 하늘을 함께 담기 좋은 산책 출사지",
+    "bestTime": "5월 데이지 시즌, 오후 늦은 빛",
+    "reason": "도시 하천 옆 하얀 데이지와 탁 트인 하늘이 어울려 서울 밖 가까운 봄꽃 스냅 포인트로 좋아요",
+    "tags": [
+      "안양",
+      "안양천",
+      "데이지",
+      "봄꽃",
+      "산책",
+      "꽃밭",
+      "하늘"
+    ],
+    "category": "walk",
+    "season": [
+      "spring"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "꽃",
+      "산책",
+      "초록",
+      "하천",
+      "한적함"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.3975,
+    "longitude": 126.9361,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "상시 접근 가능",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 없음",
+    "nearbyParkingInfo": "안양천 공영주차장 또는 인근 공영주차장 확인"
+  },
+  {
+    "id": "seed-gallery-o-a",
+    "name": "갤러리오에이",
+    "region": "성남",
+    "regions": [
+      "경기",
+      "경기도",
+      "성남",
+      "성남시",
+      "수정구"
+    ],
+    "address": "경기도 성남시 수정구 사송로77번길 35",
+    "description": "회색 벽과 나무 가구, 큰 창의 빛이 어우러져 차분한 갤러리 카페 컷을 찍기 좋은 공간",
+    "bestTime": "오전 자연광, 오후 실내 빛",
+    "reason": "넓은 여백과 우드 톤이 살아 있어 조용한 실내 스냅과 전시 공간 느낌의 사진에 좋아요",
+    "tags": [
+      "성남",
+      "수정구",
+      "갤러리",
+      "카페",
+      "실내",
+      "로컬카페",
+      "공간"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn",
+      "winter"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "로컬카페",
+      "갤러리",
+      "실내",
+      "우드톤",
+      "조용함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.4215,
+    "longitude": 127.1096,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "10:00~18:00",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "전용 주차 확인 필요",
+    "nearbyParkingInfo": "갤러리오에이 인근 주차 가능 여부 확인"
+  },
+  {
+    "id": "seed-war-memorial-archive-library",
+    "name": "전쟁기념관 아카이브센터 라이브러리",
+    "region": "용산",
+    "regions": [
+      "서울",
+      "용산",
+      "용산구",
+      "이태원로",
+      "남산뷰"
+    ],
+    "address": "서울특별시 용산구 이태원로 29 2층",
+    "description": "큰 창으로 초록과 남산 방향 뷰가 들어오는 무료 라이브러리로 조용한 실내 출사와 휴식 컷에 좋은 공간",
+    "bestTime": "오전 자연광, 흐린 날 실내",
+    "reason": "창밖 녹음과 정돈된 서가가 차분하게 보여 비 오는 날이나 조용한 서울 데이트 코스 사진에 어울려요",
+    "tags": [
+      "용산",
+      "무료도서관",
+      "남산뷰",
+      "라이브러리",
+      "실내",
+      "서울데이트",
+      "조용함"
+    ],
+    "category": "indoor",
+    "season": [
+      "spring",
+      "summer",
+      "autumn",
+      "winter"
+    ],
+    "weather": [
+      "rain",
+      "cloudy"
+    ],
+    "mood": [
+      "실내",
+      "도서관",
+      "남산뷰",
+      "조용함",
+      "초록"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 37.5361,
+    "longitude": 126.977,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "운영시간 확인 필요, 매주 월요일 정기 휴무",
+    "feeInfo": "무료",
+    "parkingInfo": "전쟁기념관 주차장 확인",
+    "nearbyParkingInfo": "전쟁기념관 주차장"
+  },
+  {
+    "id": "seed-chadam-gallery-square",
+    "name": "차담 by 갤러리 더 스퀘어",
+    "region": "정릉",
+    "regions": [
+      "서울",
+      "성북",
+      "성북구",
+      "정릉",
+      "명원박물관"
+    ],
+    "address": "서울특별시 성북구 정릉로9길 68 명원박물관 해웅헌",
+    "description": "한옥과 전시 공간을 함께 경험할 수 있는 차 공간으로 정갈한 다식과 조용한 마당 컷을 찍기 좋은 곳",
+    "bestTime": "오후 차 시간, 맑은 날 마당",
+    "reason": "한옥 처마와 차 테이블, 전시 공간이 이어져 여유롭게 머무는 감성 사진을 만들기 좋아요",
+    "tags": [
+      "정릉",
+      "성북",
+      "한옥",
+      "차",
+      "전시",
+      "로컬카페",
+      "서울"
+    ],
+    "category": "cafe",
+    "season": [
+      "spring",
+      "summer",
+      "autumn",
+      "winter"
+    ],
+    "weather": [
+      "clear",
+      "cloudy",
+      "rain"
+    ],
+    "mood": [
+      "로컬카페",
+      "한옥",
+      "전시",
+      "차분함",
+      "마당"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": true,
+    "latitude": 37.6136,
+    "longitude": 127.0068,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "12:00~18:00, 토요일 ~19:00",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "주차 가능",
+    "nearbyParkingInfo": "정릉로9길 44 인근 주차 가능 여부 확인"
+  },
+  {
+    "id": "seed-seoul-botanic-sunshine-garden",
+    "name": "서울식물원 햇살정원",
+    "region": "마곡",
+    "regions": [
+      "서울",
+      "강서",
+      "강서구",
+      "마곡",
+      "마곡나루",
+      "서울식물원"
+    ],
+    "address": "서울특별시 강서구 마곡동로 161 서울식물원 열린숲 일대",
+    "description": "서울식물원 열린숲 안의 햇살정원으로 장미와 초록 터널을 함께 담기 좋은 무료 꽃 출사지",
+    "bestTime": "5월 장미 시즌, 오전 자연광",
+    "reason": "열린 숲길과 장미 구조물이 이어져 인물 스냅과 데이트 꽃 사진 모두 자연스럽게 나와요",
+    "tags": [
+      "서울식물원",
+      "햇살정원",
+      "장미",
+      "꽃",
+      "마곡나루",
+      "서울데이트",
+      "봄꽃"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "꽃",
+      "장미",
+      "산책",
+      "초록",
+      "데이트"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5688,
+    "longitude": 126.8356,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "열린숲 상시 접근 가능, 시설별 운영시간 확인 필요",
+    "feeInfo": "열린숲 무료, 온실/주제정원 별도",
+    "parkingInfo": "서울식물원 지하주차장 이용 가능",
+    "nearbyParkingInfo": "서울식물원 지하주차장, 마곡나루역 인근 주차장"
+  },
+  {
+    "id": "seed-seoul-hongneung-forest",
+    "name": "홍릉숲",
+    "region": "동대문",
+    "regions": [
+      "서울",
+      "동대문",
+      "동대문구",
+      "청량리",
+      "회기"
+    ],
+    "address": "서울특별시 동대문구 회기로 57",
+    "description": "오래된 연구 숲길이 개방된 국내 최초 수목원 감성의 초록 출사지",
+    "bestTime": "오전 숲빛, 흐린 날 초록 산책",
+    "reason": "데크길과 키 큰 나무가 이어져 조용한 산책 컷과 자연광 인물 사진이 차분하게 나와요",
+    "tags": [
+      "홍릉숲",
+      "수목원",
+      "숲길",
+      "초록",
+      "산책",
+      "동대문",
+      "서울"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "초록",
+      "숲",
+      "산책",
+      "차분함",
+      "자연광"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5944,
+    "longitude": 127.0432,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_hongneung_forest",
+    "theme": "healing",
+    "openingHours": "운영 일정 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "방문 전 주차 가능 여부 확인 필요",
+    "nearbyParkingInfo": "회기역/고려대역 인근 공영주차장 확인"
+  },
+  {
+    "id": "seed-seoul-jibokjae",
+    "name": "집옥재",
+    "region": "경복궁",
+    "regions": [
+      "서울",
+      "종로",
+      "종로구",
+      "경복궁",
+      "서촌"
+    ],
+    "address": "서울특별시 종로구 사직로 161 경복궁 내부",
+    "description": "붉은 목조 건축과 고궁의 빛이 어우러지는 고종의 서재 출사지",
+    "bestTime": "오후 사선 빛, 맑은 날 고궁 산책",
+    "reason": "창살과 처마, 붉은 목조 디테일이 뚜렷해 건축 스냅과 필름 감성 컷이 잘 나와요",
+    "tags": [
+      "집옥재",
+      "경복궁",
+      "고궁",
+      "건축",
+      "서촌",
+      "종로",
+      "서울"
+    ],
+    "category": "indoor",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "고궁",
+      "건축",
+      "필름감성",
+      "서촌",
+      "차분함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5808,
+    "longitude": 126.9769,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_jibokjae",
+    "theme": "indoor",
+    "openingHours": "공개 기간 및 휴관일 확인 필요",
+    "feeInfo": "경복궁 관람 요금 기준",
+    "parkingInfo": "경복궁 주차장 이용 가능",
+    "nearbyParkingInfo": "경복궁 주차장, 서촌 공영주차장"
+  },
+  {
+    "id": "seed-seoul-yongmasan-skywalk",
+    "name": "용마산 스카이워크",
+    "region": "중랑",
+    "regions": [
+      "서울",
+      "중랑",
+      "중랑구",
+      "용마산",
+      "망우"
+    ],
+    "address": "서울특별시 중랑구 면목동 산3 일대",
+    "description": "용마산 능선 위에서 서울 야경과 블루아워 하늘을 넓게 담는 전망 출사지",
+    "bestTime": "해질녘부터 블루아워, 야경",
+    "reason": "도시 불빛과 능선 실루엣이 겹쳐 걷는 장면과 야경 파노라마를 함께 담기 좋아요",
+    "tags": [
+      "용마산",
+      "스카이워크",
+      "야경",
+      "전망",
+      "블루아워",
+      "산책",
+      "서울"
+    ],
+    "category": "trail",
+    "season": [
+      "spring",
+      "autumn",
+      "winter"
+    ],
+    "weather": [
+      "clear"
+    ],
+    "mood": [
+      "야경",
+      "전망",
+      "산책",
+      "도시",
+      "블루아워"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.576,
+    "longitude": 127.0948,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_yongmasan_skywalk",
+    "theme": "night",
+    "openingHours": "상시 접근 가능, 야간 방문 시 안전 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "전용 주차 제한",
+    "nearbyParkingInfo": "용마폭포공원 주차장 또는 용마산역 인근 공영주차장"
+  },
+  {
+    "id": "seed-daegu-gachang-quarry",
+    "name": "가창 채석장",
+    "region": "대구 가창",
+    "regions": [
+      "대구",
+      "달성",
+      "달성군",
+      "가창"
+    ],
+    "address": "대구광역시 달성군 가창면 상원리 산189-1",
+    "description": "절벽과 에메랄드빛 물빛이 이국적으로 보이는 채석장 호수 출사지",
+    "bestTime": "맑은 날 오후, 여름 초록 시즌",
+    "reason": "암벽 질감과 물빛 대비가 강해 여행지 같은 스케일의 풍경 사진을 만들기 좋아요",
+    "tags": [
+      "가창",
+      "채석장",
+      "호수",
+      "절벽",
+      "이국적",
+      "대구",
+      "풍경"
+    ],
+    "category": "viewpoint",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear"
+    ],
+    "mood": [
+      "이국적",
+      "풍경",
+      "호수",
+      "암벽",
+      "숨은명소"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 35.7379,
+    "longitude": 128.6238,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_gachang_quarry",
+    "theme": "water",
+    "openingHours": "방문 가능 여부 확인 필요",
+    "feeInfo": "방문 전 확인 필요",
+    "parkingInfo": "주차 정보 확인 필요",
+    "nearbyParkingInfo": "가창면 인근 공영/임시 주차 가능 여부 확인"
+  },
+  {
+    "id": "seed-chungju-dam",
+    "name": "충주댐",
+    "region": "충주",
+    "regions": [
+      "충북",
+      "충청북도",
+      "충주",
+      "충주시",
+      "동량면"
+    ],
+    "address": "충청북도 충주시 동량면 조동리 산10-11",
+    "description": "벚꽃 능선과 호수 전망을 함께 담기 좋은 충주 대표 계절 출사지",
+    "bestTime": "봄 벚꽃 시즌, 오전 연무 낀 호수",
+    "reason": "호수 위로 겹치는 산 능선과 벚꽃길이 한 프레임에 들어와 계절감 있는 풍경 사진이 좋아요",
+    "tags": [
+      "충주댐",
+      "벚꽃",
+      "호수",
+      "전망",
+      "봄꽃",
+      "충주",
+      "충북"
+    ],
+    "category": "viewpoint",
+    "season": [
+      "spring",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "벚꽃",
+      "호수",
+      "전망",
+      "계절감",
+      "드라이브"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.0014,
+    "longitude": 127.9926,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_chungju_dam",
+    "theme": "flower",
+    "openingHours": "상시 접근 가능 구역 중심",
+    "feeInfo": "무료",
+    "parkingInfo": "전망대 및 주변 주차 가능 여부 확인",
+    "nearbyParkingInfo": "충주댐 물문화관/전망대 인근 주차장"
+  },
+  {
+    "id": "seed-seosan-hanwoo-ranch",
+    "name": "서산 한우목장",
+    "region": "서산",
+    "regions": [
+      "충남",
+      "충청남도",
+      "서산",
+      "서산시",
+      "운산면"
+    ],
+    "address": "충청남도 서산시 운산면 원벌리 산86-60",
+    "description": "완만한 초원 능선과 길이 이어져 한국의 알프스처럼 보이는 목장 풍경 출사지",
+    "bestTime": "이른 아침 안개, 해질녘 역광",
+    "reason": "구릉과 S자 길, 겹겹이 이어지는 산 능선이 넓게 펼쳐져 영화 같은 풍경 컷이 나와요",
+    "tags": [
+      "서산",
+      "한우목장",
+      "초원",
+      "목장",
+      "노을",
+      "풍경",
+      "충남"
+    ],
+    "category": "viewpoint",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "초원",
+      "목장",
+      "노을",
+      "풍경",
+      "드라이브",
+      "이국적"
+    ],
+    "crowdLevel": "low",
+    "isHiddenSpot": true,
+    "latitude": 36.8175,
+    "longitude": 126.6346,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_seosan_hanwoo_ranch",
+    "theme": "healing",
+    "openingHours": "방문 가능 구역 및 통제 여부 확인 필요",
+    "feeInfo": "무료 여부 확인 필요",
+    "parkingInfo": "전용 주차 정보 확인 필요",
+    "nearbyParkingInfo": "운산면 인근 주차 가능 여부 확인"
+  },
+  {
+    "id": "seed-cafe-del-pino-the-ambrosia",
+    "name": "델피노 더앰브로시아",
+    "region": "고성",
+    "regions": [
+      "강원",
+      "강원특별자치도",
+      "고성",
+      "고성군",
+      "토성면"
+    ],
+    "address": "강원특별자치도 고성군 토성면 미시령옛길 1153 소노펠리체 델피노 EAST 10층",
+    "description": "통유리 너머 울산바위 능선과 실내 실루엣을 함께 담기 좋은 고성 전망 카페",
+    "bestTime": "오전 08:00 전후, 맑은 날",
+    "reason": "큰 창을 프레임처럼 활용하면 산 사이로 스며드는 빛과 울산바위를 액자처럼 기록할 수 있어요",
+    "tags": [
+      "고성",
+      "울산바위",
+      "전망카페",
+      "통유리",
+      "산뷰"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "산뷰",
+      "실내",
+      "전망",
+      "차분함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 38.2127,
+    "longitude": 128.4971,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "매일 08:00 - 20:00, 방문 전 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "리조트 주차장 이용",
+    "nearbyParkingInfo": "소노펠리체 델피노 주차장"
+  },
+  {
+    "id": "seed-daegu-bullodong-tombs",
+    "name": "대구 불로동 고분군",
+    "region": "대구",
+    "regions": [
+      "대구",
+      "대구광역시",
+      "동구",
+      "불로동"
+    ],
+    "address": "대구광역시 동구 불로동 335 일대",
+    "description": "완만한 고분 능선과 한 그루 소나무가 어우러지는 대구의 초록 풍경 출사지",
+    "bestTime": "봄과 초여름 오전, 해질녘",
+    "reason": "낮은 구릉이 반복되는 선과 단독 소나무를 함께 담으면 여백 있는 풍경 사진이 나와요",
+    "tags": [
+      "대구",
+      "불로동",
+      "고분군",
+      "소나무",
+      "초록"
+    ],
+    "category": "walk",
+    "season": [
+      "spring",
+      "summer"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "초원",
+      "산책",
+      "고요함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 35.9121,
+    "longitude": 128.6372,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_daegu_bullodong_tombs",
+    "theme": "healing",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "인근 주차 가능 여부 확인",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-gunsan-oknyeo-barley-field",
+    "name": "군산 옥녀교차로 청보리밭",
+    "region": "군산",
+    "regions": [
+      "전북",
+      "전북특별자치도",
+      "군산",
+      "군산시",
+      "내초동"
+    ],
+    "address": "전북특별자치도 군산시 내초동 옥녀교차로 일대",
+    "description": "청보리밭 사이 선형 길과 나무 군락, 넓은 하늘을 함께 담을 수 있는 군산 들판 출사지",
+    "bestTime": "초여름 해질녘, 노을 직전",
+    "reason": "밭고랑의 선이 나무 군락으로 모여들어 원근감이 또렷하고, 노을이 더해지면 깊은 풍경 컷이 나와요",
+    "tags": [
+      "군산",
+      "청보리밭",
+      "옥녀교차로",
+      "노을",
+      "들판"
+    ],
+    "category": "viewpoint",
+    "season": [
+      "spring",
+      "summer"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "초원",
+      "노을",
+      "풍경"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 35.9505,
+    "longitude": 126.7068,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_gunsan_oknyeo_barley_field",
+    "theme": "flower",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "현장 주변 통행과 주차 가능 구역 확인 필요",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-busan-gwangalli-beach",
+    "name": "광안리해수욕장",
+    "region": "부산",
+    "regions": [
+      "부산",
+      "부산광역시",
+      "수영구",
+      "광안동",
+      "광안리"
+    ],
+    "address": "부산광역시 수영구 광안해변로 219 일대",
+    "description": "잔잔한 파도와 모래사장, 계절별 해변 풍경을 담기 좋은 부산 대표 바다 출사지",
+    "bestTime": "오전 햇살, 해질녘과 야간",
+    "reason": "높은 시점에서는 파도선과 모래사장의 반복 패턴이 살아나고, 야간에는 광안대교 불빛까지 함께 담을 수 있어요",
+    "tags": [
+      "부산",
+      "광안리",
+      "해수욕장",
+      "바다",
+      "야경"
+    ],
+    "category": "viewpoint",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "바다",
+      "산책",
+      "야경"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 35.1531,
+    "longitude": 129.1185,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_busan_gwangalli_beach",
+    "theme": "water",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "광안리해수욕장 인근 공영주차장 이용",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-jeonju-deokjin-park",
+    "name": "전주 덕진공원",
+    "region": "전주",
+    "regions": [
+      "전북",
+      "전북특별자치도",
+      "전주",
+      "전주시",
+      "덕진구"
+    ],
+    "address": "전북특별자치도 전주시 덕진구 권삼득로 390",
+    "description": "연꽃과 전통 정자를 창호 프레임처럼 담기 좋은 전주의 계절 공원 출사지",
+    "bestTime": "여름 연꽃철 오전",
+    "reason": "정자와 연꽃이 겹치는 구도가 단정하고, 실내 창틀을 프레임처럼 활용하면 사진집 같은 컷이 나와요",
+    "tags": [
+      "전주",
+      "덕진공원",
+      "연꽃",
+      "정자",
+      "여름"
+    ],
+    "category": "park",
+    "season": [
+      "summer"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "연꽃",
+      "정원",
+      "산책"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 35.8478,
+    "longitude": 127.1224,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_jeonju_deokjin_park",
+    "theme": "flower",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "덕진공원 주차장 또는 인근 공영주차장 확인",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-seoul-yeongdong-bridge-lower",
+    "name": "영동대교 하단부",
+    "region": "성수",
+    "regions": [
+      "서울",
+      "성동구",
+      "성수",
+      "한강",
+      "영동대교"
+    ],
+    "address": "서울특별시 성동구 성수동2가 영동대교 하단부",
+    "description": "한강변 도로의 곡선과 남산 방향 도심 야경을 한 프레임에 담기 좋은 일몰 출사지",
+    "bestTime": "해질녘부터 블루아워",
+    "reason": "도로의 흐르는 선과 한강, 남산 방향 스카이라인이 층층이 겹쳐 서울다운 노을과 야경을 만들어요",
+    "tags": [
+      "서울",
+      "영동대교",
+      "한강",
+      "노을",
+      "야경"
+    ],
+    "category": "viewpoint",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "노을",
+      "야경",
+      "도시",
+      "한강"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5295,
+    "longitude": 127.0564,
+    "source": "local",
+    "imageURL": null,
+    "imageName": "spot_yeongdong_bridge_lower",
+    "theme": "night",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "무료",
+    "parkingInfo": "보행 동선과 주변 공영주차장 확인 필요",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-tongyeong-lighthouse-fishing-park",
+    "name": "통영 등대낚시공원",
+    "region": "통영",
+    "regions": [
+      "경남",
+      "경상남도",
+      "통영",
+      "통영시",
+      "산양읍"
+    ],
+    "address": "경상남도 통영시 산양읍 등대낚시공원 일대",
+    "description": "푸른 바다 위로 길게 이어지는 보행교를 담기 좋은 통영 해안 출사지",
+    "bestTime": "맑은 날 오전과 해질녘",
+    "reason": "바다를 가로지르는 가는 선 위에 사람 실루엣이 더해져 여백이 큰 여행 사진을 만들기 좋아요",
+    "tags": [
+      "통영",
+      "산양읍",
+      "등대낚시공원",
+      "바다",
+      "산책"
+    ],
+    "category": "walk",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "바다",
+      "여행",
+      "산책"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 34.7625,
+    "longitude": 128.3945,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "water",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "현장 이용 안내 확인 필요",
+    "parkingInfo": "현장 주차 가능 여부 확인",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-cafe-okryuheon-relax",
+    "name": "옥류헌릴렉스",
+    "region": "우이동",
+    "regions": [
+      "서울",
+      "강북구",
+      "우이동",
+      "북한산"
+    ],
+    "address": "서울특별시 강북구 삼양로181길 142",
+    "description": "북한산 아래 초록 풍경을 큰 창으로 바라볼 수 있는 대형 베이커리 카페",
+    "bestTime": "평일 오전, 비 온 뒤",
+    "reason": "숲이 보이는 통창과 차분한 실내 조명이 겹쳐 쉬어가는 분위기의 실내 스냅에 좋아요",
+    "tags": [
+      "우이동",
+      "북한산",
+      "베이커리카페",
+      "통창",
+      "숲뷰"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "숲뷰",
+      "실내",
+      "휴식",
+      "비오는날"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.657,
+    "longitude": 127.0122,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "매일 11:00 - 22:00, 라스트오더 21:00",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "매장 주차 가능 여부 확인",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-seoul-heunginjimun-park",
+    "name": "흥인지문공원",
+    "region": "종로",
+    "regions": [
+      "서울",
+      "종로",
+      "종로구",
+      "동대문",
+      "흥인지문"
+    ],
+    "address": "서울특별시 종로구 종로6가 70",
+    "description": "흥인지문과 남산 방향 풍경을 함께 바라볼 수 있는 도심 언덕 공원 출사지",
+    "bestTime": "해질녘, 야간 조명 시간",
+    "reason": "성곽과 도심 스카이라인이 한 프레임에 들어와 서울의 옛 풍경과 야경을 함께 담기 좋아요",
+    "tags": [
+      "서울",
+      "흥인지문",
+      "동대문",
+      "남산뷰",
+      "노을"
+    ],
+    "category": "park",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "도시",
+      "노을",
+      "야경",
+      "성곽"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5729,
+    "longitude": 127.0098,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "night",
+    "openingHours": "상시 개방",
+    "feeInfo": "무료",
+    "parkingInfo": "흥인지문 공영주차장 이용 가능 여부 확인",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-cafe-yeonnam-cherry-blossom",
+    "name": "연남동 벚꽃집",
+    "region": "연남",
+    "regions": [
+      "서울",
+      "마포구",
+      "연남동"
+    ],
+    "address": "서울특별시 마포구 동교로29길 50",
+    "description": "식물과 원목 가구, 계절마다 달라지는 창밖 풍경이 어우러지는 연남동 감성 카페",
+    "bestTime": "비 오는 날, 벚꽃철과 여름 오후",
+    "reason": "창가의 부드러운 빛과 질감 있는 실내가 자연스럽게 섞여 조용한 카페 스냅을 담기 좋아요",
+    "tags": [
+      "연남동",
+      "카페",
+      "벚꽃",
+      "창가",
+      "디저트"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "실내",
+      "창가",
+      "비오는날",
+      "따뜻함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5605,
+    "longitude": 126.9252,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "매일 11:00 - 22:00, 토·일 11:00 - 23:00",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "인근 공영주차장 확인",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-inwangsan-forest-shelter",
+    "name": "인왕산숲속쉼터",
+    "region": "종로",
+    "regions": [
+      "서울",
+      "종로구",
+      "청운동",
+      "인왕산"
+    ],
+    "address": "서울특별시 종로구 청운동 산4-36",
+    "description": "인왕산 숲과 도심 전망을 함께 쉬어가며 담을 수 있는 산중 쉼터",
+    "bestTime": "봄과 초여름 오전",
+    "reason": "나무 사이로 종로 일대가 내려다보여 산책과 전망 사진을 함께 담기 좋아요",
+    "tags": [
+      "인왕산",
+      "숲속쉼터",
+      "등산",
+      "전망",
+      "종로"
+    ],
+    "category": "trail",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "숲",
+      "산책",
+      "전망",
+      "고요함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5894,
+    "longitude": 126.9663,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "매일 10:00 - 17:00, 월요일 휴무",
+    "feeInfo": "무료",
+    "parkingInfo": "등산로로 방문 가능",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-cafe-theforest-choso-bookstore",
+    "name": "더숲초소책방",
+    "region": "인왕산",
+    "regions": [
+      "서울",
+      "종로구",
+      "인왕산"
+    ],
+    "address": "서울특별시 종로구 인왕산로 172",
+    "description": "인왕산 숲길과 책장을 함께 즐길 수 있는 작은 산중 책방 카페",
+    "bestTime": "평일 오전, 오후 늦은 빛",
+    "reason": "숲 가까운 창가와 책장이 어우러져 조용한 독서와 감성 스냅에 잘 맞아요",
+    "tags": [
+      "인왕산",
+      "초소책방",
+      "북카페",
+      "숲뷰",
+      "창가"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "숲뷰",
+      "책방",
+      "실내",
+      "고요함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5875,
+    "longitude": 126.9668,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "매일 08:00 - 22:00, 방문 전 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "주차 공간이 협소해 대중교통 또는 도보 방문 권장",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-cheongun-literature-library",
+    "name": "청운문학도서관",
+    "region": "종로",
+    "regions": [
+      "서울",
+      "종로구",
+      "청운동",
+      "서촌"
+    ],
+    "address": "서울특별시 종로구 자하문로36길 40",
+    "description": "한옥과 숲길이 어우러져 차분한 서울 풍경을 담기 좋은 문학 도서관",
+    "bestTime": "평일 오전과 오후 자연광",
+    "reason": "낮은 한옥선과 주변 녹지가 겹쳐 여백 있는 건축 사진과 산책 컷을 만들기 좋아요",
+    "tags": [
+      "청운동",
+      "한옥",
+      "도서관",
+      "숲길",
+      "서촌"
+    ],
+    "category": "indoor",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "한옥",
+      "독서",
+      "고요함",
+      "산책"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5865,
+    "longitude": 126.9682,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "평일 09:00 - 21:00, 주말 09:00 - 19:00, 월요일 휴무",
+    "feeInfo": "무료",
+    "parkingInfo": "주차 공간이 협소해 대중교통 권장",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-cafe-okidoki-anguk",
+    "name": "오키도키 안국",
+    "region": "안국",
+    "regions": [
+      "서울",
+      "종로구",
+      "원서동",
+      "안국",
+      "창덕궁"
+    ],
+    "address": "서울특별시 종로구 원서동 152",
+    "description": "창덕궁 담장과 기와지붕을 통창 너머로 바라볼 수 있는 안국 카페",
+    "bestTime": "오전 자연광, 오후 창가 빛",
+    "reason": "큰 창이 궁궐 담장과 한옥 지붕을 액자처럼 잡아줘 단정한 실내 뷰 사진이 나와요",
+    "tags": [
+      "안국",
+      "창덕궁",
+      "통창",
+      "카페",
+      "한옥뷰"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "한옥뷰",
+      "실내",
+      "창가",
+      "차분함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5796,
+    "longitude": 126.9884,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "안국역 인근 공영주차장 확인",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-gimpo-boreumsan-museum",
+    "name": "보름산미술관",
+    "region": "김포",
+    "regions": [
+      "경기",
+      "경기도",
+      "김포",
+      "김포시"
+    ],
+    "address": "경기도 김포시 수기로 100-78",
+    "description": "울창한 숲과 원목 공간, 전시를 한 자리에서 즐길 수 있는 김포의 지역 문화공간",
+    "bestTime": "맑은 날 오전과 오후 늦은 빛",
+    "reason": "초록을 담은 큰 창과 목재 가구가 어우러져 조용하고 이국적인 실내 스냅을 만들기 좋아요",
+    "tags": [
+      "김포",
+      "보름산미술관",
+      "숲뷰",
+      "전시",
+      "카페"
+    ],
+    "category": "indoor",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "숲뷰",
+      "전시",
+      "목재",
+      "실내"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.607,
+    "longitude": 126.7258,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "화-금 10:00 - 17:00, 주말 11:00 - 17:30, 월요일 휴무",
+    "feeInfo": "방문 전 관람 정보 확인 필요",
+    "parkingInfo": "현장 주차 가능 여부 확인",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-cafe-perment-anguk",
+    "name": "퍼먼트 안국",
+    "region": "안국",
+    "regions": [
+      "서울",
+      "종로구",
+      "계동",
+      "안국",
+      "북촌"
+    ],
+    "address": "서울특별시 종로구 계동 140-45",
+    "description": "원형 통창과 벽돌 외관이 인상적인 안국의 베이커리 카페",
+    "bestTime": "맑은 날 오전과 오후",
+    "reason": "둥근 창과 한옥 골목의 대비가 선명해서 건축 외관과 빵집 분위기를 함께 담기 좋아요",
+    "tags": [
+      "안국",
+      "계동",
+      "베이커리",
+      "건축",
+      "북촌"
+    ],
+    "category": "cafe",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "건축",
+      "골목",
+      "디저트",
+      "실내"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5808,
+    "longitude": 126.9866,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "city",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "매장 이용 시 비용 발생",
+    "parkingInfo": "북촌 인근 공영주차장 확인",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-le-labo-bukchon-hanok",
+    "name": "르 라보 북촌 한옥",
+    "region": "북촌",
+    "regions": [
+      "서울",
+      "종로구",
+      "화동",
+      "북촌"
+    ],
+    "address": "서울특별시 종로구 화동 27-1",
+    "description": "한옥 마당과 목재 질감을 가까이서 담을 수 있는 북촌의 플래그십 공간",
+    "bestTime": "평일 오전, 오후 자연광",
+    "reason": "ㄷ자 한옥의 깊이와 마당 식재가 겹쳐 정돈된 한국적 건축 사진을 만들기 좋아요",
+    "tags": [
+      "북촌",
+      "한옥",
+      "화동",
+      "마당",
+      "건축"
+    ],
+    "category": "indoor",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "한옥",
+      "건축",
+      "마당",
+      "고요함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5793,
+    "longitude": 126.9828,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "indoor",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "무료 입장 여부 확인 필요",
+    "parkingInfo": "북촌 인근 공영주차장 확인",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-gapyeong-morning-calm-arboretum",
+    "name": "아침고요수목원",
+    "region": "가평",
+    "regions": [
+      "경기",
+      "경기도",
+      "가평",
+      "가평군",
+      "상면"
+    ],
+    "address": "경기도 가평군 상면 수목원로 432",
+    "description": "넓은 숲길과 계절 야생화를 천천히 담기 좋은 가평의 대형 정원",
+    "bestTime": "봄꽃철과 가을 단풍철 오전",
+    "reason": "산자락을 따라 이어지는 정원 동선이 길어 화각을 바꿔가며 숲과 꽃을 기록하기 좋아요",
+    "tags": [
+      "가평",
+      "아침고요수목원",
+      "정원",
+      "야생화",
+      "산책"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "정원",
+      "꽃",
+      "산책",
+      "숲"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.7438,
+    "longitude": 127.3521,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "입장권 정보 확인 필요",
+    "parkingInfo": "주차 가능",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-paju-byeokchoji-arboretum",
+    "name": "벽초지수목원",
+    "region": "파주",
+    "regions": [
+      "경기",
+      "경기도",
+      "파주",
+      "파주시",
+      "광탄면"
+    ],
+    "address": "경기도 파주시 광탄면 부흥로 242",
+    "description": "유럽풍 정원과 계절 꽃밭이 어우러져 인물 스냅을 담기 좋은 파주 수목원",
+    "bestTime": "봄꽃철 오전, 흐린 날",
+    "reason": "조형 정원과 꽃길이 다양해 짧은 동선에서도 서로 다른 분위기의 사진을 만들기 좋아요",
+    "tags": [
+      "파주",
+      "벽초지수목원",
+      "정원",
+      "튤립",
+      "꽃"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "유럽정원",
+      "꽃",
+      "산책"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.8014,
+    "longitude": 126.8799,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "입장권 정보 확인 필요",
+    "parkingInfo": "무료 주차 가능 여부 확인",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-bucheon-mureungdowon-arboretum",
+    "name": "부천 무릉도원수목원",
+    "region": "부천",
+    "regions": [
+      "경기",
+      "경기도",
+      "부천",
+      "부천시"
+    ],
+    "address": "경기도 부천시 원미구 길주로 660",
+    "description": "해바라기와 계절 꽃, 박물관과 식물원을 함께 둘러볼 수 있는 부천 수목원",
+    "bestTime": "여름 꽃철 오전",
+    "reason": "정원과 전시 공간을 한 동선에서 볼 수 있어 꽃 사진과 가족 산책 스냅을 함께 담기 좋아요",
+    "tags": [
+      "부천",
+      "무릉도원수목원",
+      "해바라기",
+      "식물원",
+      "산책"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "꽃",
+      "정원",
+      "산책"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.5034,
+    "longitude": 126.8178,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "입장권 정보 확인 필요",
+    "parkingInfo": "주차 가능",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-suwon-ilwol-arboretum",
+    "name": "수원 일월수목원",
+    "region": "수원",
+    "regions": [
+      "경기",
+      "경기도",
+      "수원",
+      "수원시",
+      "장안구"
+    ],
+    "address": "경기도 수원시 장안구 일월로 61",
+    "description": "밝은 온실과 아기자기한 정원을 함께 담을 수 있는 수원의 도심 수목원",
+    "bestTime": "맑은 날 오전, 야간 개장일",
+    "reason": "유리 온실의 부드러운 빛과 식물 레이어가 풍부해 실내에서도 화사한 사진을 만들기 좋아요",
+    "tags": [
+      "수원",
+      "일월수목원",
+      "온실",
+      "정원",
+      "식물"
+    ],
+    "category": "park",
+    "season": [],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "온실",
+      "정원",
+      "식물",
+      "산책"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.2855,
+    "longitude": 126.9743,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "flower",
+    "openingHours": "운영시간과 야간 개장 일정 확인 필요",
+    "feeInfo": "입장권 정보 확인 필요",
+    "parkingInfo": "주차 가능",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-osan-mulhyanggi-arboretum",
+    "name": "물향기수목원",
+    "region": "오산",
+    "regions": [
+      "경기",
+      "경기도",
+      "오산",
+      "오산시"
+    ],
+    "address": "경기도 오산시 청학로 211",
+    "description": "습지 생태계와 수국 정원, 메타세쿼이아 숲길을 함께 걸을 수 있는 오산 수목원",
+    "bestTime": "초여름 수국철과 가을 오전",
+    "reason": "데크 길과 키 큰 나무, 수국이 층층이 이어져 깊이감 있는 숲 사진을 담기 좋아요",
+    "tags": [
+      "오산",
+      "물향기수목원",
+      "수국",
+      "습지",
+      "숲길"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "숲",
+      "수국",
+      "산책",
+      "고요함"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.1664,
+    "longitude": 127.061,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "방문 전 운영시간 확인 필요",
+    "feeInfo": "입장료 정보 확인 필요",
+    "parkingInfo": "주차 가능",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  },
+  {
+    "id": "seed-pocheon-national-arboretum",
+    "name": "국립수목원",
+    "region": "포천",
+    "regions": [
+      "경기",
+      "경기도",
+      "포천",
+      "포천시",
+      "소흘읍"
+    ],
+    "address": "경기도 포천시 소흘읍 광릉수목원로 415",
+    "description": "국내 대표 숲길과 생태 정원을 예약제로 천천히 둘러볼 수 있는 포천 국립수목원",
+    "bestTime": "봄과 가을 오전",
+    "reason": "긴 데크길과 울창한 숲이 이어져 드라이브와 산책을 겸한 차분한 풍경 촬영에 좋아요",
+    "tags": [
+      "포천",
+      "국립수목원",
+      "광릉숲",
+      "숲길",
+      "산책"
+    ],
+    "category": "park",
+    "season": [
+      "spring",
+      "summer",
+      "autumn"
+    ],
+    "weather": [
+      "clear",
+      "cloudy"
+    ],
+    "mood": [
+      "숲",
+      "산책",
+      "고요함",
+      "드라이브"
+    ],
+    "crowdLevel": "normal",
+    "isHiddenSpot": false,
+    "latitude": 37.7543,
+    "longitude": 127.1674,
+    "source": "local",
+    "imageURL": null,
+    "imageName": null,
+    "theme": "healing",
+    "openingHours": "방문 전 운영시간 및 예약 가능 여부 확인 필요",
+    "feeInfo": "입장권 정보 확인 필요",
+    "parkingInfo": "주차 가능, 예약 안내 확인 필요",
+    "nearbyParkingInfo": "네이버 지도 또는 카카오맵에서 주변 주차장 확인"
+  }
+]
