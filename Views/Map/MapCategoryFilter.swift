@@ -144,7 +144,7 @@ struct MapFilterPill: View {
             if isLoading {
                 ProgressView()
                     .controlSize(.mini)
-                    .tint(isSelected ? .white : .black.opacity(0.64))
+                    .tint(isSelected ? AppColors.onAccent : AppColors.secondaryText)
             } else {
                 Image(systemName: symbolName)
                     .font(.system(size: 12, weight: .bold))
@@ -154,36 +154,33 @@ struct MapFilterPill: View {
         .padding(.horizontal, 10)
         .frame(minHeight: AppLayout.touchTarget)
 
+        // Phase 1 수정
+        // 기존에는 선택 상태의 tint 가 AppColors.primary 였습니다.
+        // 다크 모드에서 primary 는 흰색이므로 "흰 글자 + 흰 유리" 가 되어
+        // 선택된 칩의 글자가 보이지 않는 문제가 있었습니다.
+        // 선택 상태는 브랜드 앰버로, 글자는 대비가 확보되는 onAccent 로 바꿉니다.
         Group {
             if #available(iOS 26.0, *) {
                 label
-                    .foregroundStyle(isSelected ? Color.white : AppColors.primary)
+                    .foregroundStyle(isSelected ? AppColors.onAccent : AppColors.primary)
                     .glassEffect(
                         .regular
-                            .tint(isSelected ? AppColors.primary.opacity(0.78) : .clear)
+                            .tint(isSelected ? AppColors.accent.opacity(0.85) : .clear)
                             .interactive(),
                         in: Capsule()
                     )
             } else {
                 if reduceTransparency {
                     label
-                        .foregroundStyle(isSelected ? Color.white : AppColors.primary)
-                        .background(isSelected ? AppColors.primary : AppColors.cardBackground, in: Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(isSelected ? AppColors.primary : AppColors.divider.opacity(0.8), lineWidth: 1)
-                        )
+                        .foregroundStyle(isSelected ? AppColors.onAccent : AppColors.primary)
+                        .background(isSelected ? AppColors.accent : AppColors.cardBackground, in: Capsule())
                 } else {
                     label
-                        .foregroundStyle(isSelected ? Color.white : AppColors.primary)
+                        .foregroundStyle(isSelected ? AppColors.onAccent : AppColors.primary)
                         .background(.ultraThinMaterial, in: Capsule())
                         .overlay(
                             Capsule()
-                                .fill(isSelected ? AppColors.primary.opacity(0.88) : .clear)
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(isSelected ? AppColors.primary : AppColors.divider.opacity(0.8), lineWidth: 1)
+                                .fill(isSelected ? AppColors.accent.opacity(0.92) : .clear)
                         )
                 }
             }

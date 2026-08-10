@@ -106,22 +106,20 @@ struct MyTabView: View {
                     Text("로그인하면 프로필과 작성 활동을 계정에 연결할 수 있어요.")
                 }
             }
+            // Phase 1: 스크롤한 본문이 상태바 시계와 겹쳐 읽히는 문제를 수정합니다.
+            .vfTopEdgeFade()
             .navigationBarHidden(true)
         }
     }
 
     private var screenHeader: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text("마이")
-                .font(AppTypography.screenTitle)
-                .foregroundStyle(AppColors.primary)
-                .accessibilityAddTraits(.isHeader)
-
-            Text(user == nil ? "저장한 장소를 모아두고, 필요할 때 로그인하세요." : "저장한 장소와 나의 활동을 한눈에 확인하세요.")
-                .font(AppTypography.metadata)
-                .foregroundStyle(AppColors.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        // Phase 1: 설명 부제를 제거했습니다.
+        // "저장한 장소와 나의 활동을 한눈에 확인하세요" 는 화면이 이미 말하고 있는
+        // 내용을 반복하는 문장이었습니다. 부제는 정보가 아니라 소음이었습니다.
+        Text("마이")
+            .vfText(.display)
+            .foregroundStyle(AppColors.primary)
+            .accessibilityAddTraits(.isHeader)
     }
 
     @ViewBuilder
@@ -151,17 +149,12 @@ struct MyTabView: View {
 
     private func activityOverview(using proxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: AppLayout.contentSpacing) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("나의 활동")
-                    .font(AppTypography.sectionTitle)
-                    .foregroundStyle(AppColors.primary)
-                    .accessibilityAddTraits(.isHeader)
-
-                Text(user == nil ? "저장은 바로 확인하고, 계정 활동은 로그인 후 이어갈 수 있어요." : "최근 활동을 항목별로 빠르게 확인하세요.")
-                    .font(AppTypography.metadata)
-                    .foregroundStyle(AppColors.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            // Phase 1: 설명 부제를 제거했습니다.
+            // 아이콘과 숫자가 이미 내용을 전달하고 있어서 설명문이 불필요했습니다.
+            Text("나의 활동")
+                .vfText(.title1)
+                .foregroundStyle(AppColors.primary)
+                .accessibilityAddTraits(.isHeader)
 
             Group {
                 if dynamicTypeSize.isAccessibilitySize {

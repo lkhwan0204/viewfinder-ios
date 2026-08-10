@@ -744,6 +744,8 @@ struct HomeSearchResultsView: View {
                 .padding(.bottom, 28)
             }
             .background(AppColors.background.ignoresSafeArea())
+            // Phase 1: 스크롤한 본문이 상태바와 겹쳐 읽히는 문제를 수정합니다.
+            .vfTopEdgeFade()
             .navigationBarHidden(true)
             .onAppear {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {

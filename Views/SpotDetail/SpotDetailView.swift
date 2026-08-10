@@ -389,7 +389,7 @@ struct SpotDetailView: View {
                 }
             }
         }
-        .tint(AppColors.primary)
+        .tint(AppColors.accent)
         .padding(16)
         .appCardSurface()
     }

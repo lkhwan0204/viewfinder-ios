@@ -3,26 +3,26 @@ import SwiftUI
 import UIKit
 
 enum AppColors {
-    static let uiPrimary = UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? .white
-            : UIColor(red: 17.0 / 255.0, green: 17.0 / 255.0, blue: 17.0 / 255.0, alpha: 1)
-    }
-    static let uiSecondaryText = UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 152.0 / 255.0, green: 152.0 / 255.0, blue: 157.0 / 255.0, alpha: 1)
-            : UIColor(red: 110.0 / 255.0, green: 110.0 / 255.0, blue: 115.0 / 255.0, alpha: 1)
-    }
-    static let uiAccent = uiPrimary
-    static let uiCardBackground = UIColor { traits in
-        traits.userInterfaceStyle == .dark ? .black : .white
-    }
-    static let uiBackground = uiCardBackground
-    static let uiDivider = UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(white: 0.18, alpha: 1)
-            : UIColor(red: 234.0 / 255.0, green: 234.0 / 255.0, blue: 234.0 / 255.0, alpha: 1)
-    }
+
+    // -------------------------------------------------------------
+    // VFPalette 가 색의 단일 출처입니다. (Views/Shared/VFDesign.swift)
+    // 이 enum 은 기존 호출부 호환을 위한 별칭 레이어입니다.
+    // 새 코드에서는 VFPalette 를 직접 쓰세요.
+    // -------------------------------------------------------------
+
+    // MARK: UIKit
+
+    static let uiPrimary = VFPalette.ink1
+    static let uiSecondaryText = VFPalette.ink2
+    /// 브랜드 앰버. 저장됨 / 선택됨 상태에만 쓰인다.
+    static let uiAccent = VFPalette.amber
+    /// 카드 표면. 다크에서 canvas 와 분리되어 테두리 없이도 읽힌다.
+    static let uiCardBackground = VFPalette.surface1
+    /// 루트 배경. 다크에서 순수 검정.
+    static let uiBackground = VFPalette.canvas
+    static let uiDivider = VFPalette.separator
+
+    // MARK: SwiftUI
 
     static let text = Color(uiColor: uiPrimary)
     static let neutralGray = Color(uiColor: uiSecondaryText)
@@ -34,38 +34,18 @@ enum AppColors {
     static let cardBackground = Color(uiColor: uiCardBackground)
     static let secondaryText = neutralGray
     static let divider = borderGray
-    static let mutedSurface = Color(
-        uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(white: 0.09, alpha: 1)
-                : UIColor(white: 0.965, alpha: 1)
-        }
-    )
-    static let accentSoft = silverGray.opacity(0.10)
+    static let mutedSurface = Color(uiColor: VFPalette.surface2)
+    static let accentSoft = silverGray.opacity(0.14)
+    /// 앰버 표면 위에 올라가는 텍스트/아이콘 색. 대비 확보용.
+    static let onAccent = Color(uiColor: VFPalette.onAmber)
     static let primarySoft = text.opacity(0.055)
 
-    static let crowdRelaxed = Color(
-        uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 78.0 / 255.0, green: 180.0 / 255.0, blue: 117.0 / 255.0, alpha: 1)
-                : UIColor(red: 42.0 / 255.0, green: 145.0 / 255.0, blue: 85.0 / 255.0, alpha: 1)
-        }
-    )
-    static let crowdNormal = Color(
-        uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 232.0 / 255.0, green: 158.0 / 255.0, blue: 73.0 / 255.0, alpha: 1)
-                : UIColor(red: 198.0 / 255.0, green: 112.0 / 255.0, blue: 36.0 / 255.0, alpha: 1)
-        }
-    )
-    static let crowdCrowded = Color(
-        uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 238.0 / 255.0, green: 96.0 / 255.0, blue: 89.0 / 255.0, alpha: 1)
-                : UIColor(red: 204.0 / 255.0, green: 54.0 / 255.0, blue: 48.0 / 255.0, alpha: 1)
-        }
-    )
+    // MARK: 혼잡도
+    // 색상 단독 사용 금지. VFCrowdBadge 를 쓰면 점 개수 + 라벨이 함께 표시된다.
 
+    static let crowdRelaxed = Color(uiColor: VFPalette.crowdCalm)
+    static let crowdNormal = Color(uiColor: VFPalette.crowdNormal)
+    static let crowdCrowded = Color(uiColor: VFPalette.crowdBusy)
 }
 
 struct PhotoSpot: Identifiable, Equatable, Sendable {
