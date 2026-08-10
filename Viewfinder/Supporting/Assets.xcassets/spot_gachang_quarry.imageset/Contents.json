@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "spot_gachang_quarry.jpg",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
