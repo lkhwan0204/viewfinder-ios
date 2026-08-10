@@ -74,7 +74,7 @@ struct HomeFeedView: View {
     @State private var isRefreshArmed = false
     @State private var isRefreshingRecommendations = false
 
-    private let refreshTriggerOffset: CGFloat = 110
+    private let refreshTriggerOffset: CGFloat = 210
     private let homeScrollCoordinateSpace = "homeDiscoveryScroll"
 
     private var recommendations: [GPTRecommendedSpot] {
@@ -138,19 +138,10 @@ struct HomeFeedView: View {
         NavigationStack {
             homeContent
             .background(AppColors.background.ignoresSafeArea())
-            .navigationTitle("")
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        isSearchResultsPresented = true
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                    }
-                    .accessibilityLabel("출사지 검색")
-                }
-            }
+            // nav bar 를 완전히 제거합니다. 사진이 상태바까지 올라가야 하고,
+            // 검색 버튼은 사진 위에 떠 있는 유리 컨트롤이어야 합니다.
+            .toolbar(.hidden, for: .navigationBar)
+            .overlay(alignment: .topTrailing) { floatingSearchButton }
             .navigationDestination(item: $selectedCategory) { category in
                 HomeCategoryListView(
                     category: category,
@@ -204,11 +195,40 @@ struct HomeFeedView: View {
     }
 
     private var homeContent: some View {
-        discoveryPage
-            .background(AppColors.background)
+        // Hero 크기를 추측하지 않고 측정합니다.
+        // containerRelativeFrame 이 기대와 다르게 해석되어 카드가 화면 절반 폭으로
+        // 렌더되었고, Hero 에 사진 두 장이 반쪽씩 보이는 문제가 있었습니다.
+        GeometryReader { proxy in
+            let topInset = proxy.safeAreaInsets.top
+            let heroHeight = (proxy.size.height + topInset) * VFPhoto.heroHeightRatio
+
+            discoveryPage(
+                heroSize: CGSize(width: proxy.size.width, height: heroHeight),
+                topInset: topInset
+            )
+        }
+        .background(AppColors.background)
     }
 
-    private var discoveryPage: some View {
+    /// 사진 위에 떠 있는 검색 버튼.
+    /// 툴바 아이템이 아니라 오버레이라서 스크롤 콘텐츠와 계층이 명확히 분리됩니다.
+    private var floatingSearchButton: some View {
+        Button {
+            isSearchResultsPresented = true
+        } label: {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Color.white)
+                .frame(width: 44, height: 44)
+                .vfGlass(interactive: true)
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, VFSpace.lg - VFSpace.xs)
+        .padding(.top, VFSpace.sm)
+        .accessibilityLabel("출사지 검색")
+    }
+
+    private func discoveryPage(heroSize: CGSize, topInset: CGFloat) -> some View {
         ScrollView(showsIndicators: false) {
             // Phase 2A
             // - 화면 전체에 걸던 horizontal padding 을 제거했습니다.
@@ -219,7 +239,7 @@ struct HomeFeedView: View {
             // - 섹션마다 레이아웃을 다르게 해서 스크롤에 리듬을 만듭니다.
             //   기존에는 4개 섹션이 전부 같은 2열 균일 레일이라 스크롤이 단조로웠습니다.
             LazyVStack(alignment: .leading, spacing: VFSpace.xxl) {
-                todaySection
+                todaySection(heroSize: heroSize, topInset: topInset)
 
                 ForEach(Array(categories.prefix(4).enumerated()), id: \.element.id) { index, category in
                     let categoryRecommendations = recommendations(for: category)
@@ -297,19 +317,12 @@ struct HomeFeedView: View {
             handleRefreshThresholdChange(offset >= refreshTriggerOffset)
         }
         .overlay(alignment: .top) {
-            ZStack {
-                Circle()
-                    .fill(AppColors.cardBackground)
-                    .overlay(Circle().stroke(AppColors.divider, lineWidth: 1))
-
-                Image(systemName: "arrow.down")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(AppColors.primary)
-                    .scaleEffect(isRefreshArmed ? 1 : 0.72)
-                    .opacity(isRefreshArmed ? 1 : 0)
-            }
-            .frame(width: 32, height: 32)
-            .padding(.top, 8)
+            Image(systemName: "arrow.down")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color.white)
+                .frame(width: 32, height: 32)
+                .vfGlass()
+                .padding(.top, topInset + VFSpace.sm)
             .offset(y: isRefreshArmed ? 0 : -12)
             .opacity(isRefreshArmed ? 1 : 0)
             .allowsHitTesting(false)
@@ -321,6 +334,10 @@ struct HomeFeedView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.97)))
             }
         }
+        // 사진이 상태바까지 올라갑니다.
+        .ignoresSafeArea(edges: .top)
+        // 스크롤한 본문이 상태바와 겹쳐 읽히는 것을 시스템 재료로 막습니다.
+        .modifier(VFTopScrollEdgeEffect())
         .background(AppColors.background)
     }
 
@@ -490,11 +507,13 @@ struct HomeFeedView: View {
 
     // Phase 2A: 272x352 고정 카드 카로셀을 full-bleed Hero 로 교체했습니다.
     // 섹션 헤더("오늘의 프레임")는 제거했습니다 — 사진이 헤더 역할을 합니다.
-    private var todaySection: some View {
+    private func todaySection(heroSize: CGSize, topInset: CGFloat) -> some View {
         HomeHeroSection(
             recommendations: recommendations,
             savedSpotIDs: savedSpotIDs,
             userLocation: userLocation,
+            cardSize: heroSize,
+            topInset: topInset,
             contextText: heroContextText,
             onShowContext: onShowWeather,
             onToggleSave: onToggleSave,
@@ -1149,7 +1168,7 @@ struct HomeCategorySection: View {
                         card(
                             for: recommendation,
                             aspectRatio: VFPhoto.squareAspect,
-                            showsMeta: false
+                            showsCaption: false
                         )
                     }
                 }
@@ -1160,6 +1179,7 @@ struct HomeCategorySection: View {
     private func card(
         for recommendation: GPTRecommendedSpot,
         aspectRatio: CGFloat,
+        showsCaption: Bool = true,
         showsMeta: Bool = true
     ) -> some View {
         HomePhotoCard(
@@ -1167,6 +1187,7 @@ struct HomeCategorySection: View {
             aspectRatio: aspectRatio,
             isSaved: savedSpotIDs.contains(recommendation.spot.id),
             distanceText: VFSpotDistance.text(from: userLocation, to: recommendation.spot),
+            showsCaption: showsCaption,
             showsMeta: showsMeta,
             onToggleSave: { onToggleSave(recommendation.spot) },
             onSelect: { onSelect(recommendation.spot) }

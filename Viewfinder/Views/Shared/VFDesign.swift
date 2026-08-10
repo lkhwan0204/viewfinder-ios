@@ -286,6 +286,15 @@ extension View {
     ///
     /// Phase 3 에서 iOS 26 의
     /// `.scrollEdgeEffectStyle(.soft, for: .top)` 으로 교체할 예정입니다.
+    /// 스크롤 콘텐츠가 상태바 영역으로 올라올 때 시스템 재료로 경계를 만듭니다.
+    /// iOS 26 미만에서는 아무 것도 하지 않습니다.
+    ///
+    /// ⚠️ 이 모디파이어가 빌드 에러를 내면 VFTopScrollEdgeEffect 의 본문을
+    ///    `content` 만 반환하도록 바꾸면 됩니다. 기능 손실은 상단 경계뿐입니다.
+    func vfTopScrollEdge() -> some View {
+        modifier(VFTopScrollEdgeEffect())
+    }
+
     func vfTopEdgeFade(height: CGFloat = 72) -> some View {
         overlay(alignment: .top) {
             LinearGradient(
@@ -559,5 +568,28 @@ struct VFCrowdBadge: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(level.accessibilityLabel)
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - Scroll Edge Effect
+//
+//  navigationBar 를 숨긴 화면에서 스크롤한 본문이 상태바 시계와 겹쳐 읽히는
+//  문제를 시스템 재료로 해결합니다.
+//  직접 만든 그라디언트(vfTopEdgeFade)와 달리, 콘텐츠가 상단에 닿을 때만
+//  나타나고 사진 위에 검정 띠를 남기지 않습니다.
+//
+//  ⚠️ 이 파일에서 유일하게 iOS 26 전용 API 를 쓰는 곳입니다.
+//     빌드 에러가 나면 body 를 `content` 만 반환하도록 바꾸세요.
+// ═══════════════════════════════════════════════════════════════════
+
+struct VFTopScrollEdgeEffect: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            content
+        }
     }
 }
