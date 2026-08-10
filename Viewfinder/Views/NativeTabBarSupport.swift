@@ -1,12 +1,40 @@
 import SwiftUI
 import UIKit
 
+// ─────────────────────────────────────────────────────────────────
+//  Phase 1 리디자인 노트 — 탭바 관통 버그 수정
+//
+//  [문제]
+//  기존 구현은 스크롤에 따라 tabBar.alpha 를 0...1 로 조절했습니다.
+//  탭바 배경이 불투명(configureWithOpaqueBackground)이기 때문에
+//  alpha 가 중간값(예: 0.4)일 때 배경까지 반투명해져서
+//  뒤의 본문 텍스트가 유령처럼 관통해 보였습니다.
+//  스크린샷에서 탭바 아래에 "저장한 장소가 아직 없어요" 가 겹쳐 읽힌 원인입니다.
+//
+//  [수정]
+//  alpha 를 건드리지 않고 수직으로 밀어냅니다. (translateY)
+//  탭바는 항상 alpha = 1 이므로 반투명 중간 상태가 존재하지 않습니다.
+//  숨을 때는 화면 아래로 완전히 빠지고, 나타날 때는 다시 올라옵니다.
+//
+//  공개 API 는 그대로 유지했습니다. (ContentView 수정 불필요)
+//   - attach(_:)
+//   - setHorizontalOffset(_:animated:)
+//   - updateInteraction(by:)
+//   - finishInteraction(projectedDelta:)
+//   - setHidden(_:animated:)
+//
+//  Phase 3 에서 iOS 26 의 .tabBarMinimizeBehavior(.onScrollDown) 로
+//  이 파일 대부분을 대체할 예정입니다.
+// ─────────────────────────────────────────────────────────────────
+
 final class NativeTabBarVisibilityController: NSObject {
     static let shared = NativeTabBarVisibilityController()
 
     private weak var tabBar: UITabBar?
     private var currentHiddenState = false
     private var horizontalOffset: CGFloat = 0
+    /// 0 = 완전히 보임, 1 = 화면 아래로 완전히 숨음
+    private var hideProgress: CGFloat = 0
     private var animator: UIViewPropertyAnimator?
     private var isInteracting = false
     private let interactionDistance: CGFloat = 96
@@ -27,12 +55,15 @@ final class NativeTabBarVisibilityController: NSObject {
 
         self.tabBar = tabBar
         tabBar.isHidden = false
-        tabBar.transform = tabBarTransform
+        // alpha 는 항상 1 로 고정합니다. 이것이 관통 버그 수정의 핵심입니다.
+        tabBar.alpha = 1
         attachSelectionFeedback(to: tabBar)
+
         if animator == nil, !isInteracting {
-            applyTabBarState(tabBar, isHidden: currentHiddenState)
+            hideProgress = currentHiddenState ? 1 : 0
         }
-        tabBar.isUserInteractionEnabled = !currentHiddenState
+        tabBar.transform = tabBarTransform
+        tabBar.isUserInteractionEnabled = hideProgress < 0.5
     }
 
     private func attachSelectionFeedback(to tabBar: UITabBar) {
@@ -90,17 +121,22 @@ final class NativeTabBarVisibilityController: NSObject {
         guard abs(verticalDelta) > 0.05, let tabBar else { return }
 
         if !isInteracting {
-            let startingAlpha = (tabBar.layer.presentation()?.opacity).map { CGFloat($0) } ?? tabBar.alpha
+            // 진행 중인 애니메이션을 현재 위치에서 인수합니다.
+            hideProgress = presentedHideProgress(for: tabBar)
             animator?.stopAnimation(true)
             animator = nil
             tabBar.layer.removeAllAnimations()
-            tabBar.alpha = startingAlpha
+            tabBar.alpha = 1
+            tabBar.transform = tabBarTransform
             isInteracting = true
         }
 
-        let alphaDelta = verticalDelta / interactionDistance
-        tabBar.alpha = min(max(tabBar.alpha + alphaDelta, 0), 1)
-        tabBar.isUserInteractionEnabled = tabBar.alpha > 0.25
+        // 아래로 스크롤(음수 delta) 하면 숨고, 위로 스크롤하면 나타납니다.
+        let progressDelta = verticalDelta / interactionDistance
+        hideProgress = min(max(hideProgress - progressDelta, 0), 1)
+
+        tabBar.transform = tabBarTransform
+        tabBar.isUserInteractionEnabled = hideProgress < 0.5
     }
 
     func finishInteraction(projectedDelta: CGFloat) {
@@ -120,9 +156,10 @@ final class NativeTabBarVisibilityController: NSObject {
         } else if projectedDelta > 12 {
             shouldHide = false
         } else {
-            shouldHide = tabBar.alpha < 0.5
+            shouldHide = hideProgress > 0.5
         }
 
+        _ = tabBar
         setHidden(shouldHide, animated: true)
     }
 
@@ -134,48 +171,50 @@ final class NativeTabBarVisibilityController: NSObject {
             return
         }
 
-        let targetAlpha: CGFloat = isHidden ? 0 : 1
-        let visibleAlpha = tabBar.map {
-            CGFloat($0.layer.presentation()?.opacity ?? Float($0.alpha))
-        } ?? targetAlpha
-        guard currentHiddenState != isHidden || abs(visibleAlpha - targetAlpha) > 0.01 else {
+        let targetProgress: CGFloat = isHidden ? 1 : 0
+        guard let tabBar else {
+            currentHiddenState = isHidden
+            hideProgress = targetProgress
+            return
+        }
+
+        let startingProgress = presentedHideProgress(for: tabBar)
+        guard currentHiddenState != isHidden || abs(startingProgress - targetProgress) > 0.01 else {
             return
         }
 
         currentHiddenState = isHidden
         isInteracting = false
 
-        guard let tabBar else { return }
         tabBar.isHidden = false
-        tabBar.transform = tabBarTransform
+        tabBar.alpha = 1
 
         if !isHidden {
             tabBar.isUserInteractionEnabled = true
         }
 
-        let startingAlpha = (tabBar.layer.presentation()?.opacity).map { CGFloat($0) } ?? tabBar.alpha
         animator?.stopAnimation(true)
         tabBar.layer.removeAllAnimations()
-        tabBar.alpha = startingAlpha
+        hideProgress = startingProgress
+        tabBar.transform = tabBarTransform
 
-        guard animated, abs(startingAlpha - targetAlpha) > 0.01 else {
-            applyTabBarState(tabBar, isHidden: isHidden)
+        guard animated, abs(startingProgress - targetProgress) > 0.01 else {
+            hideProgress = targetProgress
+            tabBar.transform = tabBarTransform
             tabBar.isUserInteractionEnabled = !isHidden
             return
         }
 
-        let timing = UICubicTimingParameters(
-            controlPoint1: CGPoint(x: 0.22, y: 0.61),
-            controlPoint2: CGPoint(x: 0.36, y: 1.0)
-        )
-        let remainingDistance = abs(targetAlpha - startingAlpha)
+        let timing = UISpringTimingParameters(dampingRatio: 0.88)
+        let remainingDistance = abs(targetProgress - startingProgress)
         let tabBarAnimator = UIViewPropertyAnimator(
-            duration: max(0.16, (isHidden ? 0.28 : 0.32) * remainingDistance),
+            duration: max(0.18, 0.34 * remainingDistance),
             timingParameters: timing
         )
         tabBarAnimator.addAnimations { [weak self, weak tabBar] in
             guard let self, let tabBar else { return }
-            self.applyTabBarState(tabBar, isHidden: isHidden)
+            self.hideProgress = targetProgress
+            tabBar.transform = self.tabBarTransform
         }
         tabBarAnimator.addCompletion { [weak self, weak tabBar, weak tabBarAnimator] _ in
             guard let self,
@@ -183,7 +222,8 @@ final class NativeTabBarVisibilityController: NSObject {
                   let tabBarAnimator,
                   self.animator === tabBarAnimator,
                   self.currentHiddenState == isHidden else { return }
-            self.applyTabBarState(tabBar, isHidden: isHidden)
+            self.hideProgress = targetProgress
+            tabBar.transform = self.tabBarTransform
             tabBar.isUserInteractionEnabled = !isHidden
             self.animator = nil
         }
@@ -191,13 +231,34 @@ final class NativeTabBarVisibilityController: NSObject {
         tabBarAnimator.startAnimation()
     }
 
-    private func applyTabBarState(_ tabBar: UITabBar, isHidden: Bool) {
-        tabBar.transform = tabBarTransform
-        tabBar.alpha = isHidden ? 0 : 1
-    }
+    // MARK: - Geometry
 
     private var tabBarTransform: CGAffineTransform {
-        CGAffineTransform(translationX: horizontalOffset, y: 0)
+        CGAffineTransform(
+            translationX: horizontalOffset,
+            y: hideProgress * hiddenDistance
+        )
+    }
+
+    /// 탭바가 화면 밖으로 완전히 빠지기 위한 거리.
+    private var hiddenDistance: CGFloat {
+        guard let tabBar else { return 96 }
+        let barHeight = max(tabBar.bounds.height, 49)
+        let bottomInset = tabBar.window?.safeAreaInsets.bottom ?? 0
+        return barHeight + bottomInset
+    }
+
+    /// 애니메이션 중이라면 화면에 실제로 보이는 위치를 읽어 진행률로 환산합니다.
+    private func presentedHideProgress(for tabBar: UITabBar) -> CGFloat {
+        let distance = hiddenDistance
+        guard distance > 0 else { return hideProgress }
+
+        if let presentation = tabBar.layer.presentation() {
+            let translationY = presentation.transform.m42
+            return min(max(translationY / distance, 0), 1)
+        }
+
+        return hideProgress
     }
 }
 

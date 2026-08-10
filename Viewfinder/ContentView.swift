@@ -199,7 +199,7 @@ struct ContentView: View {
     private var mainContent: some View {
         nativeTabContent
         .background(AppColors.background.ignoresSafeArea())
-        .tint(AppColors.primary)
+        .tint(AppColors.accent)
         .sheet(item: $detailPresentation) { presentation in
             SpotDetailView(
                 authViewModel: authViewModel,
