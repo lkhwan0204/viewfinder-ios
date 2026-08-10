@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "spot_yeonnam_gyeongui_forest.jpg",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
