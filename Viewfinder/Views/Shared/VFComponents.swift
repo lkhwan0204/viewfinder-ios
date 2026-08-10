@@ -39,6 +39,9 @@ struct VFPhotoTile: View {
     var scrimStrength: Double = 1.0
     /// 사진 위 상단 컨트롤(저장 버튼)이 있을 때 true.
     var showsTopControlScrim: Bool = false
+    /// 상단 scrim 강도. Hero 는 상태바(흰 시계/배터리)까지 보호해야 하므로 더 진하게.
+    var topScrimStrength: Double = 0.40
+    var topScrimHeight: CGFloat = 92
 
     var body: some View {
         sizedImage
@@ -48,7 +51,9 @@ struct VFPhotoTile: View {
                     showsScrim: showsScrim,
                     scrimHeightRatio: scrimHeightRatio,
                     scrimStrength: scrimStrength,
-                    showsTopControlScrim: showsTopControlScrim
+                    showsTopControlScrim: showsTopControlScrim,
+                    topScrimStrength: topScrimStrength,
+                    topScrimHeight: topScrimHeight
                 )
             )
             .clipShape(VFRadius.shape(cornerRadius))
@@ -80,13 +85,15 @@ private struct VFPhotoTileScrims: ViewModifier {
     let scrimHeightRatio: CGFloat
     let scrimStrength: Double
     let showsTopControlScrim: Bool
+    let topScrimStrength: Double
+    let topScrimHeight: CGFloat
 
     func body(content: Content) -> some View {
         content
             .overlay(alignment: .top) {
                 if showsTopControlScrim {
-                    VFScrim(edge: .top, strength: 0.40)
-                        .frame(height: 92)
+                    VFScrim(edge: .top, strength: topScrimStrength)
+                        .frame(height: topScrimHeight)
                 }
             }
             .overlay(alignment: .bottom) {

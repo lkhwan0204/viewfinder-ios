@@ -202,7 +202,11 @@ private struct HomeHeroCard: View {
                 // scrim 을 더 높고 진하게 깝니다.
                 scrimHeightRatio: 0.72,
                 scrimStrength: 1.25,
-                showsTopControlScrim: true
+                showsTopControlScrim: true,
+                // Hero 는 상태바(흰 시계/배터리)까지 보호해야 합니다.
+                // 하늘 사진에서 상단 scrim 0.40 은 부족했습니다.
+                topScrimStrength: 0.62,
+                topScrimHeight: 130
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -334,3 +338,108 @@ struct HomePhotoCard: View {
         .padding(.bottom, VFSpace.md)
     }
 }
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - Preview
+//
+//  앱을 실행하지 않고 Canvas(⌥⌘↩)에서 바로 확인할 수 있습니다.
+//  밝은 사진 / 어두운 사진 / 긴 장소명을 한 번에 볼 수 있게 구성했습니다.
+//  시뮬레이터를 띄우고 탐색하는 것보다 훨씬 빠릅니다.
+// ═══════════════════════════════════════════════════════════════════
+
+#if DEBUG
+enum HomePreviewData {
+    static var samples: [GPTRecommendedSpot] {
+        PhotoSpotSampleData.spots.prefix(5).map { spot in
+            GPTRecommendedSpot(
+                spot: spot,
+                reason: spot.summary,
+                scoreLabel: "오늘 추천",
+                isGeneratedByGPT: false
+            )
+        }
+    }
+
+    static var first: GPTRecommendedSpot? { samples.first }
+}
+
+#Preview("Home Hero") {
+    GeometryReader { proxy in
+        let topInset = proxy.safeAreaInsets.top
+
+        ScrollView {
+            VStack(alignment: .leading, spacing: VFSpace.xxl) {
+                HomeHeroSection(
+                    recommendations: HomePreviewData.samples,
+                    savedSpotIDs: [],
+                    userLocation: nil,
+                    cardSize: CGSize(
+                        width: proxy.size.width,
+                        height: (proxy.size.height + topInset) * VFPhoto.heroHeightRatio
+                    ),
+                    topInset: topInset,
+                    contextText: "구로동 24°",
+                    onShowContext: {},
+                    onToggleSave: { _ in },
+                    onSelect: { _ in },
+                    onOpenMap: { _ in },
+                    onSearch: {}
+                )
+
+                VFSectionTitle(title: "노을 명소", showsMore: true, onMore: {})
+                    .vfScreenMargin()
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: VFSpace.md) {
+                        ForEach(HomePreviewData.samples) { recommendation in
+                            HomePhotoCard(
+                                recommendation: recommendation,
+                                aspectRatio: VFPhoto.carouselAspect,
+                                isSaved: false,
+                                distanceText: "7.4km",
+                                onToggleSave: {},
+                                onSelect: {}
+                            )
+                            .frame(width: proxy.size.width - VFSpace.lg * 2 - VFPhoto.carouselPeek)
+                        }
+                    }
+                    .padding(.horizontal, VFSpace.lg)
+                }
+            }
+            .padding(.bottom, 120)
+        }
+        .ignoresSafeArea(edges: .top)
+    }
+    .background(Color(uiColor: VFPalette.canvas))
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Photo Card — 긴 이름 / 저장 상태") {
+    VStack(spacing: VFSpace.lg) {
+        if let sample = HomePreviewData.first {
+            HomePhotoCard(
+                recommendation: sample,
+                aspectRatio: VFPhoto.carouselAspect,
+                isSaved: false,
+                distanceText: "820m",
+                onToggleSave: {},
+                onSelect: {}
+            )
+
+            HomePhotoCard(
+                recommendation: sample,
+                aspectRatio: VFPhoto.carouselAspect,
+                isSaved: true,
+                distanceText: "12.4km",
+                onToggleSave: {},
+                onSelect: {}
+            )
+        }
+    }
+    .vfScreenMargin()
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color(uiColor: VFPalette.canvas))
+    .preferredColorScheme(.dark)
+}
+#endif

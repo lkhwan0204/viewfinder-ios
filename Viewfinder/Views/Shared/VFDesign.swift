@@ -468,7 +468,12 @@ enum VFPhoto {
     static let wideAspect: CGFloat = 2.0 / 1.0
 
     /// Hero 가 차지할 화면 높이 비율.
-    static let heroHeightRatio: CGFloat = 0.72
+    ///
+    /// 0.72 로 시작했지만 HTML 목업으로 검증한 결과, 그 높이에서는 Hero 아래
+    /// 첫 섹션이 "헤더만 겨우" 보이고 카드가 탭바에 잘렸습니다.
+    /// "아래에 더 있다"는 신호가 없으면 스크롤을 유도하지 못합니다.
+    /// 0.64 로 낮추면 첫 카드의 절반 정도가 보여서 스크롤 유도가 생깁니다.
+    static let heroHeightRatio: CGFloat = 0.64
     /// 카로셀에서 다음 카드가 보이는 폭.
     static let carouselPeek: CGFloat = 28
     /// 3열 타일 gutter.
