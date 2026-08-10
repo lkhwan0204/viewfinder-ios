@@ -219,7 +219,9 @@ struct HomeFeedView: View {
             //   온도는 행동을 유발하지 않는 정보였습니다. (Phase 2B 에서 골든아워로 대체)
             // - 섹션마다 레이아웃을 다르게 해서 스크롤에 리듬을 만듭니다.
             //   기존에는 4개 섹션이 전부 같은 2열 균일 레일이라 스크롤이 단조로웠습니다.
-            LazyVStack(alignment: .leading, spacing: VFSpace.xxl) {
+            // 섹션 간 간격은 32(xl)입니다. 48(xxl)은 "챕터 분리" 값이라
+            // 섹션 사이에 쓰면 첫 카드가 탭바 아래로 밀려 캡션이 가려집니다.
+            LazyVStack(alignment: .leading, spacing: VFSpace.xl) {
                 todaySection(heroSize: heroSize, topInset: topInset)
 
                 ForEach(categories.prefix(4)) { category in
@@ -1113,7 +1115,7 @@ struct HomeCategorySection: View {
                 ForEach(recommendations.prefix(5)) { recommendation in
                     card(for: recommendation, aspectRatio: VFPhoto.carouselAspect)
                         .containerRelativeFrame(.horizontal) { length, _ in
-                            max(0, length - VFSpace.lg * 2 - VFPhoto.carouselPeek)
+                            max(0, length * VFPhoto.railWidthRatio)
                         }
                 }
             }

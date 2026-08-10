@@ -65,12 +65,11 @@ struct HomeHeroSection: View {
             ForEach(Array(visible.enumerated()), id: \.element.id) { index, recommendation in
                 HomeHeroCard(
                     recommendation: recommendation,
-                    isSaved: savedSpotIDs.contains(recommendation.spot.id),
                     distanceText: VFSpotDistance.text(
                         from: userLocation,
                         to: recommendation.spot
                     ),
-                    topInset: topInset,
+                    size: cardSize,
                     onSelect: { onSelect(recommendation.spot) },
                     onOpenMap: { onOpenMap(recommendation.spot) }
                 )
@@ -165,9 +164,14 @@ struct HomeHeroSection: View {
 
 private struct HomeHeroCard: View {
     let recommendation: GPTRecommendedSpot
-    let isSaved: Bool
     let distanceText: String?
-    let topInset: CGFloat
+    /// 카드의 정확한 크기.
+    ///
+    /// 이전에는 ZStack(alignment: .bottomLeading) 안에 사진과 텍스트를 형제로 두었습니다.
+    /// scaledToFill 한 사진이 ZStack 을 화면보다 넓게 만들었고, .bottomLeading 정렬이
+    /// 그 "화면 밖 왼쪽 경계" 를 기준으로 잡혀서 장소명이 왼쪽으로 잘렸습니다.
+    /// 사진 크기를 먼저 고정하고 텍스트를 overlay 로 올려서 해결합니다.
+    let size: CGSize
     let onSelect: () -> Void
     let onOpenMap: () -> Void
 
@@ -191,29 +195,24 @@ private struct HomeHeroCard: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            VFPhotoTile(
-                spot: spot,
-                aspectRatio: nil,
-                height: nil,
-                cornerRadius: 0,
-                showsScrim: true,
-                // 밝은 사진(하늘, 잔디)에서 흰 텍스트가 읽히지 않는 문제가 있었습니다.
-                // scrim 을 더 높고 진하게 깝니다.
-                scrimHeightRatio: 0.72,
-                scrimStrength: 1.25,
-                showsTopControlScrim: true,
-                // Hero 는 상태바(흰 시계/배터리)까지 보호해야 합니다.
-                // 하늘 사진에서 상단 scrim 0.40 은 부족했습니다.
-                topScrimStrength: 0.62,
-                topScrimHeight: 130
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            textLayer
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VFPhotoTile(
+            spot: spot,
+            aspectRatio: nil,
+            height: size.height,
+            cornerRadius: 0,
+            showsScrim: true,
+            // 밝은 사진(하늘, 잔디)에서 흰 텍스트가 읽히지 않는 문제가 있었습니다.
+            scrimHeightRatio: 0.72,
+            scrimStrength: 1.25,
+            showsTopControlScrim: true,
+            // Hero 는 상태바(흰 시계/배터리)까지 보호해야 합니다.
+            topScrimStrength: 0.62,
+            topScrimHeight: 130
+        )
+        // 사진 크기를 먼저 확정합니다. 이 순서가 중요합니다.
+        .frame(width: size.width, height: size.height)
         .clipped()
+        .overlay(alignment: .bottomLeading) { textLayer }
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .accessibilityElement(children: .combine)
@@ -258,6 +257,8 @@ private struct HomeHeroCard: View {
         .padding(.horizontal, VFSpace.lg)
         // 페이지 인디케이터와 겹치지 않게 아래 여백을 넉넉히 둡니다.
         .padding(.bottom, VFSpace.xl + VFSpace.md)
+        // 긴 장소명이 카드 밖으로 넘치지 않게 폭을 고정합니다.
+        .frame(width: size.width, alignment: .leading)
     }
 }
 

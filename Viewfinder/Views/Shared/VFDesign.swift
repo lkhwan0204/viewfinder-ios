@@ -476,6 +476,14 @@ enum VFPhoto {
     static let heroHeightRatio: CGFloat = 0.64
     /// 카로셀에서 다음 카드가 보이는 폭.
     static let carouselPeek: CGFloat = 28
+
+    /// 섹션 카로셀 카드가 화면 폭에서 차지하는 비율.
+    ///
+    /// 처음에는 "화면 폭 - 마진 - peek" 로 계산해서 카드가 화면의 83% 를 차지했는데,
+    /// Hero 가 이미 큰 사진이라 아래 카드까지 크면 화면 전체가 무거워집니다.
+    /// 0.60 이면 카드 1.6장이 보여서 "옆으로 더 있다" 는 신호가 생기고
+    /// 사진 크기도 Hero 와 위계가 구분됩니다.
+    static let railWidthRatio: CGFloat = 0.60
     /// 3열 타일 gutter.
     static let tileGutter: CGFloat = VFSpace.xs
 }
