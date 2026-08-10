@@ -141,7 +141,6 @@ struct HomeFeedView: View {
             // nav bar 를 완전히 제거합니다. 사진이 상태바까지 올라가야 하고,
             // 검색 버튼은 사진 위에 떠 있는 유리 컨트롤이어야 합니다.
             .toolbar(.hidden, for: .navigationBar)
-            .overlay(alignment: .topTrailing) { floatingSearchButton }
             .navigationDestination(item: $selectedCategory) { category in
                 HomeCategoryListView(
                     category: category,
@@ -210,24 +209,6 @@ struct HomeFeedView: View {
         .background(AppColors.background)
     }
 
-    /// 사진 위에 떠 있는 검색 버튼.
-    /// 툴바 아이템이 아니라 오버레이라서 스크롤 콘텐츠와 계층이 명확히 분리됩니다.
-    private var floatingSearchButton: some View {
-        Button {
-            isSearchResultsPresented = true
-        } label: {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Color.white)
-                .frame(width: 44, height: 44)
-                .vfGlass(interactive: true)
-        }
-        .buttonStyle(.plain)
-        .padding(.trailing, VFSpace.lg - VFSpace.xs)
-        .padding(.top, VFSpace.sm)
-        .accessibilityLabel("출사지 검색")
-    }
-
     private func discoveryPage(heroSize: CGSize, topInset: CGFloat) -> some View {
         ScrollView(showsIndicators: false) {
             // Phase 2A
@@ -241,12 +222,11 @@ struct HomeFeedView: View {
             LazyVStack(alignment: .leading, spacing: VFSpace.xxl) {
                 todaySection(heroSize: heroSize, topInset: topInset)
 
-                ForEach(Array(categories.prefix(4).enumerated()), id: \.element.id) { index, category in
+                ForEach(categories.prefix(4)) { category in
                     let categoryRecommendations = recommendations(for: category)
                     if !categoryRecommendations.isEmpty {
                         HomeCategorySection(
                             category: category,
-                            layout: index % 2 == 0 ? .showcase : .mosaic,
                             recommendations: categoryRecommendations,
                             hasMore: category == .cafe || expandedRecommendations(for: category).count > categoryRecommendations.count,
                             isLoading: loadingSectionIDs.contains(category.id),
@@ -518,7 +498,8 @@ struct HomeFeedView: View {
             onShowContext: onShowWeather,
             onToggleSave: onToggleSave,
             onSelect: onShowDetail,
-            onOpenMap: onOpenMap
+            onOpenMap: onOpenMap,
+            onSearch: { isSearchResultsPresented = true }
         )
     }
 
@@ -1089,19 +1070,14 @@ struct FeaturedSpotCard: View {
     }
 }
 
-/// 섹션 레이아웃.
-/// 모든 섹션이 같은 모양이면 무엇이 중요한지 알 수 없습니다.
-/// 레이아웃을 번갈아 배치해서 스크롤에 리듬을 만듭니다.
-enum HomeCategorySectionLayout {
-    /// 큰 3:2 가로 카로셀. 다음 카드가 28pt 보입니다.
-    case showcase
-    /// 2:1 와이드 1장 + 1:1 정사각 2장. 크기로 위계를 만듭니다.
-    case mosaic
-}
-
+/// 섹션 카드 규격.
+///
+/// 이전에는 섹션마다 레이아웃을 번갈아(3:2 카로셀 / 2:1+1:1 모자이크) 배치해서
+/// 리듬을 만들려 했습니다. 그런데 실제 화면에서는 리듬이 아니라
+/// "규격이 안 맞는 것"으로 읽혔고, 캡션 없는 정사각 타일은 어디인지 알 수 없었습니다.
+/// 통일이 분화보다 낫다고 판단해 전 섹션 동일 규격으로 돌아갑니다.
 struct HomeCategorySection: View {
     let category: HomeRecommendationKind
-    var layout: HomeCategorySectionLayout = .showcase
     let recommendations: [GPTRecommendedSpot]
     let hasMore: Bool
     let isLoading: Bool
@@ -1126,13 +1102,7 @@ struct HomeCategorySection: View {
                 SkeletonRail()
                     .vfScreenMargin()
             } else {
-                switch layout {
-                case .showcase:
-                    showcaseRail
-                case .mosaic:
-                    mosaicGrid
-                        .vfScreenMargin()
-                }
+                showcaseRail
             }
         }
     }
@@ -1154,41 +1124,15 @@ struct HomeCategorySection: View {
         .scrollClipDisabled()
     }
 
-    private var mosaicGrid: some View {
-        let items = Array(recommendations.prefix(3))
-
-        return VStack(spacing: VFSpace.md) {
-            if let first = items.first {
-                card(for: first, aspectRatio: VFPhoto.wideAspect)
-            }
-
-            if items.count > 1 {
-                HStack(spacing: VFSpace.md) {
-                    ForEach(items.dropFirst()) { recommendation in
-                        card(
-                            for: recommendation,
-                            aspectRatio: VFPhoto.squareAspect,
-                            showsCaption: false
-                        )
-                    }
-                }
-            }
-        }
-    }
-
     private func card(
         for recommendation: GPTRecommendedSpot,
-        aspectRatio: CGFloat,
-        showsCaption: Bool = true,
-        showsMeta: Bool = true
+        aspectRatio: CGFloat
     ) -> some View {
         HomePhotoCard(
             recommendation: recommendation,
             aspectRatio: aspectRatio,
             isSaved: savedSpotIDs.contains(recommendation.spot.id),
             distanceText: VFSpotDistance.text(from: userLocation, to: recommendation.spot),
-            showsCaption: showsCaption,
-            showsMeta: showsMeta,
             onToggleSave: { onToggleSave(recommendation.spot) },
             onSelect: { onSelect(recommendation.spot) }
         )

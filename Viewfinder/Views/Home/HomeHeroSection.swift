@@ -1,17 +1,15 @@
 //
 //  HomeHeroSection.swift
-//  ViewFinder — Phase 2A (2차 수정)
+//  ViewFinder — Phase 2A (3차 수정)
 //
-//  [1차 시도의 실패]
-//  containerRelativeFrame(.horizontal) 로 카드 폭을 화면 폭에 맞추려 했으나
-//  컨테이너가 기대와 다르게 해석되어 카드가 화면의 절반 폭으로 렌더되었고,
-//  결과적으로 Hero 에 사진 두 장이 반쪽씩 나란히 보였습니다.
-//  또한 nav bar 를 남겨둔 채 배경만 숨겨서 사진 위에 검정 띠가 생겼습니다.
+//  [1차] containerRelativeFrame 로 폭을 맞추려다 카드가 화면 절반 폭으로 렌더됨
+//  [2차] GeometryReader 로 크기를 명시했지만, ScrollView + .paging 스냅이
+//        불안정해서 두 사진이 걸친 상태로 멈추는 경우가 있었음
+//  [3차] 페이징을 TabView 에 맡깁니다. 한 번에 한 장만 보이는 것을 시스템이 보장합니다.
 //
-//  [수정 방향]
-//  1. 크기를 추측하지 않습니다. 부모가 GeometryReader 로 측정한 값을 그대로 받습니다.
-//  2. 사진은 상태바까지 올라갑니다. 컨트롤만 상태바 아래로 내립니다.
-//     (topInset 을 받아서 컨트롤에만 적용)
+//  또한 검색 버튼을 Hero 안으로 들여왔습니다.
+//  화면에 고정된 플로팅 검색 버튼은 스크롤할 때 카드의 북마크 버튼과
+//  필연적으로 겹칩니다. Hero 와 함께 스크롤되면 충돌이 원천적으로 사라집니다.
 //
 
 import CoreLocation
@@ -27,7 +25,7 @@ struct HomeHeroSection: View {
     /// 상태바 높이. 사진은 여기까지 올라가고 컨트롤만 아래로 내립니다.
     var topInset: CGFloat = 0
 
-    /// Hero 좌상단 glass pill 문자열. (예: "구로동 25°")
+    /// Hero 좌상단 glass pill 문자열. (예: "구로동 24°")
     /// Phase 2B 에서 "일몰까지 2h 14m" 으로 대체됩니다.
     var contextText: String? = nil
     var onShowContext: (() -> Void)? = nil
@@ -35,6 +33,9 @@ struct HomeHeroSection: View {
     let onToggleSave: (PhotoSpot) -> Void
     let onSelect: (PhotoSpot) -> Void
     let onOpenMap: (PhotoSpot?) -> Void
+    let onSearch: () -> Void
+
+    @State private var selection = 0
 
     private let maxCount = 5
 
@@ -48,35 +49,71 @@ struct HomeHeroSection: View {
                 .vfScreenMargin()
                 .padding(.top, topInset + VFSpace.lg)
         } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 0) {
-                    ForEach(visible) { recommendation in
-                        HomeHeroCard(
-                            recommendation: recommendation,
-                            isSaved: savedSpotIDs.contains(recommendation.spot.id),
-                            distanceText: VFSpotDistance.text(
-                                from: userLocation,
-                                to: recommendation.spot
-                            ),
-                            topInset: topInset,
-                            onToggleSave: { onToggleSave(recommendation.spot) },
-                            onSelect: { onSelect(recommendation.spot) },
-                            onOpenMap: { onOpenMap(recommendation.spot) }
-                        )
-                        // 크기를 명시적으로 고정합니다. 이것이 1차 실패의 수정 지점입니다.
-                        .frame(width: cardSize.width, height: cardSize.height)
-                    }
-                }
-                .scrollTargetLayout()
-            }
-            .scrollTargetBehavior(.paging)
-            .frame(height: cardSize.height)
-            .overlay(alignment: .topLeading) { contextPill }
-            .overlay(alignment: .bottomTrailing) { pageDots }
+            pager
+                .frame(height: cardSize.height)
+                .clipped()
+                .overlay(alignment: .top) { topControls }
+                .overlay(alignment: .bottomTrailing) { pageDots }
         }
     }
 
-    /// 사진 위에 떠 있는 유리 pill. Glass 를 써도 되는 위치입니다.
+    /// 페이징을 시스템에 맡깁니다.
+    /// ScrollView + scrollTargetBehavior(.paging) 조합에서 두 카드가 걸친 상태로
+    /// 멈추는 문제가 있었습니다. TabView 는 한 번에 한 페이지를 보장합니다.
+    private var pager: some View {
+        TabView(selection: $selection) {
+            ForEach(Array(visible.enumerated()), id: \.element.id) { index, recommendation in
+                HomeHeroCard(
+                    recommendation: recommendation,
+                    isSaved: savedSpotIDs.contains(recommendation.spot.id),
+                    distanceText: VFSpotDistance.text(
+                        from: userLocation,
+                        to: recommendation.spot
+                    ),
+                    topInset: topInset,
+                    onSelect: { onSelect(recommendation.spot) },
+                    onOpenMap: { onOpenMap(recommendation.spot) }
+                )
+                .tag(index)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+    }
+
+    // MARK: - 사진 위 컨트롤
+    //
+    // 저장 / 검색 버튼을 한 줄에 모았습니다.
+    // 화면 고정 플로팅 버튼이 아니라 Hero 안에 있으므로
+    // 아래 카드들의 북마크 버튼과 겹치지 않습니다.
+
+    private var topControls: some View {
+        HStack(alignment: .top, spacing: VFSpace.sm) {
+            contextPill
+
+            Spacer(minLength: VFSpace.sm)
+
+            Button(action: onSearch) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .frame(width: 38, height: 38)
+                    .vfGlass(interactive: true)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("출사지 검색")
+
+            if let current = visible.indices.contains(selection) ? visible[selection] : visible.first {
+                VFSaveButton(
+                    isSaved: savedSpotIDs.contains(current.spot.id),
+                    action: { onToggleSave(current.spot) },
+                    diameter: 38
+                )
+            }
+        }
+        .padding(.horizontal, VFSpace.lg - VFSpace.xs)
+        .padding(.top, topInset + VFSpace.sm)
+    }
+
     @ViewBuilder
     private var contextPill: some View {
         if let contextText, !contextText.isEmpty {
@@ -91,24 +128,25 @@ struct HomeHeroSection: View {
                 }
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, VFSpace.md)
-                .frame(height: 34)
+                .frame(height: 38)
                 .vfGlass(interactive: true)
             }
             .buttonStyle(.plain)
             .disabled(onShowContext == nil)
-            .padding(.leading, VFSpace.lg)
-            .padding(.top, topInset + VFSpace.sm)
         }
     }
 
-    /// 몇 장이 있는지 알려주는 최소한의 힌트.
     @ViewBuilder
     private var pageDots: some View {
         if visible.count > 1 {
             HStack(spacing: 5) {
-                ForEach(0..<visible.count, id: \.self) { _ in
+                ForEach(visible.indices, id: \.self) { index in
                     Circle()
-                        .fill(Color.white.opacity(0.55))
+                        .fill(
+                            index == selection
+                                ? Color.white
+                                : Color.white.opacity(0.42)
+                        )
                         .frame(width: 5, height: 5)
                 }
             }
@@ -118,6 +156,7 @@ struct HomeHeroSection: View {
             .padding(.trailing, VFSpace.lg)
             .padding(.bottom, VFSpace.lg)
             .allowsHitTesting(false)
+            .animation(VFMotion.quick, value: selection)
         }
     }
 }
@@ -129,7 +168,6 @@ private struct HomeHeroCard: View {
     let isSaved: Bool
     let distanceText: String?
     let topInset: CGFloat
-    let onToggleSave: () -> Void
     let onSelect: () -> Void
     let onOpenMap: () -> Void
 
@@ -160,7 +198,10 @@ private struct HomeHeroCard: View {
                 height: nil,
                 cornerRadius: 0,
                 showsScrim: true,
-                scrimHeightRatio: 0.58,
+                // 밝은 사진(하늘, 잔디)에서 흰 텍스트가 읽히지 않는 문제가 있었습니다.
+                // scrim 을 더 높고 진하게 깝니다.
+                scrimHeightRatio: 0.72,
+                scrimStrength: 1.25,
                 showsTopControlScrim: true
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -169,18 +210,12 @@ private struct HomeHeroCard: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
-        .overlay(alignment: .topTrailing) {
-            VFSaveButton(isSaved: isSaved, action: onToggleSave)
-                .padding(.trailing, VFSpace.lg - VFSpace.xs)
-                .padding(.top, topInset + VFSpace.sm)
-        }
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("\(spot.name), \(region), \(crowdLevel.label)")
         .accessibilityAction(named: "상세 보기", onSelect)
-        .accessibilityAction(named: isSaved ? "저장 해제" : "저장", onToggleSave)
     }
 
     private var textLayer: some View {
@@ -218,20 +253,20 @@ private struct HomeHeroCard: View {
         }
         .padding(.horizontal, VFSpace.lg)
         // 페이지 인디케이터와 겹치지 않게 아래 여백을 넉넉히 둡니다.
-        .padding(.bottom, VFSpace.xl + VFSpace.sm)
+        .padding(.bottom, VFSpace.xl + VFSpace.md)
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // MARK: - HomePhotoCard
 //
-//  섹션 카드. 사진 아래 흰 영역에 텍스트를 두지 않고 사진 위 scrim 에 올립니다.
+//  섹션 카드. 모든 섹션이 이 카드 하나만 씁니다.
 //
-//  [1차 시도의 실패]
-//  작은 정사각 타일에도 장소명을 넣었더니 2줄로 늘어나면서 타일 밖으로 잘렸습니다.
-//  ("동대문디자인플라자 DDP" 등)
-//  작은 타일은 사진만 보여주는 것이 맞습니다. 이름은 탭하면 알 수 있습니다.
-//  Apple Photos 의 그리드가 그렇게 합니다.
+//  [이전 시도]
+//  섹션마다 레이아웃을 다르게 해서(3:2 카로셀 / 2:1+1:1 모자이크) 리듬을 만들려 했으나
+//  실제 화면에서는 "리듬"이 아니라 "규격이 안 맞는 것"으로 읽혔고,
+//  캡션 없는 정사각 타일은 어디인지 알 수 없다는 문제가 있었습니다.
+//  통일이 분화보다 낫다는 판단으로 전 섹션 동일 규격(3:2 + 캡션)으로 돌아갑니다.
 // ═══════════════════════════════════════════════════════════════════
 
 struct HomePhotoCard: View {
@@ -239,8 +274,6 @@ struct HomePhotoCard: View {
     let aspectRatio: CGFloat
     let isSaved: Bool
     let distanceText: String?
-    /// 작은 정사각 타일에서는 false. 사진만 보여줍니다.
-    var showsCaption: Bool = true
     var showsMeta: Bool = true
     let onToggleSave: () -> Void
     let onSelect: () -> Void
@@ -265,15 +298,12 @@ struct HomePhotoCard: View {
             spot: spot,
             aspectRatio: aspectRatio,
             cornerRadius: VFRadius.photo,
-            showsScrim: showsCaption,
+            showsScrim: true,
             scrimHeightRatio: 0.62,
+            scrimStrength: 1.15,
             showsTopControlScrim: true
         )
-        .overlay(alignment: .bottomLeading) {
-            if showsCaption {
-                caption
-            }
-        }
+        .overlay(alignment: .bottomLeading) { caption }
         .overlay(alignment: .topTrailing) {
             VFSaveButton(isSaved: isSaved, action: onToggleSave, diameter: 32)
                 .padding(.trailing, 2)
@@ -294,7 +324,7 @@ struct HomePhotoCard: View {
                 .vfText(.headline)
                 .foregroundStyle(Color.white)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(0.78)
 
             if showsMeta {
                 VFMetaLineOnPhoto(items: metaItems)

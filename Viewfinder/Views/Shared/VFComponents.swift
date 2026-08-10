@@ -35,6 +35,8 @@ struct VFPhotoTile: View {
     /// 사진 위에 텍스트를 올릴 때만 true.
     var showsScrim: Bool = false
     var scrimHeightRatio: CGFloat = 0.55
+    /// scrim 강도 배율. 밝은 사진(하늘, 잔디)에서 흰 텍스트 대비를 확보할 때 올립니다.
+    var scrimStrength: Double = 1.0
     /// 사진 위 상단 컨트롤(저장 버튼)이 있을 때 true.
     var showsTopControlScrim: Bool = false
 
@@ -45,6 +47,7 @@ struct VFPhotoTile: View {
                 VFPhotoTileScrims(
                     showsScrim: showsScrim,
                     scrimHeightRatio: scrimHeightRatio,
+                    scrimStrength: scrimStrength,
                     showsTopControlScrim: showsTopControlScrim
                 )
             )
@@ -75,6 +78,7 @@ struct VFPhotoTile: View {
 private struct VFPhotoTileScrims: ViewModifier {
     let showsScrim: Bool
     let scrimHeightRatio: CGFloat
+    let scrimStrength: Double
     let showsTopControlScrim: Bool
 
     func body(content: Content) -> some View {
@@ -88,7 +92,7 @@ private struct VFPhotoTileScrims: ViewModifier {
             .overlay(alignment: .bottom) {
                 if showsScrim {
                     GeometryReader { geometry in
-                        VFScrim(edge: .bottom)
+                        VFScrim(edge: .bottom, strength: scrimStrength)
                             .frame(height: geometry.size.height * scrimHeightRatio)
                             .frame(maxHeight: .infinity, alignment: .bottom)
                     }
