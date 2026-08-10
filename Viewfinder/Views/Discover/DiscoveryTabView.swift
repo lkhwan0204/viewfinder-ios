@@ -99,6 +99,8 @@ struct DiscoveryTabView: View {
             }
             .safeAreaPadding(.bottom, 24)
             .background(AppColors.background.ignoresSafeArea())
+            // Phase 1: 스크롤한 본문이 상태바와 겹쳐 읽히는 문제를 수정합니다.
+            .vfTopEdgeFade()
             .navigationBarHidden(true)
         }
     }
@@ -127,10 +129,12 @@ struct DiscoveryTabView: View {
 
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(AppColors.primary)
+            // Phase 1: accent 가 앰버가 되었으므로 그 위 텍스트는 onAccent 로.
+            // 앰버 위에 흰 글자를 올리면 대비가 2:1 수준으로 떨어집니다.
+            .foregroundStyle(AppColors.onAccent)
             .padding(.horizontal, 18)
             .frame(height: 52)
-            .background(AppColors.accent, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(AppColors.accent, in: Capsule())
         }
         .buttonStyle(.plain)
     }
