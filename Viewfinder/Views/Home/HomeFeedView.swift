@@ -138,7 +138,8 @@ struct HomeFeedView: View {
         NavigationStack {
             homeContent
             .background(AppColors.background.ignoresSafeArea())
-            .navigationTitle("뷰파인더")
+            .navigationTitle("")
+            .toolbarBackground(.hidden, for: .navigationBar)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -209,19 +210,28 @@ struct HomeFeedView: View {
 
     private var discoveryPage: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
+            // Phase 2A
+            // - 화면 전체에 걸던 horizontal padding 을 제거했습니다.
+            //   Hero 가 화면 경계를 넘어가야 하므로 마진은 섹션별로 적용합니다.
+            // - 날씨/위치 칩(contextRow)을 제거했습니다.
+            //   사진 앱의 첫 픽셀이 날씨 위젯이면 안 됩니다.
+            //   온도는 행동을 유발하지 않는 정보였습니다. (Phase 2B 에서 골든아워로 대체)
+            // - 섹션마다 레이아웃을 다르게 해서 스크롤에 리듬을 만듭니다.
+            //   기존에는 4개 섹션이 전부 같은 2열 균일 레일이라 스크롤이 단조로웠습니다.
+            LazyVStack(alignment: .leading, spacing: VFSpace.xxl) {
                 todaySection
-                contextRow
 
-                ForEach(categories.prefix(4)) { category in
+                ForEach(Array(categories.prefix(4).enumerated()), id: \.element.id) { index, category in
                     let categoryRecommendations = recommendations(for: category)
                     if !categoryRecommendations.isEmpty {
                         HomeCategorySection(
                             category: category,
+                            layout: index % 2 == 0 ? .showcase : .mosaic,
                             recommendations: categoryRecommendations,
                             hasMore: category == .cafe || expandedRecommendations(for: category).count > categoryRecommendations.count,
                             isLoading: loadingSectionIDs.contains(category.id),
                             savedSpotIDs: savedSpotIDs,
+                            userLocation: userLocation,
                             onToggleSave: onToggleSave,
                             onSelect: onShowDetail,
                             onShowMore: {
@@ -259,10 +269,11 @@ struct HomeFeedView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("지도 탭으로 이동합니다")
+                .vfScreenMargin()
             }
-            .padding(.horizontal, AppLayout.pageHorizontalPadding)
-            .padding(.top, AppLayout.pageTopPadding)
-            .padding(.bottom, 38)
+            // Phase 2A: 기존 38pt 로는 floating 탭바를 덮지 못해
+            // 마지막 카드의 캡션이 탭바 아래로 삐져나와 읽혔습니다.
+            .padding(.bottom, 120)
             .background(alignment: .top) {
                 GeometryReader { proxy in
                     Color.clear.preference(
@@ -477,41 +488,35 @@ struct HomeFeedView: View {
         searchableSpots.first { $0.id == post.spotID }
     }
 
+    // Phase 2A: 272x352 고정 카드 카로셀을 full-bleed Hero 로 교체했습니다.
+    // 섹션 헤더("오늘의 프레임")는 제거했습니다 — 사진이 헤더 역할을 합니다.
     private var todaySection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HomeSectionHeader(title: "오늘의 프레임", symbolName: "camera.aperture", tint: AppColors.primary.opacity(0.78))
+        HomeHeroSection(
+            recommendations: recommendations,
+            savedSpotIDs: savedSpotIDs,
+            userLocation: userLocation,
+            contextText: heroContextText,
+            onShowContext: onShowWeather,
+            onToggleSave: onToggleSave,
+            onSelect: onShowDetail,
+            onOpenMap: onOpenMap
+        )
+    }
 
-            if recommendations.isEmpty {
-                NearbyRecommendationEmptyView(message: "주변 출사지 데이터가 부족해요")
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 14) {
-                        ForEach(recommendations.prefix(8)) { recommendation in
-                            FeaturedSpotCard(
-                                recommendation: recommendation,
-                                isSaved: savedSpotIDs.contains(recommendation.spot.id),
-                                onToggleSave: {
-                                    onToggleSave(recommendation.spot)
-                                }
-                            )
-                            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            .onTapGesture {
-                                onShowDetail(recommendation.spot)
-                            }
-                            .accessibilityAddTraits(.isButton)
-                            .accessibilityAction {
-                                onShowDetail(recommendation.spot)
-                            }
-                        }
-                    }
-                    .scrollTargetLayout()
-                    .padding(.horizontal, 20)
-                }
-                .scrollTargetBehavior(.viewAligned)
-                .contentMargins(.horizontal, 0, for: .scrollContent)
-                .padding(.horizontal, -20)
-            }
+    /// Hero 좌상단 pill 문자열. "구로동 25°" 형태.
+    /// 기존 날씨 칩은 아이콘 + 2줄 텍스트로 56pt 높이를 차지했습니다.
+    /// 같은 정보를 사진 위 한 줄로 압축합니다.
+    private var heroContextText: String? {
+        guard let temperature = weatherSnapshot?.displayText else {
+            return nil
         }
+
+        let place = currentLocationTitle
+            .split(separator: " ")
+            .last
+            .map(String.init) ?? ""
+
+        return place.isEmpty ? temperature : "\(place) \(temperature)"
     }
 
     private func recommendations(for category: HomeRecommendationKind) -> [GPTRecommendedSpot] {
@@ -563,7 +568,7 @@ struct HomeFeedView: View {
     }
 }
 
-private struct NearbyRecommendationEmptyView: View {
+struct NearbyRecommendationEmptyView: View {
     let message: String
 
     var body: some View {
@@ -970,40 +975,22 @@ struct SearchStatusRow: View {
 
 struct HomeSectionHeader: View {
     let title: String
+    /// Phase 2A 부터 렌더링하지 않습니다.
+    /// 섹션마다 아이콘을 붙이면 모든 섹션이 같은 무게가 되어 강조가 사라집니다.
+    /// 또한 섹션 아이콘이 브랜드 앰버를 쓰고 있어서 한 화면에 앰버가 4종류로
+    /// 늘어났습니다. (탭 + 검색 버튼 + 섹션 아이콘 + 북마크)
     let symbolName: String
+    /// Phase 2A 부터 렌더링하지 않습니다.
     let tint: Color
     var showsMore: Bool = false
     var onMore: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: symbolName)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 24, alignment: .leading)
-
-            Text(title)
-                .font(AppTypography.sectionTitle)
-                .foregroundStyle(AppColors.primary)
-
-            Spacer(minLength: 0)
-
-            if showsMore {
-                Button {
-                    onMore?()
-                } label: {
-                    HStack(spacing: 4) {
-                        Text("더보기")
-                        Image(systemName: "chevron.right")
-                    }
-                    .font(AppTypography.metadata)
-                    .foregroundStyle(AppColors.secondaryText)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(title) 전체 보기")
-            }
-        }
+        VFSectionTitle(
+            title: title,
+            showsMore: showsMore && onMore != nil,
+            onMore: onMore
+        )
     }
 }
 
@@ -1065,26 +1052,12 @@ struct FeaturedSpotCard: View {
             VStack {
                 HStack {
                     Spacer(minLength: 0)
-
-                    Button {
-                        onToggleSave()
-                    } label: {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(isSaved ? AppColors.accent : .white)
-                            .frame(width: 36, height: 36)
-                            .background(.black.opacity(0.20), in: Circle())
-                            .overlay(
-                                Circle()
-                                    .stroke(.white.opacity(0.30), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
+                    VFSaveButton(isSaved: isSaved, action: onToggleSave)
                 }
 
                 Spacer(minLength: 0)
             }
-            .padding(14)
+            .padding(VFSpace.sm)
         }
         .frame(width: 272, height: 352)
         .clipped()
@@ -1097,18 +1070,30 @@ struct FeaturedSpotCard: View {
     }
 }
 
+/// 섹션 레이아웃.
+/// 모든 섹션이 같은 모양이면 무엇이 중요한지 알 수 없습니다.
+/// 레이아웃을 번갈아 배치해서 스크롤에 리듬을 만듭니다.
+enum HomeCategorySectionLayout {
+    /// 큰 3:2 가로 카로셀. 다음 카드가 28pt 보입니다.
+    case showcase
+    /// 2:1 와이드 1장 + 1:1 정사각 2장. 크기로 위계를 만듭니다.
+    case mosaic
+}
+
 struct HomeCategorySection: View {
     let category: HomeRecommendationKind
+    var layout: HomeCategorySectionLayout = .showcase
     let recommendations: [GPTRecommendedSpot]
     let hasMore: Bool
     let isLoading: Bool
     let savedSpotIDs: Set<String>
+    var userLocation: CLLocationCoordinate2D? = nil
     let onToggleSave: (PhotoSpot) -> Void
     let onSelect: (PhotoSpot) -> Void
     let onShowMore: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: VFSpace.lg) {
             HomeSectionHeader(
                 title: category.title,
                 symbolName: category.symbolName,
@@ -1116,42 +1101,76 @@ struct HomeCategorySection: View {
                 showsMore: hasMore,
                 onMore: onShowMore
             )
+            .vfScreenMargin()
 
             if recommendations.isEmpty || isLoading {
                 SkeletonRail()
+                    .vfScreenMargin()
             } else {
-                GeometryReader { proxy in
-                    let cardWidth = max(0, (proxy.size.width - 14) / 2)
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 14) {
-                            ForEach(recommendations.prefix(5)) { recommendation in
-                                HomeSecondarySpotCard(
-                                    recommendation: recommendation,
-                                    width: cardWidth,
-                                    isSaved: savedSpotIDs.contains(recommendation.spot.id),
-                                    onToggleSave: {
-                                        onToggleSave(recommendation.spot)
-                                    }
-                                )
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        onSelect(recommendation.spot)
-                                    }
-                                    .accessibilityAddTraits(.isButton)
-                                    .accessibilityAction {
-                                        onSelect(recommendation.spot)
-                                    }
-                                }
-                        }
-                    }
-                    .scrollTargetBehavior(.viewAligned)
-                    .scrollTargetLayout()
+                switch layout {
+                case .showcase:
+                    showcaseRail
+                case .mosaic:
+                    mosaicGrid
+                        .vfScreenMargin()
                 }
-                .frame(height: 194)
             }
         }
-        .padding(.horizontal, -8)
+    }
+
+    private var showcaseRail: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: VFSpace.md) {
+                ForEach(recommendations.prefix(5)) { recommendation in
+                    card(for: recommendation, aspectRatio: VFPhoto.carouselAspect)
+                        .containerRelativeFrame(.horizontal) { length, _ in
+                            max(0, length - VFSpace.lg * 2 - VFPhoto.carouselPeek)
+                        }
+                }
+            }
+            .scrollTargetLayout()
+            .padding(.horizontal, VFSpace.lg)
+        }
+        .scrollTargetBehavior(.viewAligned)
+        .scrollClipDisabled()
+    }
+
+    private var mosaicGrid: some View {
+        let items = Array(recommendations.prefix(3))
+
+        return VStack(spacing: VFSpace.md) {
+            if let first = items.first {
+                card(for: first, aspectRatio: VFPhoto.wideAspect)
+            }
+
+            if items.count > 1 {
+                HStack(spacing: VFSpace.md) {
+                    ForEach(items.dropFirst()) { recommendation in
+                        card(
+                            for: recommendation,
+                            aspectRatio: VFPhoto.squareAspect,
+                            showsMeta: false
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func card(
+        for recommendation: GPTRecommendedSpot,
+        aspectRatio: CGFloat,
+        showsMeta: Bool = true
+    ) -> some View {
+        HomePhotoCard(
+            recommendation: recommendation,
+            aspectRatio: aspectRatio,
+            isSaved: savedSpotIDs.contains(recommendation.spot.id),
+            distanceText: VFSpotDistance.text(from: userLocation, to: recommendation.spot),
+            showsMeta: showsMeta,
+            onToggleSave: { onToggleSave(recommendation.spot) },
+            onSelect: { onSelect(recommendation.spot) }
+        )
     }
 }
 
@@ -1179,17 +1198,8 @@ private struct HomeSecondarySpotCard: View {
         VStack(alignment: .leading, spacing: 8) {
             SpotVisualTile(spot: spot, width: width, height: 132, cornerRadius: AppLayout.mediaCornerRadius)
                 .overlay(alignment: .topTrailing) {
-                    Button(action: onToggleSave) {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(isSaved ? AppColors.accent : .white)
-                            .frame(width: 34, height: 34)
-                            .background(.black.opacity(0.22), in: Circle())
-                            .overlay(Circle().stroke(.white.opacity(0.28), lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(8)
-                    .accessibilityLabel(isSaved ? "저장 취소" : "장소 저장")
+                    VFSaveButton(isSaved: isSaved, action: onToggleSave, diameter: 32)
+                        .padding(VFSpace.xs)
                 }
 
             VStack(alignment: .leading, spacing: 3) {

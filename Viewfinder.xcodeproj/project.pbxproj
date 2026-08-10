@@ -14,6 +14,8 @@
 		237504762FBCDEE4006000F8 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 237504752FBCDEE4006000F8 /* GoogleSignIn */; };
 		237504782FBCDEE4006000F8 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 237504772FBCDEE4006000F8 /* GoogleSignInSwift */; };
 		23B62EC1302A2942000E905B /* VFDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23B62EC0302A2942000E905B /* VFDesign.swift */; };
+		23B62EC5302A2942000E905B /* HomeHeroSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23B62EC4302A2942000E905B /* HomeHeroSection.swift */; };
+		23B62EC3302A2942000E905B /* VFComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23B62EC2302A2942000E905B /* VFComponents.swift */; };
 		CD1000000000000000000200 /* ViewfinderApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000100 /* ViewfinderApp.swift */; };
 		CD1000000000000000000201 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000101 /* ContentView.swift */; };
 		CD1000000000000000000202 /* PhotoSpot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000102 /* PhotoSpot.swift */; };
@@ -66,6 +68,8 @@
 /* Begin PBXFileReference section */
 		237504722FBCDD30006000F8 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		23B62EC0302A2942000E905B /* VFDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VFDesign.swift; path = Shared/VFDesign.swift; sourceTree = "<group>"; };
+		23B62EC4302A2942000E905B /* HomeHeroSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeHeroSection.swift; sourceTree = "<group>"; };
+		23B62EC2302A2942000E905B /* VFComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VFComponents.swift; sourceTree = "<group>"; };
 		CD1000000000000000000100 /* ViewfinderApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderApp.swift; sourceTree = "<group>"; };
 		CD1000000000000000000101 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		CD1000000000000000000102 /* PhotoSpot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSpot.swift; sourceTree = "<group>"; };
@@ -289,6 +293,7 @@
 			isa = PBXGroup;
 			children = (
 				CD2000000000000000000101 /* HomeFeedView.swift */,
+				23B62EC4302A2942000E905B /* HomeHeroSection.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
@@ -332,6 +337,7 @@
 			children = (
 				CD4000000000000000000100 /* AppDesignSystem.swift */,
 				CD2000000000000000000102 /* PhotoSpotImageView.swift */,
+				23B62EC2302A2942000E905B /* VFComponents.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -438,6 +444,8 @@
 				CD1000000000000000000205 /* InterestChipView.swift in Sources */,
 				CD1000000000000000000206 /* KoreaMapBackdropView.swift in Sources */,
 				23B62EC1302A2942000E905B /* VFDesign.swift in Sources */,
+				23B62EC5302A2942000E905B /* HomeHeroSection.swift in Sources */,
+				23B62EC3302A2942000E905B /* VFComponents.swift in Sources */,
 				CD1000000000000000000207 /* SpotPreviewCard.swift in Sources */,
 				CD1000000000000000000208 /* CommunityPreviewRow.swift in Sources */,
 				CD100000000000000000020A /* SearchView.swift in Sources */,
