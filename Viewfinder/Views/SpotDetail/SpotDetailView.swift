@@ -375,18 +375,22 @@ struct SpotDetailView: View {
         }
     }
 
-    /// 화면에 표시할 혼잡도와 그 출처.
+    /// 최근 제보로 계산한 혼잡도. 제보가 없으면 nil.
     ///
     /// 계산은 VFLiveCrowd 한 곳에서만 합니다.
     /// 홈과 상세가 각자 계산하던 시절에는 같은 장소가 홈에서 "붐빔",
     /// 상세에서 "여유" 로 보이는 문제가 있었습니다.
-    private var liveCrowd: VFLiveCrowd.Result {
+    private var liveCrowd: VFCrowdLevel? {
         VFLiveCrowd.resolve(spot: spot, posts: communityPosts)
     }
 
+    /// 제보가 없으면 시드 값으로 채우지 않고 없다고 말합니다.
+    /// 관측되지 않은 값을 실시간처럼 보여주면 혼잡도 전체가 신뢰를 잃습니다.
     private var crowdMetricValue: String {
-        let crowd = liveCrowd
-        return "\(crowd.level.label) · \(crowd.provenanceLabel)"
+        guard let liveCrowd else {
+            return "현장 정보 없음"
+        }
+        return "\(liveCrowd.label) · 실시간"
     }
 
     /// 지금 들어갈 수 있는지. 사진가가 출발 전 가장 먼저 확인하는 정보입니다.

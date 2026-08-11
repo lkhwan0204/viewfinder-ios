@@ -160,8 +160,9 @@ private struct HomeHeroCard: View {
 
     /// 상세 화면과 같은 계산기를 씁니다.
     /// 사용자가 현장 정보를 등록하면 홈 Hero 의 배지도 함께 바뀝니다.
-    private var crowdLevel: VFCrowdLevel {
-        VFLiveCrowd.resolve(spot: spot, posts: communityPosts).level
+    /// 제보가 없으면 nil 이고, 이때는 배지 대신 "현장 정보 없음" 을 보여줍니다.
+    private var crowdLevel: VFCrowdLevel? {
+        VFLiveCrowd.resolve(spot: spot, posts: communityPosts)
     }
 
     private var metaItems: [String] {
@@ -197,7 +198,9 @@ private struct HomeHeroCard: View {
         .onTapGesture(perform: onSelect)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("\(spot.name), \(region), \(crowdLevel.label)")
+        .accessibilityLabel(
+            "\(spot.name), \(region), \(crowdLevel?.accessibilityLabel ?? "현장 정보 없음")"
+        )
         .accessibilityAction(named: "상세 보기", onSelect)
     }
 
@@ -216,7 +219,16 @@ private struct HomeHeroCard: View {
 
             HStack(spacing: VFSpace.md) {
                 VFMetaLineOnPhoto(items: metaItems)
-                VFCrowdBadge(level: crowdLevel)
+
+                if let crowdLevel {
+                    VFCrowdBadge(level: crowdLevel)
+                } else {
+                    // 시드 값으로 채우지 않고 없다고 말합니다.
+                    // 제보를 유도하는 효과도 있습니다.
+                    Text("현장 정보 없음")
+                        .vfText(.mono)
+                        .foregroundStyle(Color.white.opacity(0.58))
+                }
             }
 
         }

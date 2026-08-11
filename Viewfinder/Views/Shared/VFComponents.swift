@@ -439,17 +439,14 @@ extension View {
 
 enum VFLiveCrowd {
 
-    struct Result: Equatable {
-        let level: VFCrowdLevel
-        /// 커뮤니티 제보에서 나온 값인지. false 면 시드 데이터(평소)입니다.
-        let isLive: Bool
-
-        var provenanceLabel: String {
-            isLive ? "실시간" : "평소"
-        }
-    }
-
-    /// 최근 제보가 있으면 그 값을, 없으면 시드 데이터를 씁니다.
+    /// 최근 제보에서 계산한 혼잡도. 제보가 없으면 nil 입니다.
+    ///
+    /// 제보가 없을 때 시드 데이터(spot.crowdLevel)로 채우지 않는 것이 중요합니다.
+    /// 시드 값은 실제 현장을 관측한 결과가 아니라 데이터에 미리 적어둔 문자열입니다.
+    /// 그걸 실시간 정보처럼 보여주면, 현장에 아무도 없는 곳에 "붐빔" 이 뜨는 일이
+    /// 생기고 사용자는 혼잡도 자체를 믿지 않게 됩니다.
+    /// 근거를 설명할 수 없는 값은 보여주지 않고 "정보 없음" 으로 두는 편이
+    /// 신뢰를 지키고, 제보를 유도하기도 합니다.
     ///
     /// - Parameters:
     ///   - spot: 대상 장소
@@ -459,17 +456,17 @@ enum VFLiveCrowd {
         spot: PhotoSpot,
         posts: [CommunityPost],
         within hours: Double = 3
-    ) -> Result {
+    ) -> VFCrowdLevel? {
         let cutoff = Date().addingTimeInterval(-hours * 60 * 60)
 
         let recent = posts.filter { post in
             post.spotID == spot.id && post.createdAt >= cutoff
         }
 
-        if let latest = recent.max(by: { $0.createdAt < $1.createdAt }) {
-            return Result(level: VFCrowdLevel.from(latest.crowd.rawValue), isLive: true)
+        guard let latest = recent.max(by: { $0.createdAt < $1.createdAt }) else {
+            return nil
         }
 
-        return Result(level: VFCrowdLevel.from(spot.crowdLevel), isLive: false)
+        return VFCrowdLevel.from(latest.crowd.rawValue)
     }
 }
