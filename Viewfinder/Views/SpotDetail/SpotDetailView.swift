@@ -120,6 +120,13 @@ struct SpotDetailView: View {
                     .padding(.bottom, actionBarBottomPadding)
             }
             .ignoresSafeArea(.container, edges: .bottom)
+            // 전체 화면으로 뜰 때는 드래그로 닫을 수 없으므로 닫기 버튼이 필요합니다.
+            // 지도 진입은 시트라서 드래그 인디케이터가 그 역할을 합니다.
+            .overlay(alignment: .topLeading) {
+                if !source.isMapContext {
+                    closeButton
+                }
+            }
         }
         .background(AppColors.background.ignoresSafeArea())
         .confirmationDialog("길찾기 앱 선택", isPresented: $isDirectionsDialogPresented, titleVisibility: .visible) {
@@ -223,6 +230,23 @@ struct SpotDetailView: View {
                 )
                 .padding(.horizontal, source.isCompact ? 14 : 18)
         }
+    }
+
+    /// 사진 위에 떠 있는 닫기 버튼. 홈의 검색 버튼과 같은 재료를 씁니다.
+    private var closeButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.white)
+                .frame(width: 38, height: 38)
+                .vfGlass(interactive: true)
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, VFSpace.lg - VFSpace.xs)
+        .padding(.top, VFSpace.sm)
+        .accessibilityLabel("닫기")
     }
 
     private var actionButtons: some View {

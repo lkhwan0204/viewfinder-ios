@@ -203,52 +203,22 @@ struct ContentView: View {
         nativeTabContent
         .background(AppColors.background.ignoresSafeArea())
         .tint(AppColors.accent)
-        .sheet(item: $detailPresentation) { presentation in
-            SpotDetailView(
-                authViewModel: authViewModel,
-                spot: presentation.spot,
-                source: presentation.source,
-                isSaved: savedSpotStore.contains(presentation.spot),
-                communityPosts: communityViewModel.posts(for: presentation.spot),
-                currentUserID: authViewModel.currentUser?.id ?? "",
-                spots: selectableSpots,
-                userLocation: locationReader.coordinate,
-                onToggleSave: {
-                    savedSpotStore.toggle(presentation.spot)
-                },
-                onOpenMap: {
-                    detailPresentation = nil
-                    openMap(presentation.spot)
-                },
-                onReportPhoto: {
-                    performAuthenticatedAction { _ in
-                        detailPresentation = nil
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
-                            presentComposer(.addSpot, spot: presentation.spot)
-                        }
-                    }
-                },
-                onSubmitCommunity: { draft in
-                    performAuthenticatedAction { user in
-                        communityViewModel.addPost(draft, author: user)
-                    }
-                },
-                onUpdateCommunity: { post, draft in
-                    performAuthenticatedAction { _ in
-                        communityViewModel.updatePost(post, draft: draft)
-                    }
-                },
-                onDeleteCommunity: { post in
-                    performAuthenticatedAction { _ in
-                        communityViewModel.deletePost(post)
-                    }
-                }
-            )
-            .presentationDetents(presentation.source.detents)
-            .presentationDragIndicator(.visible)
-            // 사진 -> 상세 zoom transition 의 도착 지점.
-            // 소스가 없는 진입(지도/검색/커뮤니티)에서는 기본 전환으로 조용히 폴백합니다.
-            .vfZoomDestination(id: presentation.spot.id, in: spotZoomNamespace)
+        // 지도에서 들어올 때만 시트로 둡니다.
+        // 지도 맥락을 뒤에 남겨두고 부분 높이로 보는 것이 목적이기 때문입니다.
+        .sheet(item: mapDetailPresentation) { presentation in
+            detailView(for: presentation)
+                .presentationDetents(presentation.source.detents)
+                .presentationDragIndicator(.visible)
+        }
+        // 사진에서 들어올 때는 전체 화면입니다.
+        //
+        // zoom transition 은 "사진이 확대되어 전체 화면이 된다" 는 신호를 줍니다.
+        // 그런데 시트로 착지하면 위가 둥글고 드래그 인디케이터가 남아서
+        // 전환의 신호와 도착지의 형태가 어긋납니다.
+        // 사진 앱이라면 사진에서 출발한 화면은 전체 화면이어야 합니다.
+        .fullScreenCover(item: photoDetailPresentation) { presentation in
+            detailView(for: presentation)
+                .vfZoomDestination(id: presentation.spot.id, in: spotZoomNamespace)
         }
         .sheet(isPresented: $communityViewModel.isComposerPresented) {
             CommunityComposerView(
@@ -868,6 +838,78 @@ struct ContentView: View {
         for spot in spots {
             addAISpot(spot)
         }
+    }
+
+    /// 지도 맥락 진입만 시트로 띄웁니다.
+    private var mapDetailPresentation: Binding<SpotDetailPresentation?> {
+        Binding(
+            get: {
+                detailPresentation?.source.isMapContext == true ? detailPresentation : nil
+            },
+            set: { newValue in
+                if newValue == nil, detailPresentation?.source.isMapContext == true {
+                    detailPresentation = nil
+                }
+            }
+        )
+    }
+
+    /// 사진 진입(홈 / 검색 / 커뮤니티 / 저장)은 전체 화면으로 띄웁니다.
+    private var photoDetailPresentation: Binding<SpotDetailPresentation?> {
+        Binding(
+            get: {
+                detailPresentation?.source.isMapContext == false ? detailPresentation : nil
+            },
+            set: { newValue in
+                if newValue == nil, detailPresentation?.source.isMapContext == false {
+                    detailPresentation = nil
+                }
+            }
+        )
+    }
+
+    /// 시트와 전체화면이 같은 내용을 쓰므로 한 곳에서 만듭니다.
+    private func detailView(for presentation: SpotDetailPresentation) -> some View {
+        SpotDetailView(
+            authViewModel: authViewModel,
+            spot: presentation.spot,
+            source: presentation.source,
+            isSaved: savedSpotStore.contains(presentation.spot),
+            communityPosts: communityViewModel.posts(for: presentation.spot),
+            currentUserID: authViewModel.currentUser?.id ?? "",
+            spots: selectableSpots,
+            userLocation: locationReader.coordinate,
+            onToggleSave: {
+                savedSpotStore.toggle(presentation.spot)
+            },
+            onOpenMap: {
+                detailPresentation = nil
+                openMap(presentation.spot)
+            },
+            onReportPhoto: {
+                performAuthenticatedAction { _ in
+                    detailPresentation = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                        presentComposer(.addSpot, spot: presentation.spot)
+                    }
+                }
+            },
+            onSubmitCommunity: { draft in
+                performAuthenticatedAction { user in
+                    communityViewModel.addPost(draft, author: user)
+                }
+            },
+            onUpdateCommunity: { post, draft in
+                performAuthenticatedAction { _ in
+                    communityViewModel.updatePost(post, draft: draft)
+                }
+            },
+            onDeleteCommunity: { post in
+                performAuthenticatedAction { _ in
+                    communityViewModel.deletePost(post)
+                }
+            }
+        )
     }
 
     private func showDetail(_ spot: PhotoSpot, source: SpotDetailSource) {
