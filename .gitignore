@@ -20,3 +20,7 @@ xcuserdata/
 .env
 .env.*
 !.env.example
+
+# Python (icon tooling)
+__pycache__/
+*.pyc
