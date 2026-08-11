@@ -73,19 +73,20 @@ enum VFPalette {
 
     // MARK: Semantic — 혼잡도
     //
-    // 색을 빼고 무채색으로 내렸습니다.
+    // 신호등 3색으로 갑니다. 혼잡도는 사용자가 가장 빨리 스캔하는 정보이고,
+    // 초록/주황/빨강은 학습이 필요 없는 유일한 색 체계입니다.
     //
-    // 이전에는 초록/노랑/테라코타 3색을 썼는데,
-    //  1. 노랑(#D9A94B)이 브랜드 색과 충돌했고
-    //  2. 테라코타(#D4795E)는 새 오렌지와도 계열이 겹칩니다.
-    //  3. 사진가에게 "붐빔" 은 항상 나쁜 게 아닙니다. 야시장 스냅은
-    //     사람이 있어야 좋습니다. 빨강 계열은 잘못된 감정을 전달합니다.
+    // 단, 브랜드 오렌지(#FF6D00)와 섞이면 안 됩니다.
+    // 그래서 색조를 의도적으로 벌려놨습니다.
+    //   브랜드 오렌지  hue 약 26도 (붉은 주황)
+    //   혼잡 주황      hue 약 40도 (노란 주황)  <- 확실히 더 노랗게
+    //   매우혼잡 빨강  hue 약 4도  (순수 빨강)  <- 확실히 더 붉게
     //
-    // 구분은 점 개수(형태)와 라벨(텍스트)이 담당하고,
-    // 밝기만 단계적으로 올려 스캔을 돕습니다. 색맹 접근성도 자동 충족됩니다.
-    static let crowdCalm = dynamic(dark: 0xFFFFFF, light: 0x000000, darkAlpha: 0.58, lightAlpha: 0.52)
-    static let crowdNormal = dynamic(dark: 0xFFFFFF, light: 0x000000, darkAlpha: 0.74, lightAlpha: 0.68)
-    static let crowdBusy = dynamic(dark: 0xFFFFFF, light: 0x000000, darkAlpha: 0.92, lightAlpha: 0.86)
+    // 색 단독으로 정보를 전달하지는 않습니다.
+    // VFCrowdBadge 가 점 개수(형태) + 라벨(텍스트)을 항상 함께 그립니다.
+    static let crowdCalm = dynamic(dark: 0x46C08A, light: 0x2E8F63)
+    static let crowdNormal = dynamic(dark: 0xF2B02E, light: 0xB07A10)
+    static let crowdBusy = dynamic(dark: 0xF0453A, light: 0xC62A20)
 
     // MARK: Avatar
     //
