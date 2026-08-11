@@ -137,6 +137,8 @@ struct VFSaveButton: View {
         } label: {
             ZStack {
                 if style == .onPhoto {
+                    // 저장된 상태는 브랜드 오렌지로 채웁니다.
+                    // 아이콘은 onAccent(어두운 잉크)라서 오렌지 위에서 6.7:1 을 확보합니다.
                     Circle()
                         .fill(isSaved ? AppColors.accent : Color.black.opacity(0.30))
 

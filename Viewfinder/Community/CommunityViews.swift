@@ -2,7 +2,9 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
-private let communityLikeTint = Color(red: 1.0, green: 0.18, blue: 0.25)
+// 좋아요는 "내가 반응한 상태" 이므로 저장됨과 같은 계열의 상태 표시입니다.
+// 빨강(#FF2E40)은 검정·흰색·오렌지 체계에서 유일하게 튀는 색이었습니다.
+private let communityLikeTint = AppColors.accent
 
 private struct CommunityScrollOffsetPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
@@ -468,18 +470,13 @@ private struct CommunityAuthorAvatar: View {
     }
 
     private var avatarColor: Color {
-        let colors: [Color] = [
-            Color(red: 0.23, green: 0.30, blue: 0.39),
-            Color(red: 0.39, green: 0.33, blue: 0.27),
-            Color(red: 0.34, green: 0.39, blue: 0.34),
-            Color(red: 0.36, green: 0.32, blue: 0.43),
-            Color(red: 0.42, green: 0.30, blue: 0.31),
-            Color(red: 0.28, green: 0.36, blue: 0.42)
-        ]
+        // 유채색 6개 대신 무채색 밝기 6단계를 씁니다. (VFPalette.avatarTones)
+        // 사용자 구분은 유지하면서 팔레트를 검정·흰색·오렌지로 좁힙니다.
+        let tones = VFPalette.avatarTones
         let seed = authorName.unicodeScalars.reduce(0) { partial, scalar in
             partial + Int(scalar.value)
         }
-        return colors[seed % colors.count]
+        return Color(uiColor: tones[seed % tones.count])
     }
 }
 

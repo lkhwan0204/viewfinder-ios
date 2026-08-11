@@ -45,25 +45,61 @@ enum VFPalette {
     /// 구분선. 아주 약하게. 기본 그룹핑 수단은 여백이다.
     static let separator = dynamic(dark: 0xFFFFFF, light: 0x000000, darkAlpha: 0.09, lightAlpha: 0.10)
 
-    // MARK: Brand — 골든아워 앰버
+    // MARK: Brand — 오렌지
+    //
+    // 검정 + 강한 오렌지 조합입니다. (Blackmagic Design 계열의 인상)
+    //
+    // 이전에는 골든아워 앰버(#F0A03C)를 썼는데 두 가지 문제가 있었습니다.
+    //  1. 노란기가 강해서 검정 위에서 강렬함이 부족했습니다.
+    //  2. 혼잡도 "보통"(#D9A94B)과 색조가 거의 같아서, 브랜드 강조와
+    //     의미 색을 구별할 수 없었습니다. 브랜드 색과 의미 색이 충돌하면
+    //     시스템의 근본이 흔들립니다.
+    //
+    // 오렌지로 옮기면서 혼잡도는 무채색으로 내렸습니다.
+    // 결과적으로 오렌지가 화면에서 유일한 컬러가 되어 강조력이 최대가 됩니다.
+    //
     /// 앱의 시그니처. 화면당 2곳 이하로 아껴 쓴다.
-    /// 허용: 선택된 탭 / 저장된 상태 / 선택된 칩 / 지도 핀 / 골든아워 / Primary 버튼
+    /// 허용: 선택된 탭 / 저장된 상태 / 선택된 칩 / 지도 핀 / 주 동작
     /// 금지: 본문 대량 사용 / 큰 면적 배경 / 사진 위 오버레이
-    static let amber = dynamic(dark: 0xF0A03C, light: 0xC97D1F)
-    static let amberDim = dynamic(dark: 0xC4802E, light: 0xA66517)
+    static let amber = dynamic(dark: 0xFF6D00, light: 0xD95A00)
+    static let amberDim = dynamic(dark: 0xCC5700, light: 0xB04800)
 
-    /// 앰버 표면 위에 올라가는 텍스트/아이콘 색.
+    /// 오렌지 표면 위에 올라가는 텍스트/아이콘 색.
     ///
-    /// 다크의 앰버(#F0A03C)는 밝은 색이라 흰 글자를 올리면 대비가 2:1 수준으로
-    /// 떨어집니다. 어두운 잉크를 올려야 4.5:1 을 넘깁니다.
-    /// 라이트의 앰버(#C97D1F)는 어두우므로 흰 글자가 맞습니다.
-    static let onAmber = dynamic(dark: 0x14100A, light: 0xFFFFFF)
+    /// #FF6D00 위 흰 글자는 대비가 2.8:1 로 기준 미달입니다.
+    /// 어두운 잉크를 올리면 6.7:1 이 되어 통과합니다.
+    /// 라이트의 오렌지(#D95A00)는 어두우므로 흰 글자가 맞습니다.
+    static let onAmber = dynamic(dark: 0x150A00, light: 0xFFFFFF)
 
     // MARK: Semantic — 혼잡도
-    // 색상 단독으로 정보를 전달하지 않는다. 점 개수 + 라벨을 함께 쓴다.
-    static let crowdCalm = dynamic(dark: 0x6BAE8E, light: 0x3F8A67)
-    static let crowdNormal = dynamic(dark: 0xD9A94B, light: 0xA37B22)
-    static let crowdBusy = dynamic(dark: 0xD4795E, light: 0xB0523A) // 빨강이 아니다. 테라코타.
+    //
+    // 색을 빼고 무채색으로 내렸습니다.
+    //
+    // 이전에는 초록/노랑/테라코타 3색을 썼는데,
+    //  1. 노랑(#D9A94B)이 브랜드 색과 충돌했고
+    //  2. 테라코타(#D4795E)는 새 오렌지와도 계열이 겹칩니다.
+    //  3. 사진가에게 "붐빔" 은 항상 나쁜 게 아닙니다. 야시장 스냅은
+    //     사람이 있어야 좋습니다. 빨강 계열은 잘못된 감정을 전달합니다.
+    //
+    // 구분은 점 개수(형태)와 라벨(텍스트)이 담당하고,
+    // 밝기만 단계적으로 올려 스캔을 돕습니다. 색맹 접근성도 자동 충족됩니다.
+    static let crowdCalm = dynamic(dark: 0xFFFFFF, light: 0x000000, darkAlpha: 0.58, lightAlpha: 0.52)
+    static let crowdNormal = dynamic(dark: 0xFFFFFF, light: 0x000000, darkAlpha: 0.74, lightAlpha: 0.68)
+    static let crowdBusy = dynamic(dark: 0xFFFFFF, light: 0x000000, darkAlpha: 0.92, lightAlpha: 0.86)
+
+    // MARK: Avatar
+    //
+    // 사용자별 아바타 배경. 이전에는 파랑/갈색/초록/보라/빨강/청록 6색이었습니다.
+    // 검정·흰색·오렌지만 쓰는 체계에서 유채색 6개는 이질적입니다.
+    // 밝기 6단계 무채색으로 바꿔 사용자 구분은 유지하고 색만 걷어냅니다.
+    static let avatarTones: [UIColor] = [
+        dynamic(dark: 0x2A2A2E, light: 0xE4E4E9),
+        dynamic(dark: 0x35353A, light: 0xD8D8DE),
+        dynamic(dark: 0x404046, light: 0xCCCCD3),
+        dynamic(dark: 0x4B4B52, light: 0xC0C0C8),
+        dynamic(dark: 0x56565E, light: 0xB4B4BD),
+        dynamic(dark: 0x61616A, light: 0xA8A8B2)
+    ]
 
     // MARK: 유틸리티
 
