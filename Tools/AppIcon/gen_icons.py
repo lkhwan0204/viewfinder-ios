@@ -179,6 +179,45 @@ def spec_half_frame(flat_caps=True, diagonal="TL-BR",
     }
 
 
+def spec_framed_horizon(frame=700.0, stroke=76.0, arm_ratio=0.28,
+                        radius_ratio=0.40, horizon_y=584.0, horizon_w=46.0,
+                        horizon_x=(224.0, 800.0), horizon_soft=0.28,
+                        bloom_peak=0.22, base="#131218",
+                        veil=("#0D0C11", "#18161D", 0.42)):
+    """
+    FRAMED HORIZON - the shipping mark.
+
+    Four viewfinder brackets (the frame) around a single band of golden-hour
+    light (the place, and the hour). The frame alone only says "camera";
+    the light inside it is what makes this an app about finding a place and
+    a time to shoot.
+
+    No landmass, no sun disc, no pin, no lens. The light has no edges - it
+    fades out at both ends so it reads as light across a scene rather than
+    a drawn rule.
+    """
+    cx, cy = 512.0, 500.0
+    x0, x1 = cx - frame / 2, cx + frame / 2
+    y0, y1 = cy - frame / 2, cy + frame / 2
+    arm, R = frame * arm_ratio, stroke * radius_ratio
+
+    return {
+        "base": hexc(base),
+        "veil": (hexc(veil[0]), hexc(veil[1]), veil[2]),
+        "bloom": (cx, horizon_y, 500.0, hexc(AMBER), bloom_peak),
+        "brackets": [
+            make_bracket(x0, y0, +1, +1, arm, R, stroke, AMBER_SHADE),
+            make_bracket(x1, y0, -1, +1, arm, R, stroke, AMBER_SHADE),
+            make_bracket(x0, y1, +1, -1, arm, R, stroke, AMBER_LIGHT),
+            make_bracket(x1, y1, -1, -1, arm, R, stroke, AMBER_LIGHT),
+        ],
+        "subjects": [
+            horizon(horizon_y, horizon_x[0], horizon_x[1], horizon_w,
+                    "#F5B25A", soft=horizon_soft),
+        ],
+    }
+
+
 def spec_golden_aperture():
     """
     GOLDEN APERTURE - four corner brackets around a low warm bloom.
@@ -272,7 +311,75 @@ def render_icon(spec, size):
                 buf[j] = int(buf[j] * (1 - cov) + cr * cov + 0.5)
                 buf[j + 1] = int(buf[j + 1] * (1 - cov) + cg * cov + 0.5)
                 buf[j + 2] = int(buf[j + 2] * (1 - cov) + cb * cov + 0.5)
+
+    # ---- what sits inside the frame: the subject ----
+    for shape in spec.get("subjects", []):
+        sr, sg, sb = shape["color"]
+        bx0, by0, bx1, by1 = shape["bbox"]
+        px0 = max(0, int(bx0 * S) - 1)
+        px1 = min(size, int(bx1 * S) + 2)
+        py0 = max(0, int(by0 * S) - 1)
+        py1 = min(size, int(by1 * S) + 2)
+        sdf = shape["sdf"]
+        fade = shape.get("fade")
+        for py in range(py0, py1):
+            Y = (py + 0.5) / S
+            row = py * size * 3
+            for px in range(px0, px1):
+                X = (px + 0.5) / S
+                cov = 0.5 - sdf(X, Y) * S
+                if cov <= 0.0:
+                    continue
+                if cov > 1.0:
+                    cov = 1.0
+                if fade is not None:
+                    cov *= fade(X, Y)
+                    if cov <= 0.0:
+                        continue
+                j = row + px * 3
+                buf[j] = int(buf[j] * (1 - cov) + sr * cov + 0.5)
+                buf[j + 1] = int(buf[j + 1] * (1 - cov) + sg * cov + 0.5)
+                buf[j + 2] = int(buf[j + 2] * (1 - cov) + sb * cov + 0.5)
     return buf
+
+
+# --------------------------------------------------------------------------
+# Subject primitives - the thing the frame is pointed at
+# --------------------------------------------------------------------------
+
+def horizon(y, x0, x1, weight, color, soft=0.0):
+    """
+    A single band of light: the horizon line. No landmass, no sun disc.
+
+    `soft` fades the last `soft` fraction of each end to zero, so the line
+    reads as light spilling across a scene rather than a drawn rule.
+    """
+    h = weight / 2.0
+
+    def sdf(x, yy):
+        return max(abs(yy - y) - h, x0 - x, x - x1)
+
+    shape = {"color": hexc(color), "sdf": sdf,
+             "bbox": (x0 - 2, y - h - 2, x1 + 2, y + h + 2)}
+
+    if soft > 0.0:
+        span = (x1 - x0) * soft
+
+        def fade(x, _y):
+            d = min(x - x0, x1 - x)
+            return smoothstep(d / span) if d < span else 1.0
+
+        shape["fade"] = fade
+    return shape
+
+
+def disc(cx, cy, r, color):
+    """The low sun: a warm circle sitting inside the frame."""
+    def sdf(x, y):
+        return math.hypot(x - cx, y - cy) - r
+
+    return {"color": hexc(color), "sdf": sdf,
+            "bbox": (cx - r - 2, cy - r - 2, cx + r + 2, cy + r + 2)}
 
 
 # --------------------------------------------------------------------------
@@ -425,6 +532,51 @@ SVG_HALF_FRAME = """<svg xmlns="http://www.w3.org/2000/svg" width="1024" height=
   <!-- bottom-right bracket -->
   <path d="M848 571 V798 A42 42 0 0 1 806 840 H579"
         fill="none" stroke="#F3AC4E" stroke-width="104" stroke-linecap="butt"/>
+</svg>
+"""
+
+SVG_FRAMED_HORIZON = """<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>ViewFinder - Framed Horizon</title>
+  <defs>
+    <linearGradient id="veil" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0D0C11"/>
+      <stop offset="1" stop-color="#18161D"/>
+    </linearGradient>
+    <radialGradient id="bloom" cx="512" cy="584" r="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0"   stop-color="#F0A03C" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#F0A03C" stop-opacity="0.11"/>
+      <stop offset="1"   stop-color="#F0A03C" stop-opacity="0"/>
+    </radialGradient>
+    <!-- the light has no ends: it fades out instead of stopping -->
+    <linearGradient id="light" x1="224" y1="0" x2="800" y2="0"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0.00" stop-color="#F5B25A" stop-opacity="0"/>
+      <stop offset="0.07" stop-color="#F5B25A" stop-opacity="0.09"/>
+      <stop offset="0.14" stop-color="#F5B25A" stop-opacity="0.5"/>
+      <stop offset="0.21" stop-color="#F5B25A" stop-opacity="0.91"/>
+      <stop offset="0.28" stop-color="#F5B25A" stop-opacity="1"/>
+      <stop offset="0.72" stop-color="#F5B25A" stop-opacity="1"/>
+      <stop offset="0.79" stop-color="#F5B25A" stop-opacity="0.91"/>
+      <stop offset="0.86" stop-color="#F5B25A" stop-opacity="0.5"/>
+      <stop offset="0.93" stop-color="#F5B25A" stop-opacity="0.09"/>
+      <stop offset="1.00" stop-color="#F5B25A" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="#131218"/>
+  <rect width="1024" height="1024" fill="url(#veil)" opacity="0.42"/>
+  <rect width="1024" height="1024" fill="url(#bloom)"/>
+
+  <!-- golden hour light band: the place, and the hour -->
+  <rect x="224" y="561" width="576" height="46" fill="url(#light)"/>
+
+  <!-- viewfinder frame 700x700 centred (512,500), stroke 76, arm 196 -->
+  <g fill="none" stroke-width="76" stroke-linecap="butt">
+    <path d="M162 346 V180 A30 30 0 0 1 192 150 H358" stroke="#EA9A3C"/>
+    <path d="M862 346 V180 A30 30 0 0 0 832 150 H666" stroke="#EA9A3C"/>
+    <path d="M162 654 V820 A30 30 0 0 0 192 850 H358" stroke="#F3AC4E"/>
+    <path d="M862 654 V820 A30 30 0 0 1 832 850 H666" stroke="#F3AC4E"/>
+  </g>
 </svg>
 """
 

@@ -17,16 +17,16 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 
-from gen_icons import (SVG_HALF_FRAME, blit, dummy_tile, grayscale, hexc,  # noqa: E402
-                       mask_alpha, render_icon, sheet_variants, solid,
-                       spec_half_frame, spec_golden_aperture, upscale_nn,
+from gen_icons import (SVG_FRAMED_HORIZON, blit, dummy_tile, grayscale,  # noqa: E402
+                       hexc, mask_alpha, render_icon, solid,
+                       spec_framed_horizon, spec_half_frame, upscale_nn,
                        vgradient, write_png)
 
 APPICON = os.path.join(REPO, "Viewfinder", "Supporting", "Assets.xcassets",
                        "AppIcon.appiconset")
 BRANDING = os.path.join(REPO, "docs", "branding")
 
-SPEC = spec_half_frame()
+SPEC = spec_framed_horizon()
 
 # filename -> pixel size, matching the existing Contents.json
 APPICON_SIZES = {
@@ -129,10 +129,13 @@ def export_true_sizes(spec, out):
 
 
 def export_compare(out):
-    """Half Frame vs Golden Aperture at 60px, magnified. The decisive test."""
+    """
+    Why the frame needed a subject.
+    Left: frame only - reads as a camera. Right: shipping mark.
+    """
     s, f = 60, 6
-    ua, uw, uh = upscale_nn(render_icon(SPEC, s), s, s, f)
-    ub, _, _ = upscale_nn(render_icon(spec_golden_aperture(), s), s, s, f)
+    ua, uw, uh = upscale_nn(render_icon(spec_half_frame(), s), s, s, f)
+    ub, _, _ = upscale_nn(render_icon(SPEC, s), s, s, f)
     gap, pad = 56, 56
     W = pad * 2 + uw * 2 + gap
     H = pad * 2 + uh
@@ -145,7 +148,7 @@ def export_compare(out):
 def export_branding():
     print("docs/branding")
     with open(os.path.join(BRANDING, "app-icon.svg"), "w") as fh:
-        fh.write(SVG_HALF_FRAME)
+        fh.write(SVG_FRAMED_HORIZON)
     print("  wrote docs/branding/app-icon.svg")
 
     export_overview()
@@ -156,7 +159,6 @@ def export_branding():
     export_homescreen(False, os.path.join(BRANDING, "homescreen-light.png"))
     write_png(os.path.join(BRANDING, "tinted-grayscale.png"), 512, 512,
               grayscale(render_icon(SPEC, 512)))
-    sheet_variants(os.path.join(BRANDING, "ab-variants.png"))
     export_compare(os.path.join(BRANDING, "compare-60px.png"))
 
 
