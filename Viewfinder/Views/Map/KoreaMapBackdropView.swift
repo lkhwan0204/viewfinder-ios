@@ -216,13 +216,22 @@ private struct NaverMapRepresentable: UIViewRepresentable {
 
 struct NaverSpotPreviewMap: UIViewRepresentable {
     let spot: PhotoSpot
+    /// 확대/축소를 허용할지. 상세 화면의 "위치 미리보기" 에서 true 로 씁니다.
+    var allowsZoom: Bool = false
 
     func makeUIView(context: Context) -> NMFNaverMapView {
         let naverMapView = NMFNaverMapView(frame: .zero)
         naverMapView.showCompass = false
         naverMapView.showScaleBar = false
-        naverMapView.showZoomControls = false
+        naverMapView.showZoomControls = allowsZoom
         naverMapView.showLocationButton = false
+
+        // 핀치/더블탭 확대는 허용하되, 패닝·회전·기울기는 막습니다.
+        // 세로 스크롤 화면 안에 있는 지도라 패닝을 허용하면 스크롤이 막힙니다.
+        naverMapView.mapView.isZoomGestureEnabled = allowsZoom
+        naverMapView.mapView.isScrollGestureEnabled = false
+        naverMapView.mapView.isRotateGestureEnabled = false
+        naverMapView.mapView.isTiltGestureEnabled = false
         naverMapView.mapView.logoAlign = .rightBottom
         naverMapView.mapView.logoMargin = UIEdgeInsets(top: 0, left: 0, bottom: 10, right: 10)
         context.coordinator.render(spot: spot, on: naverMapView.mapView, animated: false)

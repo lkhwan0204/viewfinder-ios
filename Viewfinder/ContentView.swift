@@ -209,6 +209,7 @@ struct ContentView: View {
                 communityPosts: communityViewModel.posts(for: presentation.spot),
                 currentUserID: authViewModel.currentUser?.id ?? "",
                 spots: selectableSpots,
+                userLocation: locationReader.coordinate,
                 onToggleSave: {
                     savedSpotStore.toggle(presentation.spot)
                 },

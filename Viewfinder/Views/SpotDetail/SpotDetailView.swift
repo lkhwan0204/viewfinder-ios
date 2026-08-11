@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import SwiftUI
 import UIKit
@@ -41,6 +42,8 @@ struct SpotDetailView: View {
     let communityPosts: [CommunityPost]
     let currentUserID: String
     let spots: [PhotoSpot]
+    /// 거리 표시용. 없으면 거리 지표가 "위치 확인 필요" 로 표시됩니다.
+    var userLocation: CLLocationCoordinate2D? = nil
     let onToggleSave: () -> Void
     let onOpenMap: () -> Void
     let onReportPhoto: () -> Void
@@ -338,12 +341,12 @@ struct SpotDetailView: View {
                 SpotShootingMetric(
                     symbolName: "person.2.fill",
                     title: "혼잡도",
-                    value: spot.crowdLevel
+                    value: crowdMetricValue
                 )
                 SpotShootingMetric(
-                    symbolName: "camera.aperture",
-                    title: "추천 렌즈",
-                    value: spot.lensSuggestion
+                    symbolName: "figure.walk",
+                    title: "거리",
+                    value: distanceMetricValue
                 )
                 SpotShootingMetric(
                     symbolName: "cloud.sun.fill",
@@ -354,15 +357,34 @@ struct SpotDetailView: View {
         }
     }
 
+    /// 혼잡도 값과 그 출처를 함께 표기합니다.
+    ///
+    /// 최근 3시간 안에 커뮤니티 제보가 있으면 그 값을 "실시간" 으로,
+    /// 없으면 시드 데이터를 "평소" 로 구분해서 보여줍니다.
+    /// 근거 없이 하나의 숫자만 보여주면 사용자가 신뢰할 수 없습니다.
+    private var crowdMetricValue: String {
+        let cutoff = Date().addingTimeInterval(-3 * 60 * 60)
+        let recentPosts = communityPosts.filter { $0.createdAt >= cutoff }
+
+        if let latest = recentPosts.max(by: { $0.createdAt < $1.createdAt }) {
+            return "\(latest.crowd.rawValue) · 실시간"
+        }
+
+        let baseline = spot.crowdLevel.trimmingCharacters(in: .whitespacesAndNewlines)
+        return baseline.isEmpty ? "제보 없음" : "\(baseline) · 평소"
+    }
+
+    /// 현재 위치에서의 거리. 좌표 기반이라 근거가 명확합니다.
+    private var distanceMetricValue: String {
+        VFSpotDistance.text(from: userLocation, to: spot) ?? "위치 확인 필요"
+    }
+
     private var visitInformation: some View {
         DisclosureGroup(isExpanded: $isVisitInformationExpanded) {
             VStack(spacing: 14) {
-                DetailInfoRow(
-                    symbolName: "calendar.badge.clock",
-                    title: spot.eventTitle,
-                    value: spot.eventPeriod,
-                    tint: AppColors.secondaryText
-                )
+                // "추천 이유"(eventTitle) 행을 제거했습니다.
+                // 이 섹션은 운영시간/비용/주차를 확인하는 곳이라
+                // 추천 이유가 들어갈 자리가 아니었습니다.
                 DetailInfoRow(symbolName: "ticket.fill", title: "입장/비용", value: spot.feeInfo, tint: AppColors.secondaryText)
                 DetailInfoRow(
                     symbolName: "parkingsign.circle.fill",
@@ -474,10 +496,16 @@ struct SpotHeroMap: View {
     let spot: PhotoSpot
 
     var body: some View {
-        NaverSpotPreviewMap(spot: spot)
-        .allowsHitTesting(false)
-        .frame(height: 210)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        // 기존에는 allowsHitTesting(false) 로 지도가 완전히 상호작용 불가였습니다.
+        // 위치만 확인할 수 있었고 확대/축소가 아예 되지 않았습니다.
+        //
+        // 핀치 확대/축소와 확대 버튼은 켜고, 지도 패닝(드래그)은 끕니다.
+        // 상세 화면이 세로 스크롤 시트라서 지도 패닝을 허용하면
+        // 지도 위에서 손가락을 움직일 때 화면 스크롤이 막힙니다.
+        // 위치를 옮겨서 둘러보는 것은 "지도에서 보기" 전체 지도에서 하도록 유도합니다.
+        NaverSpotPreviewMap(spot: spot, allowsZoom: true)
+            .frame(height: 260)
+            .clipShape(RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous))
     }
 }
 
