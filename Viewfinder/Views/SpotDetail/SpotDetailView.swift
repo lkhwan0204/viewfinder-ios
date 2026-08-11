@@ -70,12 +70,20 @@ struct SpotDetailView: View {
                     VStack(alignment: .leading, spacing: source.isCompact ? 14 : 20) {
                         SpotDetailHeroImage(
                             spot: spot,
-                            height: source.isCompact ? 172 : 254,
+                            height: heroHeight(in: proxy.size),
+                            cornerRadius: source.isMapContext ? AppLayout.cardCornerRadius : 0,
+                            showsBorder: source.isMapContext,
                             onReportPhoto: {
                                 requireAuthentication(action: onReportPhoto)
                             }
                         )
-                            .frame(width: contentWidth)
+                            // 사진 진입(전체 화면)에서는 화면 폭을 꽉 채웁니다.
+                            // 음수 패딩으로 부모의 좌우 마진을 상쇄합니다.
+                            .frame(width: source.isMapContext ? contentWidth : proxy.size.width)
+                            .padding(
+                                .horizontal,
+                                source.isMapContext ? 0 : -horizontalPadding
+                            )
 
                         header
                         shootingConditions
@@ -109,7 +117,9 @@ struct SpotDetailView: View {
                     }
                     .frame(width: contentWidth, alignment: .leading)
                     .padding(.horizontal, horizontalPadding)
-                    .padding(.top, source.isCompact ? 12 : 18)
+                    // full-bleed 사진이 화면 최상단에 붙어야 하므로
+                    // 전체 화면일 때는 상단 여백을 두지 않습니다.
+                    .padding(.top, source.isMapContext ? 12 : 0)
                     .padding(.bottom, actionBarOverlayReserve)
                     .frame(maxWidth: .infinity, alignment: .center)
                 }
@@ -122,7 +132,7 @@ struct SpotDetailView: View {
             .ignoresSafeArea(.container, edges: .bottom)
             // 전체 화면으로 뜰 때는 드래그로 닫을 수 없으므로 닫기 버튼이 필요합니다.
             // 지도 진입은 시트라서 드래그 인디케이터가 그 역할을 합니다.
-            .overlay(alignment: .topLeading) {
+            .overlay(alignment: .topTrailing) {
                 if !source.isMapContext {
                     closeButton
                 }
@@ -189,6 +199,17 @@ struct SpotDetailView: View {
         }
     }
 
+    /// 대표 사진 높이.
+    ///
+    /// 전체 화면에서는 화면 높이의 44% 를 씁니다. 홈 Hero(72%)보다는 작지만
+    /// 사진이 먼저 눈에 들어오고, 아래 정보도 함께 보이는 균형점입니다.
+    private func heroHeight(in size: CGSize) -> CGFloat {
+        if source.isCompact {
+            return 172
+        }
+        return max(300, size.height * 0.44)
+    }
+
     private var detailHorizontalPadding: CGFloat {
         source.isCompact ? 14 : AppLayout.pageHorizontalPadding
     }
@@ -232,7 +253,11 @@ struct SpotDetailView: View {
         }
     }
 
-    /// 사진 위에 떠 있는 닫기 버튼. 홈의 검색 버튼과 같은 재료를 씁니다.
+    /// 사진 위에 떠 있는 닫기 버튼.
+    ///
+    /// 오른쪽 상단에 둡니다. 왼쪽 상단은 "뒤로 가기" 자리이므로
+    /// 계층이 없는 모달에 X 를 왼쪽에 두면 존재하지 않는 위계를 암시합니다.
+    /// iOS 모달의 단일 닫기 버튼은 오른쪽이 관례입니다. (App Store, Photos)
     private var closeButton: some View {
         Button {
             dismiss()
@@ -244,7 +269,7 @@ struct SpotDetailView: View {
                 .vfGlass(interactive: true)
         }
         .buttonStyle(.plain)
-        .padding(.leading, VFSpace.lg - VFSpace.xs)
+        .padding(.trailing, VFSpace.lg - VFSpace.xs)
         .padding(.top, VFSpace.sm)
         .accessibilityLabel("닫기")
     }
@@ -455,6 +480,10 @@ struct SpotDetailView: View {
 struct SpotDetailHeroImage: View {
     let spot: PhotoSpot
     let height: CGFloat
+    /// full-bleed 로 쓸 때는 0. 지도 시트에서는 카드처럼 둥글게.
+    var cornerRadius: CGFloat = AppLayout.cardCornerRadius
+    /// full-bleed 에서는 테두리를 그리지 않습니다.
+    var showsBorder: Bool = true
     let onReportPhoto: () -> Void
 
     var body: some View {
@@ -498,11 +527,13 @@ struct SpotDetailHeroImage: View {
             }
         }
         .frame(height: height)
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cardCornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cardCornerRadius, style: .continuous)
-                .stroke(AppColors.divider.opacity(0.65), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay {
+            if showsBorder {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(AppColors.divider.opacity(0.65), lineWidth: 1)
+            }
+        }
     }
 
     private var attributionText: String? {
