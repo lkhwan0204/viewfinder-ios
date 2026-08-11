@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>ViewFinder - Half Frame</title>
+  <defs>
+    <linearGradient id="veil" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0D0C11"/>
+      <stop offset="1" stop-color="#18161D"/>
+    </linearGradient>
+    <radialGradient id="bloom" cx="640" cy="660" r="540" gradientUnits="userSpaceOnUse">
+      <stop offset="0"    stop-color="#F0A03C" stop-opacity="0.14"/>
+      <stop offset="0.5"  stop-color="#F0A03C" stop-opacity="0.07"/>
+      <stop offset="1"    stop-color="#F0A03C" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="#131218"/>
+  <rect width="1024" height="1024" fill="url(#veil)" opacity="0.42"/>
+  <rect width="1024" height="1024" fill="url(#bloom)"/>
+
+  <!-- top-left bracket : frame 672x672 centred at (512,504) -->
+  <path d="M176 437 V210 A42 42 0 0 1 218 168 H445"
+        fill="none" stroke="#EA9A3C" stroke-width="104" stroke-linecap="butt"/>
+  <!-- bottom-right bracket -->
+  <path d="M848 571 V798 A42 42 0 0 1 806 840 H579"
+        fill="none" stroke="#F3AC4E" stroke-width="104" stroke-linecap="butt"/>
+</svg>
