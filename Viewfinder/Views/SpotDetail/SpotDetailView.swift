@@ -340,9 +340,9 @@ struct SpotDetailView: View {
                     value: crowdMetricValue
                 )
                 SpotShootingMetric(
-                    symbolName: "figure.walk",
-                    title: "거리",
-                    value: distanceMetricValue
+                    symbolName: "clock.badge.checkmark.fill",
+                    title: "이용 시간",
+                    value: openingHoursMetricValue
                 )
                 SpotShootingMetric(
                     symbolName: "cloud.sun.fill",
@@ -370,9 +370,13 @@ struct SpotDetailView: View {
         return baseline.isEmpty ? "제보 없음" : "\(baseline) · 평소"
     }
 
-    /// 현재 위치에서의 거리. 좌표 기반이라 근거가 명확합니다.
-    private var distanceMetricValue: String {
-        VFSpotDistance.text(from: userLocation, to: spot) ?? "위치 확인 필요"
+    /// 지금 들어갈 수 있는지. 사진가가 출발 전 가장 먼저 확인하는 정보입니다.
+    ///
+    /// 기존에는 "방문 전 확인" 접힌 영역 안에만 있어서 잘 보이지 않았습니다.
+    /// 촬영 가이드로 끌어올리고 접힌 영역에서는 제거했습니다.
+    private var openingHoursMetricValue: String {
+        let hours = spot.openingHours.trimmingCharacters(in: .whitespacesAndNewlines)
+        return hours.isEmpty ? "정보 없음" : hours
     }
 
     private var visitInformation: some View {
@@ -388,7 +392,6 @@ struct SpotDetailView: View {
                     value: "\(spot.parkingInfo) · \(spot.nearbyParkingInfo)",
                     tint: AppColors.secondaryText
                 )
-                DetailInfoRow(symbolName: "clock.badge.checkmark.fill", title: "이용 가능시간", value: spot.openingHours, tint: AppColors.secondaryText)
             }
             .padding(.top, 14)
         } label: {
@@ -401,7 +404,7 @@ struct SpotDetailView: View {
                     Text("방문 전 확인")
                         .font(AppTypography.cardTitle)
                         .foregroundStyle(AppColors.primary)
-                    Text("운영 시간, 비용, 주차 정보를 확인하세요")
+                    Text("비용과 주차 정보를 확인하세요")
                         .font(AppTypography.metadata)
                         .foregroundStyle(AppColors.secondaryText)
                 }
@@ -760,7 +763,13 @@ struct DetailActionButton: View {
     var tint: Color? = nil
 
     private var foregroundColor: Color {
-        isPrimary ? AppColors.background : (tint ?? AppColors.primary.opacity(0.94))
+        // 흰 캡슐 배경을 제거했으므로 주 동작은 글자 색으로 구분합니다.
+        // isPrimary 를 예전처럼 AppColors.background 로 두면 다크에서 검정 글자가
+        // 유리 위에 놓여 보이지 않습니다.
+        if isPrimary {
+            return AppColors.accent
+        }
+        return tint ?? AppColors.primary.opacity(0.94)
     }
 
     var body: some View {
@@ -768,12 +777,10 @@ struct DetailActionButton: View {
             .foregroundStyle(foregroundColor)
             .frame(maxWidth: .infinity)
             .frame(minHeight: max(height, AppLayout.touchTarget))
-            .background {
-                if isPrimary {
-                    Capsule()
-                        .fill(AppColors.primary)
-                }
-            }
+            // 액션 바 전체에 이미 Liquid Glass 가 적용되어 있습니다.
+            // 여기서 흰 캡슐을 덮으면 유리 위에 불투명 블록이 얹혀
+            // "지도에서 보기" 와 재료가 달라 보입니다. (유리 위 유리/불투명 금지)
+            // 주 동작 구분은 배경이 아니라 글자 색(앰버)으로 표현합니다.
             .contentShape(Rectangle())
     }
 

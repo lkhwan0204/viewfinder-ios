@@ -66,14 +66,17 @@ struct HomeHeroSection: View {
                         to: recommendation.spot
                     ),
                     size: cardSize,
-                    pageIndex: index,
-                    pageCount: visible.count,
                     onSelect: { onSelect(recommendation.spot) }
                 )
                 .tag(index)
             }
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
+        // 직접 만든 캡슐 인디케이터를 네이티브로 되돌립니다.
+        // 커스텀 점은 손으로 만든 티가 나고, 시스템 것이 더 정돈돼 보입니다.
+        // 위치는 텍스트 블록 우하단이 아니라 카드 하단 중앙(네이티브 기본)입니다.
+        // backgroundDisplayMode: .always 로 어떤 사진 위에서도 보이게 합니다.
+        .tabViewStyle(.page(indexDisplayMode: .automatic))
+        .indexViewStyle(.page(backgroundDisplayMode: .always))
     }
 
     // MARK: - 사진 위 컨트롤
@@ -141,8 +144,6 @@ private struct HomeHeroCard: View {
     /// 그 "화면 밖 왼쪽 경계" 를 기준으로 잡혀서 장소명이 왼쪽으로 잘렸습니다.
     /// 사진 크기를 먼저 고정하고 텍스트를 overlay 로 올려서 해결합니다.
     let size: CGSize
-    let pageIndex: Int
-    let pageCount: Int
     let onSelect: () -> Void
 
     private var spot: PhotoSpot { recommendation.spot }
@@ -209,38 +210,13 @@ private struct HomeHeroCard: View {
                 VFCrowdBadge(level: crowdLevel)
             }
 
-            // "지도에서 보기" 버튼을 제거했습니다.
-            // 카드를 탭하면 상세로 가고, 상세 하단에 같은 버튼이 있습니다.
-            // 사진 위 유리 버튼이 하나 줄어 사진이 더 드러납니다.
-            //
-            // 페이지 점을 여기로 옮겼습니다. 우하단에 따로 떠 있으면
-            // 텍스트와 아무 관계 없는 위치에 붙어 어정쩡했습니다.
-            // 제목 -> 메타 -> 현재 위치 순서로 한 블록에 묶습니다.
-            pageIndicator
         }
         .padding(.horizontal, VFSpace.lg)
-        .padding(.bottom, VFSpace.xl)
+        // 네이티브 페이지 인디케이터가 하단 중앙에 놓이므로
+        // 텍스트가 그 위로 오도록 여백을 확보합니다.
+        .padding(.bottom, VFSpace.xxl + VFSpace.sm)
         // 긴 장소명이 카드 밖으로 넘치지 않게 폭을 고정합니다.
         .frame(width: size.width, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private var pageIndicator: some View {
-        if pageCount > 1 {
-            HStack(spacing: 5) {
-                ForEach(0..<pageCount, id: \.self) { index in
-                    Capsule()
-                        .fill(
-                            index == pageIndex
-                                ? Color.white
-                                : Color.white.opacity(0.38)
-                        )
-                        .frame(width: index == pageIndex ? 16 : 5, height: 5)
-                }
-            }
-            .padding(.top, VFSpace.xs)
-            .allowsHitTesting(false)
-        }
     }
 }
 
@@ -259,7 +235,6 @@ private struct HomeHeroCard: View {
 struct HomePhotoCard: View {
     let recommendation: GPTRecommendedSpot
     let aspectRatio: CGFloat
-    let distanceText: String?
     var showsMeta: Bool = true
     let onSelect: () -> Void
 
@@ -269,13 +244,10 @@ struct HomePhotoCard: View {
         HomeSpotDisplayFormatter.region(for: spot)
     }
 
+    // 카드마다 "몇 km" 를 붙이면 사진 위에 숫자가 반복되어
+    // 훑어볼 때 노이즈가 됩니다. 지역명만 남깁니다.
     private var metaItems: [String] {
-        var items: [String] = []
-        if let distanceText {
-            items.append(distanceText)
-        }
-        items.append(region)
-        return items
+        [region]
     }
 
     var body: some View {
@@ -366,7 +338,6 @@ enum HomePreviewData {
                             HomePhotoCard(
                                 recommendation: recommendation,
                                 aspectRatio: VFPhoto.carouselAspect,
-                                distanceText: "7.4km",
                                 onSelect: {}
                             )
                             .frame(width: proxy.size.width - VFSpace.lg * 2 - VFPhoto.carouselPeek)
@@ -389,14 +360,12 @@ enum HomePreviewData {
             HomePhotoCard(
                 recommendation: sample,
                 aspectRatio: VFPhoto.carouselAspect,
-                distanceText: "820m",
                 onSelect: {}
             )
 
             HomePhotoCard(
                 recommendation: sample,
-                aspectRatio: VFPhoto.carouselAspect,
-                distanceText: "12.4km",
+                aspectRatio: VFPhoto.squareAspect,
                 onSelect: {}
             )
         }

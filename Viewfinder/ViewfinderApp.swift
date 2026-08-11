@@ -79,6 +79,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
+        // Hero 페이지 인디케이터. 사진 위에 놓이므로 흰색 기준입니다.
+        UIPageControl.appearance().currentPageIndicatorTintColor = .white
+        UIPageControl.appearance().pageIndicatorTintColor = UIColor.white.withAlphaComponent(0.34)
+
         UITabBar.appearance().tintColor = AppColors.uiAccent
         UITabBar.appearance().unselectedItemTintColor = unselectedColor
     }

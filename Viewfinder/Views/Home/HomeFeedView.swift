@@ -1126,7 +1126,6 @@ struct HomeCategorySection: View {
         HomePhotoCard(
             recommendation: recommendation,
             aspectRatio: aspectRatio,
-            distanceText: VFSpotDistance.text(from: userLocation, to: recommendation.spot),
             onSelect: { onSelect(recommendation.spot) }
         )
     }
