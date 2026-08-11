@@ -28,6 +28,8 @@ struct HomeHeroSection: View {
     var contextText: String? = nil
     /// pill 아이콘. 일몰 전이면 sunset.fill, 일몰 후면 sunrise.fill.
     var contextSymbolName: String = "sun.max"
+    /// 사진 -> 상세 zoom transition 용.
+    let zoomNamespace: Namespace.ID
     var onShowContext: (() -> Void)? = nil
 
     let onSelect: (PhotoSpot) -> Void
@@ -69,6 +71,7 @@ struct HomeHeroSection: View {
                     size: cardSize,
                     onSelect: { onSelect(recommendation.spot) }
                 )
+                .vfZoomSource(id: recommendation.spot.id, in: zoomNamespace)
                 .tag(index)
             }
         }
@@ -311,49 +314,60 @@ enum HomePreviewData {
     static var first: GPTRecommendedSpot? { samples.first }
 }
 
-#Preview("Home Hero") {
-    GeometryReader { proxy in
-        let topInset = proxy.safeAreaInsets.top
+/// Preview 에서 @Namespace 를 쓰려면 뷰 안에 있어야 하므로 래퍼를 둡니다.
+private struct HomeHeroPreviewHost: View {
+    @Namespace private var namespace
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: VFSpace.xxl) {
-                HomeHeroSection(
-                    recommendations: HomePreviewData.samples,
-                    userLocation: nil,
-                    cardSize: CGSize(
-                        width: proxy.size.width,
-                        height: (proxy.size.height + topInset) * VFPhoto.heroHeightRatio
-                    ),
-                    topInset: topInset,
-                    contextText: "구로동 24°",
-                    onShowContext: {},
-                    onSelect: { _ in },
-                    onSearch: {}
-                )
+    var body: some View {
+        GeometryReader { proxy in
+            let topInset = proxy.safeAreaInsets.top
 
-                VFSectionTitle(title: "노을 명소", showsMore: true, onMore: {})
-                    .vfScreenMargin()
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: VFSpace.xl) {
+                    HomeHeroSection(
+                        recommendations: HomePreviewData.samples,
+                        userLocation: nil,
+                        cardSize: CGSize(
+                            width: proxy.size.width,
+                            height: (proxy.size.height + topInset) * VFPhoto.heroHeightRatio
+                        ),
+                        topInset: topInset,
+                        contextText: "일몰까지 2시간 10분  ·  24°",
+                        contextSymbolName: "sunset.fill",
+                        zoomNamespace: namespace,
+                        onShowContext: {},
+                        onSelect: { _ in },
+                        onSearch: {}
+                    )
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: VFSpace.md) {
-                        ForEach(HomePreviewData.samples) { recommendation in
-                            HomePhotoCard(
-                                recommendation: recommendation,
-                                aspectRatio: VFPhoto.carouselAspect,
-                                onSelect: {}
-                            )
-                            .frame(width: proxy.size.width - VFSpace.lg * 2 - VFPhoto.carouselPeek)
+                    VFSectionTitle(title: "노을 명소", showsMore: true, onMore: {})
+                        .vfScreenMargin()
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: VFSpace.md) {
+                            ForEach(HomePreviewData.samples) { recommendation in
+                                HomePhotoCard(
+                                    recommendation: recommendation,
+                                    aspectRatio: VFPhoto.carouselAspect,
+                                    onSelect: {}
+                                )
+                                .frame(width: proxy.size.width * VFPhoto.railWidthRatio)
+                            }
                         }
+                        .padding(.horizontal, VFSpace.lg)
                     }
-                    .padding(.horizontal, VFSpace.lg)
                 }
+                .padding(.bottom, 120)
             }
-            .padding(.bottom, 120)
+            .ignoresSafeArea(edges: .top)
         }
-        .ignoresSafeArea(edges: .top)
+        .background(Color(uiColor: VFPalette.canvas))
     }
-    .background(Color(uiColor: VFPalette.canvas))
-    .preferredColorScheme(.dark)
+}
+
+#Preview("Home Hero") {
+    HomeHeroPreviewHost()
+        .preferredColorScheme(.dark)
 }
 
 #Preview("Photo Card") {

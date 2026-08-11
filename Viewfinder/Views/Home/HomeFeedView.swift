@@ -54,6 +54,8 @@ struct HomeFeedView: View {
     let savedSpotIDs: Set<String>
     @ObservedObject var searchViewModel: PhotoSpotSearchViewModel
     let userLocation: CLLocationCoordinate2D?
+    /// 사진 -> 상세 zoom transition 용. ContentView 가 소유합니다.
+    let zoomNamespace: Namespace.ID
     let onAddAISpot: (PhotoSpot) -> Void
     let onShowDetail: (PhotoSpot) -> Void
     let onShowSearchDetail: (PhotoSpot) -> Void
@@ -495,6 +497,7 @@ struct HomeFeedView: View {
             topInset: topInset,
             contextText: heroContextText,
             contextSymbolName: heroContextSymbol,
+            zoomNamespace: zoomNamespace,
             onShowContext: onShowWeather,
             onSelect: onShowDetail,
             onSearch: { isSearchResultsPresented = true }

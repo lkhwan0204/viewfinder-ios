@@ -360,3 +360,54 @@ enum VFSpotDistance {
     .preferredColorScheme(.dark)
 }
 #endif
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - Zoom Transition
+//
+//  사진을 탭하면 그 자리에서 확대되어 상세가 되는 전환입니다.
+//  사진 앱의 기본 문법이고, 사용자는 "애니메이션이 좋다" 고 인지하지 않고
+//  "이 앱 잘 만들었다" 고 인지합니다.
+//
+//  ⚠️ iOS 18+ API 입니다. 이 파일에서 유일하게 불확실한 부분이므로
+//     두 모디파이어에 격리했습니다. 문제가 생기면 body 를 `content` 만
+//     반환하도록 바꾸면 전환만 사라지고 기능은 그대로 유지됩니다.
+// ═══════════════════════════════════════════════════════════════════
+
+/// 전환이 시작될 위치. 사진 카드에 붙입니다.
+struct VFZoomSource: ViewModifier {
+    let id: String
+    let namespace: Namespace.ID
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.matchedTransitionSource(id: id, in: namespace)
+        } else {
+            content
+        }
+    }
+}
+
+/// 전환이 도착할 화면. 상세 화면에 붙입니다.
+struct VFZoomDestination: ViewModifier {
+    let id: String
+    let namespace: Namespace.ID
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.navigationTransition(.zoom(sourceID: id, in: namespace))
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func vfZoomSource(id: String, in namespace: Namespace.ID) -> some View {
+        modifier(VFZoomSource(id: id, namespace: namespace))
+    }
+
+    func vfZoomDestination(id: String, in namespace: Namespace.ID) -> some View {
+        modifier(VFZoomDestination(id: id, namespace: namespace))
+    }
+}

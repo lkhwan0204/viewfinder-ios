@@ -49,6 +49,9 @@ struct ContentView: View {
     @State private var selectedSpotRevision = 0
     @State private var aiSpots: [PhotoSpot] = []
     @State private var detailPresentation: SpotDetailPresentation?
+    /// 사진 -> 상세 zoom transition 용.
+    /// 상세가 이 레벨의 sheet 로 뜨므로 namespace 도 여기서 소유하고 아래로 내립니다.
+    @Namespace private var spotZoomNamespace
     @State private var isWeatherDetailPresented = false
     @State private var composerPurpose: CommunityComposerPurpose = .fieldReport
     @State private var submittedSpotsState: AsyncLoadState = .idle
@@ -243,6 +246,9 @@ struct ContentView: View {
             )
             .presentationDetents(presentation.source.detents)
             .presentationDragIndicator(.visible)
+            // 사진 -> 상세 zoom transition 의 도착 지점.
+            // 소스가 없는 진입(지도/검색/커뮤니티)에서는 기본 전환으로 조용히 폴백합니다.
+            .vfZoomDestination(id: presentation.spot.id, in: spotZoomNamespace)
         }
         .sheet(isPresented: $communityViewModel.isComposerPresented) {
             CommunityComposerView(
@@ -384,6 +390,7 @@ struct ContentView: View {
                 savedSpotIDs: savedSpotStore.savedSpotIDs,
                 searchViewModel: searchViewModel,
                 userLocation: locationReader.coordinate,
+                zoomNamespace: spotZoomNamespace,
                 onAddAISpot: addAISpot,
                 onShowDetail: { showDetail($0, source: .home) },
                 onShowSearchDetail: { showDetail($0, source: .search) },
