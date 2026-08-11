@@ -33,6 +33,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             FirebaseApp.configure()
         }
 
+        configureImageCache()
+
         configureTabBarAppearance()
         return true
     }
@@ -43,6 +45,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         options: [UIApplication.OpenURLOptionsKey: Any] = [:]
     ) -> Bool {
         GIDSignIn.sharedInstance.handle(url)
+    }
+
+    /// AsyncImage 는 URLSession.shared 를 쓰고, 그 캐시는 URLCache.shared 입니다.
+    /// 기본 용량이 작아서 스크롤을 위아래로 되돌릴 때마다 사진을 다시 내려받습니다.
+    /// 사진이 주인공인 앱이므로 캐시를 넉넉히 잡습니다.
+    private func configureImageCache() {
+        URLCache.shared = URLCache(
+            memoryCapacity: 64 * 1024 * 1024,
+            diskCapacity: 512 * 1024 * 1024
+        )
     }
 
     private func configureTabBarAppearance() {

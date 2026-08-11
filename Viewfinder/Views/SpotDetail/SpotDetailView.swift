@@ -437,7 +437,12 @@ struct SpotDetailHeroImage: View {
         Group {
             if spot.hasReliableDisplayImage {
                 ZStack(alignment: .bottomTrailing) {
-                    PhotoSpotImageView(spot: spot, symbolSize: 34)
+                    // 상세 화면 대표 사진은 화면 폭을 채우므로 hero 해상도로 받습니다.
+                    PhotoSpotImageView(
+                        spot: spot,
+                        symbolSize: 34,
+                        targetPixelWidth: VFPhotoDetail.hero.pixelWidth
+                    )
 
                     if let attributionText {
                         Text(attributionText)

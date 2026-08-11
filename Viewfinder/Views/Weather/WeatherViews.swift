@@ -14,8 +14,37 @@ struct WeatherSnapshot: Equatable {
     let fineDust: FineDustSnapshot?
     let hourlyForecasts: [WeatherHourlyForecast]
 
+    // 골든아워 표시용. 기본값을 둬서 기존 생성 호출부가 그대로 컴파일됩니다.
+    var sunrise: Date? = nil
+    var sunset: Date? = nil
+    /// forecast_days=2 로 받은 내일 일출. 일몰 이후에도 다음 이벤트를 보여주기 위함입니다.
+    var tomorrowSunrise: Date? = nil
+
     var displayText: String {
         "\(temperature)°"
+    }
+
+    /// 다음에 올 해 이벤트. 지금이 일몰 전이면 일몰, 일몰 후면 내일 일출입니다.
+    ///
+    /// 이 앱에서 시간은 장소만큼 중요합니다. 같은 장소가 시각에 따라 완전히
+    /// 다른 사진이 되기 때문에, "지금 나가면 빛이 좋은가" 가 핵심 정보입니다.
+    var nextSunEvent: SunEvent? {
+        let now = Date()
+        var candidates: [SunEvent] = []
+
+        if let sunrise {
+            candidates.append(SunEvent(kind: .sunrise, date: sunrise))
+        }
+        if let sunset {
+            candidates.append(SunEvent(kind: .sunset, date: sunset))
+        }
+        if let tomorrowSunrise {
+            candidates.append(SunEvent(kind: .sunrise, date: tomorrowSunrise))
+        }
+
+        return candidates
+            .filter { $0.date > now }
+            .min { $0.date < $1.date }
     }
 
     var accentColor: Color {
@@ -44,6 +73,61 @@ struct WeatherSnapshot: Equatable {
             return "cloud.sun.fill"
         }
     }
+}
+
+/// 일출 / 일몰 이벤트와 그 표시 문자열.
+struct SunEvent: Equatable {
+    enum Kind {
+        case sunrise
+        case sunset
+    }
+
+    let kind: Kind
+    let date: Date
+
+    var symbolName: String {
+        kind == .sunset ? "sunset.fill" : "sunrise.fill"
+    }
+
+    private var name: String {
+        kind == .sunset ? "일몰" : "일출"
+    }
+
+    /// 남은 시간이 짧을수록 구체적으로 보여줍니다.
+    ///
+    /// 90분 이내는 분 단위로 (지금 움직여야 하는 구간),
+    /// 3시간 이내는 시간+분,
+    /// 그보다 멀면 카운트다운이 의미 없으므로 절대 시각으로 표시합니다.
+    var label: String {
+        let remaining = date.timeIntervalSinceNow
+        guard remaining > 0 else {
+            return "\(name) \(Self.timeFormatter.string(from: date))"
+        }
+
+        let minutes = Int(remaining / 60)
+
+        if minutes <= 90 {
+            return "\(name)까지 \(minutes)분"
+        }
+
+        if minutes <= 180 {
+            let hours = minutes / 60
+            let rest = minutes % 60
+            return rest == 0
+                ? "\(name)까지 \(hours)시간"
+                : "\(name)까지 \(hours)시간 \(rest)분"
+        }
+
+        return "\(name) \(Self.timeFormatter.string(from: date))"
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.timeZone = TimeZone(identifier: "Asia/Seoul")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
 }
 
 struct WeatherVisualTheme {
@@ -267,11 +351,16 @@ struct OpenMeteoResponse: Decodable {
         let temperature2MMax: [Double]
         let temperature2MMin: [Double]
         let weatherCode: [Int]
+        /// 골든아워 계산용. 기존 응답에는 없던 필드라 optional 로 둡니다.
+        let sunrise: [String]?
+        let sunset: [String]?
 
         enum CodingKeys: String, CodingKey {
             case temperature2MMax = "temperature_2m_max"
             case temperature2MMin = "temperature_2m_min"
             case weatherCode = "weather_code"
+            case sunrise
+            case sunset
         }
     }
 }

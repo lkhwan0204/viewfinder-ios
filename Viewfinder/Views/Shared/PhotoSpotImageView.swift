@@ -4,12 +4,19 @@ import UIKit
 struct PhotoSpotImageView: View {
     let spot: PhotoSpot
     var symbolSize: CGFloat
+    /// 원격 이미지를 받아올 목표 폭(px).
+    ///
+    /// 이전에는 1200 이 하드코딩되어 있었습니다. 그래서 화면 폭 236pt 짜리
+    /// 작은 카드도, 3열 썸네일도 모두 1200px 이미지를 내려받아 디코딩했습니다.
+    /// 디코딩 비용은 픽셀 수에 비례하므로 이게 스크롤 성능의 주 병목입니다.
+    /// 쓰이는 크기에 맞게 요청하도록 파라미터로 뺐습니다.
+    var targetPixelWidth: Int = VFPhotoDetail.card.pixelWidth
 
     var body: some View {
         if let assetImage {
             fitted(Image(uiImage: assetImage))
         } else if let imageURL = spot.imageURL {
-            AsyncImage(url: imageURL.wikimediaPreviewURL(width: 1200) ?? imageURL) { phase in
+            AsyncImage(url: imageURL.wikimediaPreviewURL(width: targetPixelWidth) ?? imageURL) { phase in
                 switch phase {
                 case .empty:
                     loadingPlaceholder
@@ -39,13 +46,12 @@ struct PhotoSpotImageView: View {
             .clipped()
     }
 
+    /// 로딩 중에는 아무 것도 그리지 않고 표면만 둡니다.
+    ///
+    /// 사진 앱에서 스피너는 실패 신호처럼 보입니다.
+    /// 사진이 준비되면 조용히 나타나는 편이 품질 있게 느껴집니다.
     private var loadingPlaceholder: some View {
         placeholderSurface
-            .overlay {
-                ProgressView()
-                    .tint(AppColors.secondaryText)
-                    .controlSize(.small)
-            }
     }
 
     private var placeholder: some View {

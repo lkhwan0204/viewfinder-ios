@@ -494,26 +494,36 @@ struct HomeFeedView: View {
             cardSize: heroSize,
             topInset: topInset,
             contextText: heroContextText,
+            contextSymbolName: heroContextSymbol,
             onShowContext: onShowWeather,
             onSelect: onShowDetail,
             onSearch: { isSearchResultsPresented = true }
         )
     }
 
-    /// Hero 좌상단 pill 문자열. "구로동 25°" 형태.
-    /// 기존 날씨 칩은 아이콘 + 2줄 텍스트로 56pt 높이를 차지했습니다.
-    /// 같은 정보를 사진 위 한 줄로 압축합니다.
+    /// Hero 좌상단 pill 문자열.
+    ///
+    /// 이전에는 "구로동 25°" 였습니다. 온도는 사진가의 행동을 유발하지 않습니다.
+    /// 정말 필요한 정보는 "지금 나가면 빛이 좋은가" 이므로
+    /// 다음 해 이벤트를 앞에 두고 온도를 뒤에 붙입니다.
+    /// 예) "일몰까지 2시간 10분 · 24°"
     private var heroContextText: String? {
-        guard let temperature = weatherSnapshot?.displayText else {
-            return nil
+        guard let snapshot = weatherSnapshot else { return nil }
+
+        let temperature = snapshot.displayText
+
+        guard let event = snapshot.nextSunEvent else {
+            return temperature
         }
 
-        let place = currentLocationTitle
-            .split(separator: " ")
-            .last
-            .map(String.init) ?? ""
+        return "\(event.label)  ·  \(temperature)"
+    }
 
-        return place.isEmpty ? temperature : "\(place) \(temperature)"
+    /// 일몰 전이면 sunset, 일몰 후면 sunrise 아이콘.
+    private var heroContextSymbol: String {
+        weatherSnapshot?.nextSunEvent?.symbolName
+            ?? weatherSnapshot?.symbolName
+            ?? "sun.max"
     }
 
     private func recommendations(for category: HomeRecommendationKind) -> [GPTRecommendedSpot] {
@@ -1474,7 +1484,12 @@ struct SpotVisualTile: View {
         ZStack(alignment: .bottomLeading) {
             PhotoSpotImageView(
                 spot: spot,
-                symbolSize: height > 80 ? 32 : 23
+                symbolSize: height > 80 ? 32 : 23,
+                // 타일 높이에 맞춰 요청 해상도를 고릅니다.
+                // 작은 리스트 썸네일이 900px 이미지를 디코딩하지 않게 합니다.
+                targetPixelWidth: height > 160
+                    ? VFPhotoDetail.card.pixelWidth
+                    : VFPhotoDetail.thumbnail.pixelWidth
             )
 
             if showsReadabilityGradient {

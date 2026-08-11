@@ -34,9 +34,27 @@ struct WeatherService {
             cloudCover: decoded.current.cloudCover,
             windSpeed: decoded.current.windSpeed10M,
             fineDust: fineDust,
-            hourlyForecasts: hourlyForecasts(from: decoded)
+            hourlyForecasts: hourlyForecasts(from: decoded),
+            sunrise: solarDate(decoded.daily.sunrise, at: 0),
+            sunset: solarDate(decoded.daily.sunset, at: 0),
+            tomorrowSunrise: solarDate(decoded.daily.sunrise, at: 1)
         )
     }
+
+    /// Open-Meteo 의 "yyyy-MM-dd'T'HH:mm" 문자열을 Date 로 변환합니다.
+    /// hourlyForecasts 와 동일한 포맷/타임존 규칙을 씁니다.
+    private func solarDate(_ values: [String]?, at index: Int) -> Date? {
+        guard let values, values.indices.contains(index) else { return nil }
+        return Self.solarFormatter.date(from: values[index])
+    }
+
+    private static let solarFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.timeZone = TimeZone(identifier: "Asia/Seoul")
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        return formatter
+    }()
 
     private func fineDust(for coordinate: CLLocationCoordinate2D) async throws -> FineDustSnapshot {
         guard let url = fineDustURL(for: coordinate) else {
@@ -67,9 +85,11 @@ struct WeatherService {
             ),
             URLQueryItem(
                 name: "daily",
-                value: "temperature_2m_max,temperature_2m_min,weather_code"
+                value: "temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset"
             ),
-            URLQueryItem(name: "forecast_days", value: "1"),
+            // 2일치를 받습니다. 일몰 이후에는 "내일 일출까지" 를 보여줘야 하는데
+            // 1일치만 받으면 그 시점에 표시할 다음 이벤트가 없습니다.
+            URLQueryItem(name: "forecast_days", value: "2"),
             URLQueryItem(name: "timezone", value: "Asia/Seoul")
         ]
         return components?.url

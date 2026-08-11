@@ -24,6 +24,30 @@ import SwiftUI
 //  반응형 그리드에 쓸 수 없었습니다. 이 타입은 비율 또는 높이를 받습니다.
 // ═══════════════════════════════════════════════════════════════════
 
+/// 사진이 실제로 쓰이는 크기 단계.
+///
+/// 요청 해상도를 이 단계로 정해서, 작은 타일이 큰 이미지를 디코딩하는 낭비를 막습니다.
+/// 값은 3배 해상도 기준으로 여유를 조금 둔 크기입니다.
+enum VFPhotoDetail {
+    /// 3열 타일, 리스트 leading 썸네일 (~64-120pt)
+    case thumbnail
+    /// 섹션 카로셀 카드 (~236pt)
+    case card
+    /// full-bleed Hero, 상세 화면 대표 사진 (화면 폭)
+    case hero
+
+    var pixelWidth: Int {
+        switch self {
+        case .thumbnail:
+            return 400
+        case .card:
+            return 900
+        case .hero:
+            return 1600
+        }
+    }
+}
+
 struct VFPhotoTile: View {
     let spot: PhotoSpot
 
@@ -42,6 +66,8 @@ struct VFPhotoTile: View {
     /// 상단 scrim 강도. Hero 는 상태바(흰 시계/배터리)까지 보호해야 하므로 더 진하게.
     var topScrimStrength: Double = 0.40
     var topScrimHeight: CGFloat = 92
+    /// 요청할 이미지 해상도 단계.
+    var imageDetail: VFPhotoDetail = .card
 
     var body: some View {
         sizedImage
@@ -76,7 +102,11 @@ struct VFPhotoTile: View {
     }
 
     private var imageLayer: some View {
-        PhotoSpotImageView(spot: spot, symbolSize: 32)
+        PhotoSpotImageView(
+            spot: spot,
+            symbolSize: 32,
+            targetPixelWidth: imageDetail.pixelWidth
+        )
     }
 }
 

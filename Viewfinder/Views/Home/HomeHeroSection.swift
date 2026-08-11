@@ -24,9 +24,10 @@ struct HomeHeroSection: View {
     /// 상태바 높이. 사진은 여기까지 올라가고 컨트롤만 아래로 내립니다.
     var topInset: CGFloat = 0
 
-    /// Hero 좌상단 glass pill 문자열. (예: "구로동 24°")
-    /// Phase 2B 에서 "일몰까지 2h 14m" 으로 대체됩니다.
+    /// Hero 좌상단 glass pill 문자열. (예: "일몰까지 2시간 10분 · 24°")
     var contextText: String? = nil
+    /// pill 아이콘. 일몰 전이면 sunset.fill, 일몰 후면 sunrise.fill.
+    var contextSymbolName: String = "sun.max"
     var onShowContext: (() -> Void)? = nil
 
     let onSelect: (PhotoSpot) -> Void
@@ -115,7 +116,7 @@ struct HomeHeroSection: View {
                 onShowContext?()
             } label: {
                 HStack(spacing: VFSpace.xs + 2) {
-                    Image(systemName: "sun.max")
+                    Image(systemName: contextSymbolName)
                         .font(.system(size: 12, weight: .semibold))
                     Text(contextText)
                         .vfText(.mono)
@@ -178,7 +179,8 @@ private struct HomeHeroCard: View {
             showsTopControlScrim: true,
             // Hero 는 상태바(흰 시계/배터리)까지 보호해야 합니다.
             topScrimStrength: 0.62,
-            topScrimHeight: 130
+            topScrimHeight: 130,
+            imageDetail: .hero
         )
         // 사진 크기를 먼저 확정합니다. 이 순서가 중요합니다.
         .frame(width: size.width, height: size.height)
