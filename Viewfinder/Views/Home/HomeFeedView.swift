@@ -496,7 +496,6 @@ struct HomeFeedView: View {
             contextText: heroContextText,
             onShowContext: onShowWeather,
             onSelect: onShowDetail,
-            onOpenMap: onOpenMap,
             onSearch: { isSearchResultsPresented = true }
         )
     }

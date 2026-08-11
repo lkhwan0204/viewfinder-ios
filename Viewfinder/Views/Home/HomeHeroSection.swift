@@ -30,7 +30,6 @@ struct HomeHeroSection: View {
     var onShowContext: (() -> Void)? = nil
 
     let onSelect: (PhotoSpot) -> Void
-    let onOpenMap: (PhotoSpot?) -> Void
     let onSearch: () -> Void
 
     @State private var selection = 0
@@ -51,7 +50,6 @@ struct HomeHeroSection: View {
                 .frame(height: cardSize.height)
                 .clipped()
                 .overlay(alignment: .top) { topControls }
-                .overlay(alignment: .bottomTrailing) { pageDots }
         }
     }
 
@@ -68,8 +66,9 @@ struct HomeHeroSection: View {
                         to: recommendation.spot
                     ),
                     size: cardSize,
-                    onSelect: { onSelect(recommendation.spot) },
-                    onOpenMap: { onOpenMap(recommendation.spot) }
+                    pageIndex: index,
+                    pageCount: visible.count,
+                    onSelect: { onSelect(recommendation.spot) }
                 )
                 .tag(index)
             }
@@ -128,29 +127,6 @@ struct HomeHeroSection: View {
         }
     }
 
-    @ViewBuilder
-    private var pageDots: some View {
-        if visible.count > 1 {
-            HStack(spacing: 5) {
-                ForEach(visible.indices, id: \.self) { index in
-                    Circle()
-                        .fill(
-                            index == selection
-                                ? Color.white
-                                : Color.white.opacity(0.42)
-                        )
-                        .frame(width: 5, height: 5)
-                }
-            }
-            .padding(.horizontal, VFSpace.md)
-            .frame(height: 22)
-            .vfGlass()
-            .padding(.trailing, VFSpace.lg)
-            .padding(.bottom, VFSpace.lg)
-            .allowsHitTesting(false)
-            .animation(VFMotion.quick, value: selection)
-        }
-    }
 }
 
 // MARK: - Hero Card
@@ -165,8 +141,9 @@ private struct HomeHeroCard: View {
     /// 그 "화면 밖 왼쪽 경계" 를 기준으로 잡혀서 장소명이 왼쪽으로 잘렸습니다.
     /// 사진 크기를 먼저 고정하고 텍스트를 overlay 로 올려서 해결합니다.
     let size: CGSize
+    let pageIndex: Int
+    let pageCount: Int
     let onSelect: () -> Void
-    let onOpenMap: () -> Void
 
     private var spot: PhotoSpot { recommendation.spot }
 
@@ -216,10 +193,10 @@ private struct HomeHeroCard: View {
 
     private var textLayer: some View {
         VStack(alignment: .leading, spacing: VFSpace.sm) {
-            Text("오늘의 출사지")
-                .vfText(.caption)
-                .foregroundStyle(AppColors.accent)
-
+            // "오늘의 출사지" 오버라인을 제거했습니다.
+            // 12pt 앰버 텍스트를 사진 위에 올리니 밝은 사진에서 묻혔습니다.
+            // 홈 최상단의 큰 사진이 추천이라는 것은 맥락상 자명하므로
+            // 라벨 없이 장소명부터 시작하는 것이 더 강합니다.
             Text(spot.name)
                 .vfText(.display)
                 .foregroundStyle(Color.white)
@@ -232,26 +209,38 @@ private struct HomeHeroCard: View {
                 VFCrowdBadge(level: crowdLevel)
             }
 
-            Button(action: onOpenMap) {
-                HStack(spacing: VFSpace.xs + 2) {
-                    Image(systemName: "map")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text("지도에서 보기")
-                        .vfText(.callout)
-                }
-                .foregroundStyle(Color.white)
-                .padding(.horizontal, VFSpace.md + 2)
-                .frame(height: 38)
-                .vfGlass(interactive: true)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, VFSpace.xs)
+            // "지도에서 보기" 버튼을 제거했습니다.
+            // 카드를 탭하면 상세로 가고, 상세 하단에 같은 버튼이 있습니다.
+            // 사진 위 유리 버튼이 하나 줄어 사진이 더 드러납니다.
+            //
+            // 페이지 점을 여기로 옮겼습니다. 우하단에 따로 떠 있으면
+            // 텍스트와 아무 관계 없는 위치에 붙어 어정쩡했습니다.
+            // 제목 -> 메타 -> 현재 위치 순서로 한 블록에 묶습니다.
+            pageIndicator
         }
         .padding(.horizontal, VFSpace.lg)
-        // 페이지 인디케이터와 겹치지 않게 아래 여백을 넉넉히 둡니다.
-        .padding(.bottom, VFSpace.xl + VFSpace.md)
+        .padding(.bottom, VFSpace.xl)
         // 긴 장소명이 카드 밖으로 넘치지 않게 폭을 고정합니다.
         .frame(width: size.width, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var pageIndicator: some View {
+        if pageCount > 1 {
+            HStack(spacing: 5) {
+                ForEach(0..<pageCount, id: \.self) { index in
+                    Capsule()
+                        .fill(
+                            index == pageIndex
+                                ? Color.white
+                                : Color.white.opacity(0.38)
+                        )
+                        .frame(width: index == pageIndex ? 16 : 5, height: 5)
+                }
+            }
+            .padding(.top, VFSpace.xs)
+            .allowsHitTesting(false)
+        }
     }
 }
 
@@ -365,7 +354,6 @@ enum HomePreviewData {
                     contextText: "구로동 24°",
                     onShowContext: {},
                     onSelect: { _ in },
-                    onOpenMap: { _ in },
                     onSearch: {}
                 )
 
