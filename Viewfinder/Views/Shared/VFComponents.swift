@@ -115,12 +115,20 @@ private struct VFPhotoTileScrims: ViewModifier {
 //  하나의 컴포넌트로 통일하고 촉감까지 포함합니다.
 // ═══════════════════════════════════════════════════════════════════
 
+enum VFSaveButtonStyle {
+    /// 사진 위. 어두운 원 배경 + 흰 아이콘.
+    case onPhoto
+    /// 콘텐츠 표면 위(상세 화면 제목 옆 등). 배경 없이 아이콘만.
+    case plain
+}
+
 struct VFSaveButton: View {
     let isSaved: Bool
     let action: () -> Void
 
     /// 시각적 원 크기. 터치 영역은 항상 44pt 이상으로 유지됩니다.
     var diameter: CGFloat = 36
+    var style: VFSaveButtonStyle = .onPhoto
 
     var body: some View {
         Button {
@@ -128,18 +136,20 @@ struct VFSaveButton: View {
             action()
         } label: {
             ZStack {
-                Circle()
-                    .fill(isSaved ? AppColors.accent : Color.black.opacity(0.30))
-
-                if !isSaved {
-                    // 어떤 사진 위에서도 경계가 보이도록 얇은 흰 테두리를 둡니다.
+                if style == .onPhoto {
                     Circle()
-                        .stroke(Color.white.opacity(0.38), lineWidth: 0.8)
+                        .fill(isSaved ? AppColors.accent : Color.black.opacity(0.30))
+
+                    if !isSaved {
+                        // 어떤 사진 위에서도 경계가 보이도록 얇은 흰 테두리를 둡니다.
+                        Circle()
+                            .stroke(Color.white.opacity(0.38), lineWidth: 0.8)
+                    }
                 }
 
                 Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                    .font(.system(size: diameter * 0.42, weight: .semibold))
-                    .foregroundStyle(isSaved ? AppColors.onAccent : Color.white)
+                    .font(.system(size: iconSize, weight: .semibold))
+                    .foregroundStyle(iconColor)
             }
             .frame(width: diameter, height: diameter)
             .frame(width: max(diameter, 44), height: max(diameter, 44))
@@ -149,6 +159,19 @@ struct VFSaveButton: View {
         .animation(VFMotion.quick, value: isSaved)
         .accessibilityLabel(isSaved ? "저장 해제" : "저장")
         .accessibilityAddTraits(.isButton)
+    }
+
+    private var iconSize: CGFloat {
+        style == .onPhoto ? diameter * 0.42 : diameter * 0.62
+    }
+
+    private var iconColor: Color {
+        switch style {
+        case .onPhoto:
+            return isSaved ? AppColors.onAccent : Color.white
+        case .plain:
+            return isSaved ? AppColors.accent : AppColors.secondaryText
+        }
     }
 }
 

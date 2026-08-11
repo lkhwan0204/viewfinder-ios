@@ -232,9 +232,7 @@ struct HomeFeedView: View {
                             recommendations: categoryRecommendations,
                             hasMore: category == .cafe || expandedRecommendations(for: category).count > categoryRecommendations.count,
                             isLoading: loadingSectionIDs.contains(category.id),
-                            savedSpotIDs: savedSpotIDs,
                             userLocation: userLocation,
-                            onToggleSave: onToggleSave,
                             onSelect: onShowDetail,
                             onShowMore: {
                                 selectedCategory = category
@@ -492,13 +490,11 @@ struct HomeFeedView: View {
     private func todaySection(heroSize: CGSize, topInset: CGFloat) -> some View {
         HomeHeroSection(
             recommendations: recommendations,
-            savedSpotIDs: savedSpotIDs,
             userLocation: userLocation,
             cardSize: heroSize,
             topInset: topInset,
             contextText: heroContextText,
             onShowContext: onShowWeather,
-            onToggleSave: onToggleSave,
             onSelect: onShowDetail,
             onOpenMap: onOpenMap,
             onSearch: { isSearchResultsPresented = true }
@@ -1083,9 +1079,7 @@ struct HomeCategorySection: View {
     let recommendations: [GPTRecommendedSpot]
     let hasMore: Bool
     let isLoading: Bool
-    let savedSpotIDs: Set<String>
     var userLocation: CLLocationCoordinate2D? = nil
-    let onToggleSave: (PhotoSpot) -> Void
     let onSelect: (PhotoSpot) -> Void
     let onShowMore: () -> Void
 
@@ -1133,9 +1127,7 @@ struct HomeCategorySection: View {
         HomePhotoCard(
             recommendation: recommendation,
             aspectRatio: aspectRatio,
-            isSaved: savedSpotIDs.contains(recommendation.spot.id),
             distanceText: VFSpotDistance.text(from: userLocation, to: recommendation.spot),
-            onToggleSave: { onToggleSave(recommendation.spot) },
             onSelect: { onSelect(recommendation.spot) }
         )
     }

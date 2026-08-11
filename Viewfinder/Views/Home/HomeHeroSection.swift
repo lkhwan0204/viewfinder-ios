@@ -17,7 +17,6 @@ import SwiftUI
 
 struct HomeHeroSection: View {
     let recommendations: [GPTRecommendedSpot]
-    let savedSpotIDs: Set<String>
     let userLocation: CLLocationCoordinate2D?
 
     /// 카드 1장의 정확한 크기. 부모가 GeometryReader 로 측정해서 넘깁니다.
@@ -30,7 +29,6 @@ struct HomeHeroSection: View {
     var contextText: String? = nil
     var onShowContext: (() -> Void)? = nil
 
-    let onToggleSave: (PhotoSpot) -> Void
     let onSelect: (PhotoSpot) -> Void
     let onOpenMap: (PhotoSpot?) -> Void
     let onSearch: () -> Void
@@ -81,9 +79,12 @@ struct HomeHeroSection: View {
 
     // MARK: - 사진 위 컨트롤
     //
-    // 저장 / 검색 버튼을 한 줄에 모았습니다.
-    // 화면 고정 플로팅 버튼이 아니라 Hero 안에 있으므로
-    // 아래 카드들의 북마크 버튼과 겹치지 않습니다.
+    // 저장 버튼을 홈에서 전부 제거했습니다.
+    //
+    // 홈은 "둘러보는" 화면입니다. 카드마다 저장 버튼이 붙어 있으면
+    // 사진 위에 버튼이 계속 떠 있어서 사진에 집중하기 어렵고,
+    // 아직 어떤 곳인지 모르는 상태에서 저장을 요구하는 셈이 됩니다.
+    // 저장은 상세 화면에서 장소를 확인한 뒤에 하는 동작으로 옮겼습니다.
 
     private var topControls: some View {
         HStack(alignment: .top, spacing: VFSpace.sm) {
@@ -100,14 +101,6 @@ struct HomeHeroSection: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("출사지 검색")
-
-            if let current = visible.indices.contains(selection) ? visible[selection] : visible.first {
-                VFSaveButton(
-                    isSaved: savedSpotIDs.contains(current.spot.id),
-                    action: { onToggleSave(current.spot) },
-                    diameter: 38
-                )
-            }
         }
         .padding(.horizontal, VFSpace.lg - VFSpace.xs)
         .padding(.top, topInset + VFSpace.sm)
@@ -277,10 +270,8 @@ private struct HomeHeroCard: View {
 struct HomePhotoCard: View {
     let recommendation: GPTRecommendedSpot
     let aspectRatio: CGFloat
-    let isSaved: Bool
     let distanceText: String?
     var showsMeta: Bool = true
-    let onToggleSave: () -> Void
     let onSelect: () -> Void
 
     private var spot: PhotoSpot { recommendation.spot }
@@ -305,22 +296,14 @@ struct HomePhotoCard: View {
             cornerRadius: VFRadius.photo,
             showsScrim: true,
             scrimHeightRatio: 0.62,
-            scrimStrength: 1.15,
-            showsTopControlScrim: true
+            scrimStrength: 1.15
         )
         .overlay(alignment: .bottomLeading) { caption }
-        .overlay(alignment: .topTrailing) {
-            VFSaveButton(isSaved: isSaved, action: onToggleSave, diameter: 32)
-                .padding(.trailing, 2)
-                .padding(.top, 2)
-        }
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("\(spot.name), \(region)")
-        .accessibilityAction(named: "상세 보기", onSelect)
-        .accessibilityAction(named: isSaved ? "저장 해제" : "저장", onToggleSave)
     }
 
     private var caption: some View {
@@ -373,7 +356,6 @@ enum HomePreviewData {
             VStack(alignment: .leading, spacing: VFSpace.xxl) {
                 HomeHeroSection(
                     recommendations: HomePreviewData.samples,
-                    savedSpotIDs: [],
                     userLocation: nil,
                     cardSize: CGSize(
                         width: proxy.size.width,
@@ -382,7 +364,6 @@ enum HomePreviewData {
                     topInset: topInset,
                     contextText: "구로동 24°",
                     onShowContext: {},
-                    onToggleSave: { _ in },
                     onSelect: { _ in },
                     onOpenMap: { _ in },
                     onSearch: {}
@@ -397,9 +378,7 @@ enum HomePreviewData {
                             HomePhotoCard(
                                 recommendation: recommendation,
                                 aspectRatio: VFPhoto.carouselAspect,
-                                isSaved: false,
                                 distanceText: "7.4km",
-                                onToggleSave: {},
                                 onSelect: {}
                             )
                             .frame(width: proxy.size.width - VFSpace.lg * 2 - VFPhoto.carouselPeek)
@@ -416,24 +395,20 @@ enum HomePreviewData {
     .preferredColorScheme(.dark)
 }
 
-#Preview("Photo Card — 긴 이름 / 저장 상태") {
+#Preview("Photo Card") {
     VStack(spacing: VFSpace.lg) {
         if let sample = HomePreviewData.first {
             HomePhotoCard(
                 recommendation: sample,
                 aspectRatio: VFPhoto.carouselAspect,
-                isSaved: false,
                 distanceText: "820m",
-                onToggleSave: {},
                 onSelect: {}
             )
 
             HomePhotoCard(
                 recommendation: sample,
                 aspectRatio: VFPhoto.carouselAspect,
-                isSaved: true,
                 distanceText: "12.4km",
-                onToggleSave: {},
                 onSelect: {}
             )
         }

@@ -248,22 +248,6 @@ struct SpotDetailView: View {
             }
             .buttonStyle(.plain)
 
-            NativeActionDivider()
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.16)) {
-                    onToggleSave()
-                }
-            } label: {
-                DetailActionButton(
-                    title: isSaved ? "저장됨" : "저장",
-                    symbolName: isSaved ? "bookmark.fill" : "bookmark",
-                    isPrimary: false,
-                    height: actionButtonHeight,
-                    tint: isSaved ? AppColors.accent : nil
-                )
-            }
-            .buttonStyle(.plain)
         }
     }
 
@@ -292,6 +276,18 @@ struct SpotDetailView: View {
                 }
 
                 Spacer(minLength: 0)
+
+                // 저장은 하단 액션 바에서 여기로 옮겼습니다.
+                // 액션 바의 "지도에서 보기 / 길찾기" 는 장소로 이동하는 동작이고,
+                // 저장은 장소 자체에 대한 상태 토글이라 성격이 다릅니다.
+                // 제목 반대편에 두면 "이 장소를 저장한다" 는 관계가 분명해집니다.
+                VFSaveButton(
+                    isSaved: isSaved,
+                    action: onToggleSave,
+                    diameter: 30,
+                    style: .plain
+                )
+                .offset(y: -4)
             }
 
             Text(spot.summary)
