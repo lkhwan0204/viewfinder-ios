@@ -28,8 +28,6 @@ struct HomeHeroSection: View {
     var contextText: String? = nil
     /// pill 아이콘. 일몰 전이면 sunset.fill, 일몰 후면 sunrise.fill.
     var contextSymbolName: String = "sun.max"
-    /// 사진 -> 상세 zoom transition 용.
-    let zoomNamespace: Namespace.ID
     var onShowContext: (() -> Void)? = nil
 
     let onSelect: (PhotoSpot) -> Void
@@ -71,7 +69,6 @@ struct HomeHeroSection: View {
                     size: cardSize,
                     onSelect: { onSelect(recommendation.spot) }
                 )
-                .vfZoomSource(id: recommendation.spot.id, in: zoomNamespace)
                 .tag(index)
             }
         }
@@ -316,8 +313,6 @@ enum HomePreviewData {
 
 /// Preview 에서 @Namespace 를 쓰려면 뷰 안에 있어야 하므로 래퍼를 둡니다.
 private struct HomeHeroPreviewHost: View {
-    @Namespace private var namespace
-
     var body: some View {
         GeometryReader { proxy in
             let topInset = proxy.safeAreaInsets.top
@@ -334,7 +329,6 @@ private struct HomeHeroPreviewHost: View {
                         topInset: topInset,
                         contextText: "일몰까지 2시간 10분  ·  24°",
                         contextSymbolName: "sunset.fill",
-                        zoomNamespace: namespace,
                         onShowContext: {},
                         onSelect: { _ in },
                         onSearch: {}

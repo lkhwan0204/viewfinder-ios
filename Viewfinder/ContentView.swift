@@ -49,9 +49,6 @@ struct ContentView: View {
     @State private var selectedSpotRevision = 0
     @State private var aiSpots: [PhotoSpot] = []
     @State private var detailPresentation: SpotDetailPresentation?
-    /// 사진 -> 상세 zoom transition 용.
-    /// 상세가 이 레벨의 sheet 로 뜨므로 namespace 도 여기서 소유하고 아래로 내립니다.
-    @Namespace private var spotZoomNamespace
     @State private var isWeatherDetailPresented = false
     @State private var composerPurpose: CommunityComposerPurpose = .fieldReport
     @State private var submittedSpotsState: AsyncLoadState = .idle
@@ -203,22 +200,21 @@ struct ContentView: View {
         nativeTabContent
         .background(AppColors.background.ignoresSafeArea())
         .tint(AppColors.accent)
-        // 지도에서 들어올 때만 시트로 둡니다.
-        // 지도 맥락을 뒤에 남겨두고 부분 높이로 보는 것이 목적이기 때문입니다.
-        .sheet(item: mapDetailPresentation) { presentation in
+        // 상세는 모든 진입 경로에서 시트로 띄웁니다.
+        //
+        // 한동안 사진 진입을 fullScreenCover + zoom transition 으로 시도했지만
+        // 되돌렸습니다. 이유는 세 가지입니다.
+        //  1. 전환 중 대표 사진(1600px) 디코딩이 겹쳐 애니메이션이 끊겼습니다.
+        //  2. 전체 화면은 드래그로 닫을 수 없어 닫기 버튼이 필요한데,
+        //     이 화면은 하단 액션 바와 내부 시트를 이미 갖고 있어 컨트롤이 과해집니다.
+        //  3. zoom transition 은 push 네비게이션과 궁합이 맞습니다.
+        //     모달 위에 얹으면 계층이 모호해집니다.
+        // 잘 만든 시트 하나가 끊기는 zoom 보다 낫다고 판단했습니다.
+        // 상세를 push 구조로 바꾸거나 이미지 디코딩을 최적화한 뒤 재검토할 여지는 남깁니다.
+        .sheet(item: $detailPresentation) { presentation in
             detailView(for: presentation)
                 .presentationDetents(presentation.source.detents)
                 .presentationDragIndicator(.visible)
-        }
-        // 사진에서 들어올 때는 전체 화면입니다.
-        //
-        // zoom transition 은 "사진이 확대되어 전체 화면이 된다" 는 신호를 줍니다.
-        // 그런데 시트로 착지하면 위가 둥글고 드래그 인디케이터가 남아서
-        // 전환의 신호와 도착지의 형태가 어긋납니다.
-        // 사진 앱이라면 사진에서 출발한 화면은 전체 화면이어야 합니다.
-        .fullScreenCover(item: photoDetailPresentation) { presentation in
-            detailView(for: presentation)
-                .vfZoomDestination(id: presentation.spot.id, in: spotZoomNamespace)
         }
         .sheet(isPresented: $communityViewModel.isComposerPresented) {
             CommunityComposerView(
@@ -360,7 +356,6 @@ struct ContentView: View {
                 savedSpotIDs: savedSpotStore.savedSpotIDs,
                 searchViewModel: searchViewModel,
                 userLocation: locationReader.coordinate,
-                zoomNamespace: spotZoomNamespace,
                 onAddAISpot: addAISpot,
                 onShowDetail: { showDetail($0, source: .home) },
                 onShowSearchDetail: { showDetail($0, source: .search) },
@@ -840,35 +835,7 @@ struct ContentView: View {
         }
     }
 
-    /// 지도 맥락 진입만 시트로 띄웁니다.
-    private var mapDetailPresentation: Binding<SpotDetailPresentation?> {
-        Binding(
-            get: {
-                detailPresentation?.source.isMapContext == true ? detailPresentation : nil
-            },
-            set: { newValue in
-                if newValue == nil, detailPresentation?.source.isMapContext == true {
-                    detailPresentation = nil
-                }
-            }
-        )
-    }
-
-    /// 사진 진입(홈 / 검색 / 커뮤니티 / 저장)은 전체 화면으로 띄웁니다.
-    private var photoDetailPresentation: Binding<SpotDetailPresentation?> {
-        Binding(
-            get: {
-                detailPresentation?.source.isMapContext == false ? detailPresentation : nil
-            },
-            set: { newValue in
-                if newValue == nil, detailPresentation?.source.isMapContext == false {
-                    detailPresentation = nil
-                }
-            }
-        )
-    }
-
-    /// 시트와 전체화면이 같은 내용을 쓰므로 한 곳에서 만듭니다.
+    /// 상세 화면 본문. 표시 방식과 분리해 둡니다.
     private func detailView(for presentation: SpotDetailPresentation) -> some View {
         SpotDetailView(
             authViewModel: authViewModel,

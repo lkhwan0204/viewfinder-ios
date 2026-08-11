@@ -135,13 +135,6 @@ struct SpotDetailView: View {
                     .padding(.bottom, actionBarBottomPadding)
             }
             .ignoresSafeArea(.container, edges: .bottom)
-            // 전체 화면으로 뜰 때는 드래그로 닫을 수 없으므로 닫기 버튼이 필요합니다.
-            // 지도 진입은 시트라서 드래그 인디케이터가 그 역할을 합니다.
-            .overlay(alignment: .topTrailing) {
-                if !source.isMapContext {
-                    closeButton
-                }
-            }
         }
         .background(AppColors.background.ignoresSafeArea())
         .confirmationDialog("길찾기 앱 선택", isPresented: $isDirectionsDialogPresented, titleVisibility: .visible) {
@@ -256,27 +249,6 @@ struct SpotDetailView: View {
                 )
                 .padding(.horizontal, source.isCompact ? 14 : 18)
         }
-    }
-
-    /// 사진 위에 떠 있는 닫기 버튼.
-    ///
-    /// 오른쪽 상단에 둡니다. 왼쪽 상단은 "뒤로 가기" 자리이므로
-    /// 계층이 없는 모달에 X 를 왼쪽에 두면 존재하지 않는 위계를 암시합니다.
-    /// iOS 모달의 단일 닫기 버튼은 오른쪽이 관례입니다. (App Store, Photos)
-    private var closeButton: some View {
-        Button {
-            dismiss()
-        } label: {
-            Image(systemName: "xmark")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Color.white)
-                .frame(width: 38, height: 38)
-                .vfGlass(interactive: true)
-        }
-        .buttonStyle(.plain)
-        .padding(.trailing, VFSpace.lg - VFSpace.xs)
-        .padding(.top, VFSpace.sm)
-        .accessibilityLabel("닫기")
     }
 
     private var actionButtons: some View {
@@ -858,13 +830,13 @@ struct DetailActionButton: View {
     var tint: Color? = nil
 
     private var foregroundColor: Color {
-        // 흰 캡슐 배경을 제거했으므로 주 동작은 글자 색으로 구분합니다.
-        // isPrimary 를 예전처럼 AppColors.background 로 두면 다크에서 검정 글자가
-        // 유리 위에 놓여 보이지 않습니다.
-        if isPrimary {
-            return AppColors.accent
-        }
-        return tint ?? AppColors.primary.opacity(0.94)
+        // "지도에서 보기" 와 "길찾기" 는 같은 유리 바 안의 같은 계층이므로
+        // 글자색을 동일하게 둡니다.
+        //
+        // 한동안 길찾기만 앰버로 강조했는데, 두 버튼이 나란히 있는 상태에서
+        // 한쪽만 색이 다르면 위계보다 불일치로 읽혔습니다.
+        // 주 동작 강조가 필요해지면 배경이나 크기로 구분하는 편이 낫습니다.
+        tint ?? AppColors.primary.opacity(0.94)
     }
 
     var body: some View {
