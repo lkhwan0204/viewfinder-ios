@@ -18,6 +18,9 @@ import SwiftUI
 struct HomeHeroSection: View {
     let recommendations: [GPTRecommendedSpot]
     let userLocation: CLLocationCoordinate2D?
+    /// 혼잡도를 커뮤니티 제보로 계산하기 위해 필요합니다.
+    /// 이전에는 spot.crowdLevel(시드 고정값)만 써서 상세 화면과 값이 어긋났습니다.
+    var communityPosts: [CommunityPost] = []
 
     /// 카드 1장의 정확한 크기. 부모가 GeometryReader 로 측정해서 넘깁니다.
     let cardSize: CGSize
@@ -67,6 +70,7 @@ struct HomeHeroSection: View {
                         to: recommendation.spot
                     ),
                     size: cardSize,
+                    communityPosts: communityPosts,
                     onSelect: { onSelect(recommendation.spot) }
                 )
                 .tag(index)
@@ -145,6 +149,7 @@ private struct HomeHeroCard: View {
     /// 그 "화면 밖 왼쪽 경계" 를 기준으로 잡혀서 장소명이 왼쪽으로 잘렸습니다.
     /// 사진 크기를 먼저 고정하고 텍스트를 overlay 로 올려서 해결합니다.
     let size: CGSize
+    let communityPosts: [CommunityPost]
     let onSelect: () -> Void
 
     private var spot: PhotoSpot { recommendation.spot }
@@ -153,8 +158,10 @@ private struct HomeHeroCard: View {
         HomeSpotDisplayFormatter.region(for: spot)
     }
 
+    /// 상세 화면과 같은 계산기를 씁니다.
+    /// 사용자가 현장 정보를 등록하면 홈 Hero 의 배지도 함께 바뀝니다.
     private var crowdLevel: VFCrowdLevel {
-        VFCrowdLevel.from(spot.crowdLevel)
+        VFLiveCrowd.resolve(spot: spot, posts: communityPosts).level
     }
 
     private var metaItems: [String] {

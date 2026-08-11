@@ -80,11 +80,7 @@ struct SpotDetailView: View {
                             // 사진 진입(전체 화면)에서는 화면 폭을 꽉 채웁니다.
                             // 음수 패딩으로 부모의 좌우 마진을 상쇄합니다.
                             .frame(width: source.isMapContext ? contentWidth : proxy.size.width)
-                            // 혼잡도는 사진 위에서 바로 읽히게 합니다.
-                            // 사진 자체의 하단 우측에는 출처 표기가 있으므로 좌측에 둡니다.
-                            .overlay(alignment: .bottomLeading) {
-                                crowdBadgeOverlay
-                            }
+
                             .padding(
                                 .horizontal,
                                 source.isMapContext ? 0 : -horizontalPadding
@@ -381,49 +377,16 @@ struct SpotDetailView: View {
 
     /// 화면에 표시할 혼잡도와 그 출처.
     ///
-    /// 최근 3시간 안에 커뮤니티 제보가 있으면 그 값을 쓰고(실시간),
-    /// 없으면 시드 데이터를 씁니다(평소).
-    /// 근거 없이 하나의 값만 보여주면 사용자가 신뢰할 수 없습니다.
-    ///
-    /// communityPosts 는 ContentView 에서 communityViewModel.posts(for:) 로
-    /// 주입되므로, 사용자가 현장 정보를 등록하면 이 값이 즉시 다시 계산됩니다.
-    private var liveCrowd: (level: VFCrowdLevel, isLive: Bool) {
-        let cutoff = Date().addingTimeInterval(-3 * 60 * 60)
-        let recentPosts = communityPosts.filter { $0.createdAt >= cutoff }
-
-        if let latest = recentPosts.max(by: { $0.createdAt < $1.createdAt }) {
-            return (VFCrowdLevel.from(latest.crowd.rawValue), true)
-        }
-
-        return (VFCrowdLevel.from(spot.crowdLevel), false)
+    /// 계산은 VFLiveCrowd 한 곳에서만 합니다.
+    /// 홈과 상세가 각자 계산하던 시절에는 같은 장소가 홈에서 "붐빔",
+    /// 상세에서 "여유" 로 보이는 문제가 있었습니다.
+    private var liveCrowd: VFLiveCrowd.Result {
+        VFLiveCrowd.resolve(spot: spot, posts: communityPosts)
     }
 
     private var crowdMetricValue: String {
         let crowd = liveCrowd
-        return "\(crowd.level.label) · \(crowd.isLive ? "실시간" : "평소")"
-    }
-
-    /// 대표 사진 위에 올라가는 혼잡도 배지.
-    ///
-    /// 상세 화면에서 가장 먼저 보이는 것이 대표 사진이므로,
-    /// "지금 갈만한가" 를 판단하는 혼잡도를 사진 위에서 바로 읽게 합니다.
-    /// 유리 위에 올려서 어떤 사진에서도 대비를 확보합니다.
-    private var crowdBadgeOverlay: some View {
-        let crowd = liveCrowd
-
-        return HStack(spacing: VFSpace.sm) {
-            VFCrowdBadge(level: crowd.level)
-
-            Text(crowd.isLive ? "실시간" : "평소")
-                .vfText(.caption)
-                .foregroundStyle(Color.white.opacity(0.72))
-        }
-        .padding(.horizontal, VFSpace.md)
-        .frame(height: 32)
-        .vfGlass()
-        .padding(.leading, VFSpace.lg)
-        .padding(.bottom, VFSpace.md)
-        .animation(VFMotion.standard, value: crowd.level)
+        return "\(crowd.level.label) · \(crowd.provenanceLabel)"
     }
 
     /// 지금 들어갈 수 있는지. 사진가가 출발 전 가장 먼저 확인하는 정보입니다.

@@ -418,3 +418,58 @@ extension View {
         modifier(VFZoomDestination(id: id, namespace: namespace))
     }
 }
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - VFLiveCrowd
+//
+//  혼잡도를 계산하는 단 하나의 장소.
+//
+//  [문제였던 상황]
+//  홈 Hero 는 spot.crowdLevel(시드 고정값)을 쓰고,
+//  상세 화면은 커뮤니티 제보를 반영해서 계산했습니다.
+//  그래서 같은 장소인데 홈에서는 "붐빔", 상세에서는 "여유" 로 보였습니다.
+//  화면마다 다른 값을 보여주면 사용자는 어느 쪽도 믿지 않습니다.
+//
+//  [해결]
+//  모든 화면이 이 함수를 통해서만 혼잡도를 얻습니다.
+//  새로 혼잡도를 표시할 화면이 생기면 여기를 쓰면 되고,
+//  판정 규칙을 바꿀 때도 한 곳만 고치면 전부 반영됩니다.
+// ═══════════════════════════════════════════════════════════════════
+
+enum VFLiveCrowd {
+
+    struct Result: Equatable {
+        let level: VFCrowdLevel
+        /// 커뮤니티 제보에서 나온 값인지. false 면 시드 데이터(평소)입니다.
+        let isLive: Bool
+
+        var provenanceLabel: String {
+            isLive ? "실시간" : "평소"
+        }
+    }
+
+    /// 최근 제보가 있으면 그 값을, 없으면 시드 데이터를 씁니다.
+    ///
+    /// - Parameters:
+    ///   - spot: 대상 장소
+    ///   - posts: 전체 커뮤니티 글. 내부에서 spotID 로 걸러냅니다.
+    ///   - hours: 제보를 유효하게 볼 시간 창. 기본 3시간.
+    static func resolve(
+        spot: PhotoSpot,
+        posts: [CommunityPost],
+        within hours: Double = 3
+    ) -> Result {
+        let cutoff = Date().addingTimeInterval(-hours * 60 * 60)
+
+        let recent = posts.filter { post in
+            post.spotID == spot.id && post.createdAt >= cutoff
+        }
+
+        if let latest = recent.max(by: { $0.createdAt < $1.createdAt }) {
+            return Result(level: VFCrowdLevel.from(latest.crowd.rawValue), isLive: true)
+        }
+
+        return Result(level: VFCrowdLevel.from(spot.crowdLevel), isLive: false)
+    }
+}

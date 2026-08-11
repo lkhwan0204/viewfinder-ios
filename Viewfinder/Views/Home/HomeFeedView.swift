@@ -491,6 +491,7 @@ struct HomeFeedView: View {
         HomeHeroSection(
             recommendations: recommendations,
             userLocation: userLocation,
+            communityPosts: communityPosts,
             cardSize: heroSize,
             topInset: topInset,
             contextText: heroContextText,
