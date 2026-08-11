@@ -19,7 +19,14 @@ struct ContentView: View {
             case .map:
                 return "지도"
             case .add:
-                return "장소제보"
+                // 라벨을 비웁니다.
+                //
+                // 탭 바는 "내가 지금 어디에 있는가" 를 나타내는 장소 스위처입니다.
+                // 제보는 장소가 아니라 동작인데, 다른 4개와 똑같은 아이콘 + 라벨로
+                // 생겨서 "이건 화면인가 버튼인가" 하는 인지 부하가 있었습니다.
+                // 라벨을 없애고 채워진 원형 플러스로 바꿔 동작임을 드러냅니다.
+                // ("장소제보" 4글자가 다른 라벨을 눌러 타이포도 답답했습니다)
+                return ""
             case .community:
                 return "커뮤니티"
             case .my:
@@ -49,6 +56,8 @@ struct ContentView: View {
     @State private var selectedSpotRevision = 0
     @State private var aiSpots: [PhotoSpot] = []
     @State private var detailPresentation: SpotDetailPresentation?
+    /// 중앙 액션 버튼을 눌렀을 때 뜨는 2택 시트.
+    @State private var isContributeChooserPresented = false
     @State private var isWeatherDetailPresented = false
     @State private var composerPurpose: CommunityComposerPurpose = .fieldReport
     @State private var submittedSpotsState: AsyncLoadState = .idle
@@ -156,13 +165,21 @@ struct ContentView: View {
                 playTabSelectionHaptic()
 
                 guard newTab != .add else {
+                    // 기여에는 두 종류가 있고 성격이 완전히 다릅니다.
+                    //   현장 정보  가볍고 잦음. 지금 그 자리에 있으면 됩니다.
+                    //   장소 제보  무겁고 드묾. 아직 없는 장소를 알아야 합니다.
+                    // 이전에는 중앙 버튼이 곧바로 "장소 추가" 로 갔습니다.
+                    // 앱을 살아있게 만드는 잦은 기여(현장 정보)가
+                    // 커뮤니티 화면 우상단 작은 아이콘에만 있었습니다.
+                    // 둘 중에 고르게 해서 잦은 기여를 앞에 둡니다.
+                    //
+                    // 로그인은 여기서 요구하지 않습니다.
+                    // 무엇을 할 수 있는지 먼저 보여주고, 고른 다음에 확인합니다.
                     let returnTab = lastContentTab
                     selectedTab = .add
                     DispatchQueue.main.async {
                         selectedTab = returnTab
-                        performAuthenticatedAction { _ in
-                            presentComposer(.addSpot)
-                        }
+                        isContributeChooserPresented = true
                     }
                     return
                 }
@@ -215,6 +232,28 @@ struct ContentView: View {
             detailView(for: presentation)
                 .presentationDetents(presentation.source.detents)
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $isContributeChooserPresented) {
+            ContributeChooserView(
+                onFieldReport: {
+                    isContributeChooserPresented = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+                        performAuthenticatedAction { _ in
+                            presentComposer(.fieldReport)
+                        }
+                    }
+                },
+                onAddSpot: {
+                    isContributeChooserPresented = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+                        performAuthenticatedAction { _ in
+                            presentComposer(.addSpot)
+                        }
+                    }
+                }
+            )
+            .presentationDetents([.height(260)])
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $communityViewModel.isComposerPresented) {
             CommunityComposerView(
@@ -514,12 +553,41 @@ struct ContentView: View {
     }
 
     private func tabItemLabel(for tab: AppTab) -> some View {
-        Label {
-            Text(tab.title)
-        } icon: {
-            Image(tab.assetName)
-                .renderingMode(.template)
+        Group {
+            if tab == .add {
+                Label {
+                    Text(tab.title)
+                } icon: {
+                    contributeTabIcon
+                }
+                // 라벨이 비어 있으므로 VoiceOver 용 이름을 따로 줍니다.
+                .accessibilityLabel("제보하기")
+                .accessibilityHint("현장 정보 공유 또는 새 출사지 제보를 선택합니다")
+            } else {
+                Label {
+                    Text(tab.title)
+                } icon: {
+                    Image(tab.assetName)
+                        .renderingMode(.template)
+                }
+            }
         }
+    }
+
+    /// 중앙 액션 버튼 아이콘.
+    ///
+    /// 브랜드 오렌지로 미리 칠한 이미지를 alwaysOriginal 로 넘겨서
+    /// 선택 여부와 무관하게 항상 오렌지로 보이게 합니다.
+    /// (탭 바 아이콘은 기본적으로 tint 색으로 템플릿 렌더되기 때문입니다)
+    /// 실패해도 tint 색으로 그려질 뿐이라 기능 손실은 없습니다.
+    private var contributeTabIcon: Image {
+        let configuration = UIImage.SymbolConfiguration(pointSize: 27, weight: .semibold)
+
+        guard let symbol = UIImage(systemName: "plus.circle.fill", withConfiguration: configuration) else {
+            return Image(systemName: "plus.circle.fill")
+        }
+
+        return Image(uiImage: symbol.withTintColor(AppColors.uiAccent, renderingMode: .alwaysOriginal))
     }
 
     private var mapLayer: some View {
@@ -940,4 +1008,98 @@ struct ContentView: View {
         }
     }
 
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - ContributeChooserView
+//
+//  탭 바 중앙 버튼을 눌렀을 때 뜨는 2택 시트.
+//
+//  이 앱은 사용자 제보로 굴러가는 앱이라 중앙 자리를 유지하는 것이 맞습니다.
+//  다만 기여에는 성격이 완전히 다른 두 종류가 있습니다.
+//
+//    현장 정보  가볍고 잦음. 지금 그 자리에 있으면 됩니다.
+//              "27분 전 서울숲 데이지 피었어요" 같은 정보가 앱을 살아있게 만듭니다.
+//    장소 제보  무겁고 드묾. 아직 없는 장소를 알아야 하고 검토도 필요합니다.
+//
+//  이전에는 중앙 버튼이 곧바로 "장소 추가" 로 갔고, 정작 잦은 기여인 현장 정보는
+//  커뮤니티 화면 우상단 작은 아이콘에만 있었습니다. 가치와 노출이 반대였습니다.
+//  그래서 잦은 기여를 위에 두고 고르게 합니다.
+// ═══════════════════════════════════════════════════════════════════
+
+private struct ContributeChooserView: View {
+    let onFieldReport: () -> Void
+    let onAddSpot: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: VFSpace.md) {
+            Text("무엇을 알려주실래요?")
+                .vfText(.title2)
+                .foregroundStyle(AppColors.primary)
+                .padding(.top, VFSpace.sm)
+
+            ContributeChooserRow(
+                symbolName: "dot.radiowaves.left.and.right",
+                title: "현장 정보 공유",
+                subtitle: "지금 이 장소의 혼잡도와 상황을 알려주세요",
+                action: onFieldReport
+            )
+
+            ContributeChooserRow(
+                symbolName: "mappin.and.ellipse",
+                title: "새 출사지 제보",
+                subtitle: "아직 등록되지 않은 장소를 알려주세요",
+                action: onAddSpot
+            )
+        }
+        .vfScreenMargin()
+        .padding(.bottom, VFSpace.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.background)
+    }
+}
+
+private struct ContributeChooserRow: View {
+    let symbolName: String
+    let title: String
+    let subtitle: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: VFSpace.md) {
+                Image(systemName: symbolName)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(AppColors.accent)
+                    .frame(width: 42, height: 42)
+                    .background(
+                        AppColors.accentSoft,
+                        in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .vfText(.headline)
+                        .foregroundStyle(AppColors.primary)
+
+                    Text(subtitle)
+                        .vfText(.subhead)
+                        .foregroundStyle(AppColors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: VFSpace.sm)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppColors.secondaryText)
+            }
+            .padding(VFSpace.md + 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .appCardSurface()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title). \(subtitle)")
+    }
 }
