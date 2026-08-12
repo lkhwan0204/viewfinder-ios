@@ -1027,8 +1027,26 @@ struct CommunityComposerView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
+                    // ═══════════════════════════════════════════════
+                    //  섹션 순서를 목적에 따라 다르게 합니다.
+                    //
+                    //  [문제였던 상황]
+                    //  두 목적 모두 장소 -> 글 -> 상태/태그 -> 사진 순서였습니다.
+                    //  사진 앱인데 사진이 마지막이었습니다.
+                    //
+                    //  사진을 04 -> 02 로 올립니다.
+                    //
+                    //  장소보다 앞에 두지는 않았습니다.
+                    //  어디에 대한 제보인지 모르는 상태에서 사진을 먼저
+                    //  올리게 하면 순서가 거꾸로입니다. 장소는 뒤의 모든
+                    //  항목이 설명하는 대상이고, 장소를 못 고르면 나머지를
+                    //  채울 수도 없습니다.
+                    //
+                    //  최종 순서
+                    //    현장 정보  장소(고정) -> 사진 -> 현장 상태 -> 메모
+                    //    새 장소    장소(검색) -> 사진 -> 소개 -> 태그 -> 동의
+                    // ═══════════════════════════════════════════════
                     ComposerFormSection(
-                        number: "01",
                         title: "장소",
                         detail: isSpotLocked ? "선택된 출사지" : placeSectionDetail
                     ) {
@@ -1040,70 +1058,60 @@ struct CommunityComposerView: View {
                     }
 
                     if selectedSpot != nil {
-                        ComposerFormSection(
-                            number: sectionNumber(2),
-                            title: purpose.messageSectionTitle,
-                            detail: messageSectionDetail
-                        ) {
-                            TextField(purpose.messagePlaceholder, text: $message, axis: .vertical)
-                                .font(.system(size: 16, weight: .regular))
-                                .lineSpacing(4)
-                                .lineLimit(5, reservesSpace: true)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 13)
-                                .background(
-                                    AppColors.mutedSurface,
-                                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                )
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .stroke(AppColors.divider, lineWidth: 1)
-                                }
-                        }
+                        photoSection
 
                         if purpose == .fieldReport || editingPost != nil {
                             ComposerFormSection(
-                                number: sectionNumber(3),
                                 title: "현장 상태",
                                 detail: "현재 혼잡도와 상태를 선택하세요"
                             ) {
                                 CrowdSelector(selectedCrowd: $crowd)
-                                    .padding(.bottom, 14)
+                                    .padding(.bottom, VFSpace.md)
                                 FlexibleTagGrid(tags: statusTags, selectedTags: $selectedTags)
                             }
-                        } else {
+                        }
+
+                        ComposerFormSection(
+                            title: purpose.messageSectionTitle,
+                            detail: messageSectionDetail
+                        ) {
+                            TextField(purpose.messagePlaceholder, text: $message, axis: .vertical)
+                                .vfText(.body)
+                                .lineLimit(5, reservesSpace: true)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 13)
+                                // 반경 8 + 1pt 테두리였습니다.
+                                // 카드가 20 인데 폼은 8 이라 한 파일에 두 반경
+                                // 언어가 있었고, Phase 1 에서 걷어낸 테두리가
+                                // 여기만 남아 있었습니다.
+                                .background(
+                                    AppColors.mutedSurface,
+                                    in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
+                                )
+                        }
+
+                        if purpose == .addSpot, editingPost == nil {
                             ComposerFormSection(
-                                number: sectionNumber(3),
                                 title: "태그",
                                 detail: "직접 입력한 해시태그가 홈 검색에 반영돼요"
                             ) {
                                 CustomTagInputSection(tags: $customTags, text: $customTagText)
                             }
-                        }
 
-                        ComposerFormSection(
-                            number: sectionNumber(4),
-                            title: "사진",
-                            detail: photoSectionDetail
-                        ) {
-                            photoPickerSection
-                        }
-
-                        if purpose == .addSpot, editingPost == nil {
                             submissionConsentSection
                         }
                     } else {
-                        HStack(spacing: 8) {
+                        HStack(spacing: VFSpace.sm) {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 12, weight: .semibold))
                             Text(emptySelectionText)
-                                .font(.system(size: 13, weight: .medium))
+                                .vfText(.subhead)
                         }
                         .foregroundStyle(AppColors.secondaryText)
-                        .padding(.top, 6)
-                        .padding(.bottom, 28)
+                        .padding(.bottom, VFSpace.xl)
                     }
                 }
+                .padding(.top, VFSpace.md)
                 .padding(.horizontal, 20)
             }
             .background(AppColors.background.ignoresSafeArea())
@@ -1125,14 +1133,18 @@ struct CommunityComposerView: View {
             Button {
                 submit()
             } label: {
+                // 주 동작이므로 앰버입니다.
+                // 전에는 AppColors.primary 였는데 다크에서 흰색이라
+                // 제출 버튼이 화면에서 가장 밝은 면이 됐습니다.
+                // VFDesign 의 앰버 허용 목록에 "주 동작" 이 있습니다.
                 Text(submitButtonTitle)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(canSubmit ? AppColors.background : AppColors.secondaryText.opacity(0.45))
+                    .vfText(.headline)
+                    .foregroundStyle(canSubmit ? AppColors.onAccent : AppColors.secondaryText.opacity(0.45))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(height: 52)
                     .background(
-                        canSubmit ? AppColors.primary : AppColors.mutedSurface,
-                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        canSubmit ? AppColors.accent : AppColors.mutedSurface,
+                        in: Capsule()
                     )
             }
             .buttonStyle(.plain)
@@ -1190,24 +1202,41 @@ struct CommunityComposerView: View {
                 .foregroundStyle(AppColors.secondaryText)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private var photoSection: some View {
+        ComposerFormSection(
+            title: "사진",
+            detail: photoSectionDetail
+        ) {
+            photoPickerSection
+        }
     }
 
     private var photoPickerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let selectedPhotoData {
                 ZStack(alignment: .topTrailing) {
-                    CommunityAttachedPhotoView(photoData: selectedPhotoData, height: 220)
+                    // 피드와 같은 3:2 로 미리 봅니다.
+                    // 220pt 고정이면 실제 피드에 올라간 모습과 다르게 보입니다.
+                    CommunityAttachedPhotoView(
+                        photoData: selectedPhotoData,
+                        aspectRatio: VFPhoto.carouselAspect,
+                        isTappableForPreview: false
+                    )
 
                     PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                        // VFSaveButton(.onPhoto) 과 같은 사진 위 버튼 표면입니다.
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 36, height: 36)
-                            .background(.black.opacity(0.68), in: Circle())
+                            .background(Color.black.opacity(0.30), in: Circle())
+                            .overlay(Circle().stroke(.white.opacity(0.55), lineWidth: 0.8))
                     }
                     .padding(10)
                 }
@@ -1223,25 +1252,24 @@ struct CommunityComposerView: View {
                 .buttonStyle(.plain)
             } else {
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
-                    VStack(spacing: 10) {
-                        Image(systemName: "photo")
-                            .font(.system(size: 23, weight: .regular))
+                    // 점선 테두리를 뗐습니다. 웹 업로드 폼의 언어이고,
+                    // iOS 어디에서도 쓰지 않는 표현입니다.
+                    // 빈 영역도 사진이 들어갈 3:2 자리를 그대로 차지해서,
+                    // 사진을 넣었을 때 레이아웃이 흔들리지 않습니다.
+                    VStack(spacing: VFSpace.sm) {
+                        Image(systemName: "photo.badge.plus")
+                            .font(.system(size: 26, weight: .regular))
 
                         Text("사진 선택")
-                            .font(.system(size: 14, weight: .semibold))
+                            .vfText(.callout)
                     }
-                    .foregroundStyle(AppColors.primary)
+                    .foregroundStyle(AppColors.secondaryText)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 122)
-                    .background(AppColors.mutedSurface)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(
-                                AppColors.divider,
-                                style: StrokeStyle(lineWidth: 1, dash: [6, 5])
-                            )
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .aspectRatio(VFPhoto.carouselAspect, contentMode: .fit)
+                    .background(
+                        AppColors.mutedSurface,
+                        in: RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
+                    )
                 }
             }
 
@@ -1400,10 +1428,6 @@ struct CommunityComposerView: View {
         }
     }
 
-    private func sectionNumber(_ base: Int) -> String {
-        base < 10 ? "0\(base)" : "\(base)"
-    }
-
     private var selectedSpotAlreadyRegistered: Bool {
         guard purpose == .addSpot,
               let selectedSpot else {
@@ -1469,26 +1493,22 @@ struct CommunityComposerView: View {
                 }
                 .padding(.horizontal, 13)
                 .frame(height: 48)
-                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(AppColors.divider, lineWidth: 1)
-                }
+                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
 
                 Button(action: startPlaceSearch) {
                     Group {
                         if isPlaceSearching {
                             ProgressView()
                                 .controlSize(.small)
-                                .tint(AppColors.background)
+                                .tint(AppColors.onAccent)
                         } else {
                             Image(systemName: "arrow.right")
                                 .font(.system(size: 14, weight: .bold))
                         }
                     }
-                    .foregroundStyle(AppColors.background)
+                    .foregroundStyle(AppColors.onAccent)
                     .frame(width: 48, height: 48)
-                    .background(AppColors.primary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(AppColors.accent, in: Circle())
                 }
                 .buttonStyle(.plain)
                 .disabled(
@@ -1683,37 +1703,41 @@ struct CommunityComposerView: View {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  폼 섹션
+//
+//  [바꾼 것]
+//  1. "01 02 03 04" 번호를 뗐습니다.
+//     번호는 정해진 순서를 끝까지 밟으라는 신호입니다. 관공서 서식의
+//     언어이고, 사진을 올리러 온 사람에게 절차를 먼저 보여줍니다.
+//     게다가 목적(현장 정보 / 새 장소)에 따라 섹션 순서와 개수가
+//     달라지므로 번호가 매번 어긋났습니다.
+//  2. 섹션마다 있던 Divider() 를 뗐습니다.
+//     VFDesign 의 원칙은 "기본 그룹핑 수단은 여백" 입니다.
+//     구분선 4개가 짧은 폼을 표처럼 만들었습니다.
+// ═══════════════════════════════════════════════════════════════════
+
 struct ComposerFormSection<Content: View>: View {
-    let number: String
     let title: String
     let detail: String
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(number)
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+        VStack(alignment: .leading, spacing: VFSpace.md) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .vfText(.headline)
+                    .foregroundStyle(AppColors.primary)
+
+                Text(detail)
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.system(size: 19, weight: .bold))
-                        .foregroundStyle(AppColors.primary)
-
-                    Text(detail)
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(AppColors.secondaryText)
-                }
             }
 
             content
         }
-        .padding(.vertical, 24)
+        .padding(.bottom, VFSpace.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .bottom) {
-            Divider()
-        }
     }
 }
 
@@ -1721,28 +1745,33 @@ struct CrowdSelector: View {
     @Binding var selectedCrowd: CommunityPost.Crowd
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: VFSpace.sm) {
             ForEach(CommunityPost.Crowd.allCases) { item in
                 Button {
+                    VFHaptics.selection()
                     selectedCrowd = item
                 } label: {
+                    // 선택 상태를 앰버로 바꿨습니다.
+                    // 전에는 AppColors.primary 였는데 다크에서 그 값은 흰색이라
+                    // 선택된 칸이 흰 판이 되어 화면에서 가장 밝은 요소가 됐습니다.
+                    // 칩 선택은 VFDesign 이 앰버를 허용한 자리입니다.
                     Text(item.rawValue)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(selectedCrowd == item ? AppColors.background : AppColors.primary)
+                        .vfText(.callout)
+                        .foregroundStyle(selectedCrowd == item ? AppColors.onAccent : AppColors.primary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 38)
+                        .frame(height: AppLayout.touchTarget)
                         .background(
-                            selectedCrowd == item ? AppColors.primary : AppColors.mutedSurface,
-                            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            selectedCrowd == item ? AppColors.accent : AppColors.mutedSurface,
+                            in: Capsule()
                         )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(selectedCrowd == item ? AppColors.primary : AppColors.divider, lineWidth: 1)
-                        )
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("혼잡도 \(item.rawValue)")
+                .accessibilityValue(selectedCrowd == item ? "선택됨" : "")
             }
         }
+        .animation(VFMotion.quick, value: selectedCrowd)
     }
 }
 
@@ -1761,18 +1790,15 @@ struct FlexibleTagGrid: View {
                     }
                 } label: {
                     Text(tag)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(selectedTags.contains(tag) ? AppColors.background : AppColors.primary)
+                        .vfText(.caption)
+                        .foregroundStyle(selectedTags.contains(tag) ? AppColors.onAccent : AppColors.primary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 34)
+                        .frame(height: 38)
                         .background(
-                            selectedTags.contains(tag) ? AppColors.primary : AppColors.mutedSurface,
-                            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            selectedTags.contains(tag) ? AppColors.accent : AppColors.mutedSurface,
+                            in: Capsule()
                         )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(selectedTags.contains(tag) ? AppColors.primary : AppColors.divider, lineWidth: 1)
-                        )
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
@@ -1815,11 +1841,7 @@ struct CustomTagInputSection: View {
             }
             .padding(.horizontal, 13)
             .frame(height: 48)
-            .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(AppColors.divider, lineWidth: 1)
-            }
+            .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
 
             if tags.isEmpty {
                 Text("입력한 태그는 검색 키워드로 사용됩니다. 예: 야경 검색 시 #야경 장소가 노출돼요.")
@@ -1838,15 +1860,12 @@ struct CustomTagInputSection: View {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 9, weight: .bold))
                             }
-                            .font(.system(size: 12, weight: .semibold))
+                            .vfText(.caption)
                             .foregroundStyle(AppColors.primary)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 34)
-                            .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(AppColors.divider, lineWidth: 1)
-                            }
+                            .frame(height: 38)
+                            .background(AppColors.mutedSurface, in: Capsule())
+                            .contentShape(Capsule())
                         }
                         .buttonStyle(.plain)
                     }
