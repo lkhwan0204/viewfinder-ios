@@ -21,7 +21,7 @@ enum MapCategoryFilter: String, CaseIterable, Identifiable {
         case .night:
             return "야경"
         case .cafe:
-            return "감성카페"
+            return "카페"
         case .walk:
             return "산책"
         case .film:
@@ -30,6 +30,22 @@ enum MapCategoryFilter: String, CaseIterable, Identifiable {
             return "숨은 명소"
         }
     }
+
+    /// 지도 상단 칩에 실제로 노출하는 카테고리.
+    ///
+    /// 7개를 모두 칩으로 깔면 화면 가로를 검은 띠가 가로지르고,
+    /// 마지막 칩이 저장 버튼에 붙어 잘립니다.
+    /// 5개로 줄이면 스크롤 없이 한 줄에 들어옵니다.
+    ///
+    /// 빼는 기준은 "칩이 약속한 결과를 지킬 수 있는가" 입니다.
+    ///  - `hidden`("숨은 명소")은 crowdLevelCode == "low" 라는 시드 값에 의존합니다.
+    ///    그 필드는 근거가 없어서 이미 상세/홈에서 노출을 중단하고
+    ///    "현장 정보 없음"으로 바꾼 데이터입니다.
+    ///    같은 값을 필터의 기준으로 쓰는 것은 앞뒤가 맞지 않습니다.
+    ///  - `film`("필름감성")은 해시태그 키워드 스캔이라 결과가 들쭉날쭉합니다.
+    ///
+    /// 두 case 는 enum 에 남겨둡니다. SavedMapListFilter 가 판정 로직을 위임하고 있습니다.
+    static let mapDisplayed: [MapCategoryFilter] = [.all, .sunset, .night, .cafe, .walk]
 
     var symbolName: String {
         switch self {
@@ -128,64 +144,101 @@ enum MapCategoryFilter: String, CaseIterable, Identifiable {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 지도 크롬 표면
+//
+//  [문제였던 상황]
+//  지도 위 컨트롤에 .ultraThinMaterial(유리)을 썼습니다.
+//  홈/상세는 검정 캔버스 위라서 유리가 잘 보였지만,
+//  지도는 밝고 복잡합니다. 지하철 노선(빨강/초록/보라), POI 라벨,
+//  도로가 유리 뒤에서 그대로 비쳐서 칩 글자가 배경에 묻혔습니다.
+//  → 사용자 피드백: "시인성이 너무 안좋아"
+//
+//  [원칙]
+//  지도 위에서는 유리를 쓰지 않습니다.
+//  뒤에 무엇이 오든 대비가 고정되는 불투명 검정 + 흰 글자를 씁니다.
+//  지도는 앱 모드와 무관하게 항상 밝으므로,
+//  라이트/다크 분기 없이 한 가지 규칙만 유지합니다.
+//
+//  선택 상태만 브랜드 앰버로 칠하고, 그 위 글자는 onAccent(거의 검정)입니다.
+// ═══════════════════════════════════════════════════════════════════
+
+enum MapChrome {
+    static let surface = Color.black.opacity(0.74)
+    static let hairline = Color.white.opacity(0.16)
+    static let ink = Color.white
+    static let inkDim = Color.white.opacity(0.64)
+    static let controlHeight: CGFloat = 38
+    static let circleSize: CGFloat = 44
+}
+
+extension View {
+    /// 지도 위에 놓이는 모든 컨트롤의 공통 표면.
+    func mapChromeSurface<S: Shape>(_ shape: S, isActive: Bool = false) -> some View {
+        self
+            .background(isActive ? AppColors.accent : MapChrome.surface, in: shape)
+            .overlay(
+                shape.stroke(isActive ? Color.clear : MapChrome.hairline, lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.24), radius: 8, y: 2)
+    }
+}
+
+/// 카테고리 필터 칩.
+///
+/// 아이콘을 뺐습니다. 7개 카테고리에 각각 아이콘을 붙이니
+/// 칩 폭이 넓어져 한 화면에 3개밖에 안 들어왔고,
+/// 12pt bold 글자 옆 아이콘이 시각적 소음만 늘렸습니다.
+/// 글자만 남기면 같은 폭에 5개가 들어오고 훨씬 읽기 쉽습니다.
 struct MapFilterPill: View {
     let title: String
-    let symbolName: String
     let isSelected: Bool
-    var isLoading = false
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
-        let label = Label {
-            Text(title)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-        } icon: {
-            if isLoading {
-                ProgressView()
-                    .controlSize(.mini)
-                    .tint(isSelected ? AppColors.onAccent : AppColors.secondaryText)
-            } else {
-                Image(systemName: symbolName)
-                    .font(.system(size: 12, weight: .bold))
-            }
-        }
-        .font(.system(size: 12, weight: .bold))
-        .padding(.horizontal, 10)
-        .frame(minHeight: AppLayout.touchTarget)
+        Text(title)
+            .font(.system(size: 13, weight: .semibold))
+            .lineLimit(1)
+            .fixedSize()
+            .foregroundStyle(isSelected ? AppColors.onAccent : MapChrome.ink)
+            .padding(.horizontal, 13)
+            .frame(height: MapChrome.controlHeight)
+            .mapChromeSurface(Capsule(), isActive: isSelected)
+            // 칩 자체는 38pt 지만 위아래 3pt 를 더해 44pt 터치 타겟을 만듭니다.
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+            .animation(.easeInOut(duration: 0.16), value: isSelected)
+    }
+}
 
-        // Phase 1 수정
-        // 기존에는 선택 상태의 tint 가 AppColors.primary 였습니다.
-        // 다크 모드에서 primary 는 흰색이므로 "흰 글자 + 흰 유리" 가 되어
-        // 선택된 칩의 글자가 보이지 않는 문제가 있었습니다.
-        // 선택 상태는 브랜드 앰버로, 글자는 대비가 확보되는 onAccent 로 바꿉니다.
-        Group {
-            if #available(iOS 26.0, *) {
-                label
-                    .foregroundStyle(isSelected ? AppColors.onAccent : AppColors.primary)
-                    .glassEffect(
-                        .regular
-                            .tint(isSelected ? AppColors.accent.opacity(0.85) : .clear)
-                            .interactive(),
-                        in: Capsule()
-                    )
-            } else {
-                if reduceTransparency {
-                    label
-                        .foregroundStyle(isSelected ? AppColors.onAccent : AppColors.primary)
-                        .background(isSelected ? AppColors.accent : AppColors.cardBackground, in: Capsule())
-                } else {
-                    label
-                        .foregroundStyle(isSelected ? AppColors.onAccent : AppColors.primary)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .overlay(
-                            Capsule()
-                                .fill(isSelected ? AppColors.accent.opacity(0.92) : .clear)
-                        )
-                }
-            }
-        }
-        .contentShape(Capsule())
-        .animation(.easeInOut(duration: 0.16), value: isSelected)
+/// 지도 위 원형 아이콘 버튼. (저장 목록, 내 위치)
+struct MapCircleButton: View {
+    let symbolName: String
+    var isActive = false
+
+    var body: some View {
+        Image(systemName: symbolName)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(isActive ? AppColors.onAccent : MapChrome.ink)
+            .frame(width: MapChrome.circleSize, height: MapChrome.circleSize)
+            .mapChromeSurface(Circle(), isActive: isActive)
+            .contentShape(Circle())
+            .animation(.easeInOut(duration: 0.16), value: isActive)
+    }
+}
+
+/// 지도 상태 한 줄. 핀이 몇 개인지 / 왜 비었는지 알려줍니다.
+struct MapStatusPill: View {
+    let text: String
+
+    var body: some View {
+        // 칩 줄 바로 아래에 또 검은 캡슐이 오므로,
+        // 한 단계 작게 만들어 칩보다 아래 계층으로 읽히게 합니다.
+        Text(text)
+            .font(.system(size: 11.5, weight: .semibold))
+            .foregroundStyle(MapChrome.ink)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .mapChromeSurface(Capsule())
     }
 }

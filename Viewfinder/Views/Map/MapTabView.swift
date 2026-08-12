@@ -103,6 +103,39 @@ struct MapTabView: View {
     let onSelectSavedCategory: (SavedMapListFilter) -> Void
     let onSelectSavedSpot: (PhotoSpot) -> Void
 
+    // 사용자가 실제로 고른 핀. 앱 전역 selectedSpot 과 다릅니다.
+    //
+    // [문제였던 상황]
+    // 하단 프리뷰 카드가 전역 selectedSpot 을 그대로 보여줬습니다.
+    // selectedSpot 은 홈에서 마지막으로 본 장소이기도 하므로,
+    // 지도 탭에 처음 들어와 아무것도 누르지 않았는데도
+    // "용산공원" 카드가 떠 있었습니다. 그 장소는 이 지도의 핀 목록에도
+    // 없어서 카드를 눌러도 지도와 아무 관계가 없었고, 사진조차 없어서
+    // 조리개 플레이스홀더만 보였습니다.
+    //
+    // 이제 카드는 이 지도에 실제로 핀이 찍혀 있는 장소만,
+    // 그리고 사용자가 그 핀을 눌렀을 때만 나타납니다.
+    @State private var focusedSpotID: String?
+
+    private var previewSpot: PhotoSpot? {
+        guard let focusedSpotID else { return nil }
+        return spots.first { $0.id == focusedSpotID }
+    }
+
+    private var statusText: String? {
+        if isRecommendationLoading {
+            return "주변 출사지 찾는 중"
+        }
+        if let emptyRecommendationMessage {
+            return emptyRecommendationMessage
+        }
+        guard !spots.isEmpty else { return nil }
+        if isMapSavedFilterEnabled {
+            return "저장한 출사지 \(spots.count)곳"
+        }
+        return "이 지역 출사지 \(spots.count)곳"
+    }
+
     var body: some View {
         ZStack {
             KoreaMapBackdropView(
@@ -112,54 +145,48 @@ struct MapTabView: View {
                 focusUserLocationRevision: focusUserLocationRevision,
                 userCoordinate: userCoordinate,
                 savedSpotIDs: savedSpotIDs,
-                onSelectSpot: onSelectSpot,
+                onSelectSpot: { spot in
+                    focusedSpotID = spot.id
+                    onSelectSpot(spot)
+                },
                 onShowDetail: onShowDetail
             )
             .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 mapControls
+
+                if let statusText {
+                    MapStatusPill(text: statusText)
+                }
 
                 Spacer(minLength: 0)
 
-                if !spots.isEmpty {
+                if let previewSpot {
                     Button {
-                        onShowDetail(selectedSpot)
+                        onShowDetail(previewSpot)
                     } label: {
                         MapSelectedSpotPreview(
-                            spot: selectedSpot,
-                            isSaved: savedSpotIDs.contains(selectedSpot.id)
+                            spot: previewSpot,
+                            isSaved: savedSpotIDs.contains(previewSpot.id)
                         )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(selectedSpot.name) 상세 보기")
+                    .accessibilityLabel("\(previewSpot.name) 상세 보기")
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.top, 12)
-            .padding(.bottom, 94)
+            .padding(.top, 8)
+            .padding(.bottom, 96)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-            if let emptyRecommendationMessage {
-                VStack {
-                    Spacer()
-
-                    Text(emptyRecommendationMessage)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(AppColors.primary)
-                        .padding(.horizontal, 14)
-                        .frame(height: 42)
-                        .background(AppColors.cardBackground, in: Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(AppColors.divider, lineWidth: 1)
-                        )
-                        .padding(.bottom, 178)
-                }
-                .frame(maxWidth: .infinity)
-                .transition(.opacity)
-            }
-
+            .animation(VFMotion.quick, value: previewSpot?.id)
+        }
+        .onChange(of: selectedSpotRevision) { _, newValue in
+            // 홈 상세에서 "지도에서 보기" 로 들어온 경우엔
+            // 사용자가 명시적으로 그 장소를 지목한 것이므로 카드를 띄웁니다.
+            guard newValue > 0, spots.contains(where: { $0.id == selectedSpot.id }) else { return }
+            focusedSpotID = selectedSpot.id
         }
         .sheet(isPresented: $isSavedListPresented) {
             NavigationStack {
@@ -188,66 +215,69 @@ struct MapTabView: View {
         }
     }
 
-    @ViewBuilder
+    // ═══════════════════════════════════════════════════════════════
+    //  지도 상단 컨트롤
+    //
+    //  [문제였던 상황]
+    //  칩이 두 줄이었고 컨트롤이 9개였습니다.
+    //   1행: [내 주변] [저장]
+    //   2행: [전체] [노을] [야경] [감성카페] [산책] [필름감성] [숨은 명소]
+    //  그중 "내 주변" 과 "전체" 가 동시에 앰버로 칠해져서
+    //  무엇이 선택된 상태인지 읽히지 않았습니다. 서로 다른 축(모드 / 필터)인데
+    //  같은 모양의 칩으로 나란히 있어서 관계도 알 수 없었습니다.
+    //
+    //  [바꾼 것]
+    //  1. "저장" 은 필터가 아니라 목록을 여는 이동입니다.
+    //     칩에서 빼서 우측 상단 원형 버튼으로 분리했습니다.
+    //  2. "내 주변" 은 이 지도의 기본 상태입니다.
+    //     기본값을 칩으로 보여줄 필요가 없어 제거하고,
+    //     저장 버튼을 다시 누르면 내 주변으로 돌아오는 토글로 만들었습니다.
+    //  3. 그래서 칩은 카테고리 한 줄만 남았습니다. 9개 → 8개, 2줄 → 1줄.
+    //  4. 저장 모드에서는 카테고리 필터가 적용되지 않으므로 줄 자체를 숨깁니다.
+    //     (저장 목록 시트가 자기 카테고리 탭을 따로 갖고 있습니다.)
+    // ═══════════════════════════════════════════════════════════════
     private var mapControls: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: 8) {
-                mapControlsContent
-            }
-        } else {
-            mapControlsContent
-        }
-    }
-
-    private var mapControlsContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Button(action: onToggleRecommendations) {
-                    MapFilterPill(
-                        title: isRecommendationLoading ? "내 주변 로딩" : "내 주변",
-                        symbolName: "sparkles",
-                        isSelected: shouldShowNearbyMapPins,
-                        isLoading: isRecommendationLoading
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    if !isMapSavedFilterEnabled {
-                        onToggleSavedFilter()
-                    }
-                    isSavedListPresented = true
-                } label: {
-                    MapFilterPill(
-                        title: "저장",
-                        symbolName: isMapSavedFilterEnabled ? "bookmark.fill" : "bookmark",
-                        isSelected: isMapSavedFilterEnabled
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 7) {
-                    ForEach(MapCategoryFilter.allCases) { filter in
-                        Button {
-                            onSelectCategory(filter)
-                        } label: {
-                            MapFilterPill(
-                                title: filter.title,
-                                symbolName: filter.symbolName,
-                                isSelected: filter == mapCategoryFilter
-                            )
+        HStack(alignment: .top, spacing: 10) {
+            if isMapSavedFilterEnabled {
+                Spacer(minLength: 0)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(MapCategoryFilter.mapDisplayed) { filter in
+                            Button {
+                                onSelectCategory(filter)
+                            } label: {
+                                MapFilterPill(
+                                    title: filter.title,
+                                    isSelected: filter == mapCategoryFilter
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(filter.title) 카테고리")
+                            .accessibilityValue(filter == mapCategoryFilter ? "선택됨" : "")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(filter.title) 카테고리")
-                        .accessibilityValue(filter == mapCategoryFilter ? "선택됨" : "")
                     }
+                    .padding(.trailing, 6)
                 }
-                .padding(.trailing, 8)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                if isMapSavedFilterEnabled {
+                    onToggleRecommendations()
+                } else {
+                    onToggleSavedFilter()
+                    isSavedListPresented = true
+                }
+            } label: {
+                MapCircleButton(
+                    symbolName: isMapSavedFilterEnabled ? "bookmark.fill" : "bookmark",
+                    isActive: isMapSavedFilterEnabled
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isMapSavedFilterEnabled ? "저장 목록 끄기" : "저장한 출사지 보기")
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -257,115 +287,47 @@ private struct MapSelectedSpotPreview: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            PhotoSpotImageView(spot: spot, symbolSize: 24)
-                .frame(width: 84, height: 84)
-                .clipShape(RoundedRectangle(cornerRadius: AppLayout.mediaCornerRadius, style: .continuous))
+            PhotoSpotImageView(spot: spot, symbolSize: 22)
+                .frame(width: 76, height: 76)
+                .clipShape(RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(spot.name)
-                        .font(AppTypography.cardTitle)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(MapChrome.ink)
                         .lineLimit(1)
 
                     if isSaved {
                         Image(systemName: "bookmark.fill")
-                            .font(.caption.weight(.semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(AppColors.accent)
                             .accessibilityHidden(true)
                     }
                 }
 
                 Text(HomeSpotDisplayFormatter.region(for: spot))
-                    .font(AppTypography.metadata)
-                    .foregroundStyle(AppColors.secondaryText)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(MapChrome.inkDim)
                     .lineLimit(1)
 
-                Label(HomeSpotDisplayFormatter.bestTime(spot.bestTime), systemImage: "camera.aperture")
-                    .font(AppTypography.caption)
-                    .foregroundStyle(AppColors.secondaryText)
+                Text(HomeSpotDisplayFormatter.bestTime(spot.bestTime))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(MapChrome.inkDim)
                     .lineLimit(1)
             }
 
             Spacer(minLength: 4)
 
             Image(systemName: "chevron.right")
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(AppColors.secondaryText)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(MapChrome.inkDim)
                 .accessibilityHidden(true)
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: AppLayout.cardCornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppLayout.cardCornerRadius, style: .continuous)
-                .stroke(AppColors.divider.opacity(0.86), lineWidth: AppLayout.borderWidth)
-        }
-        .shadow(color: .black.opacity(0.08), radius: 12, y: 5)
-    }
-}
-
-private enum SavedMapSheetLevel {
-    case collapsed
-    case expanded
-}
-
-private struct SavedMapBottomSheetHost: View {
-    @Binding var isPresented: Bool
-    @Binding var selectedFilter: SavedMapListFilter
-    let savedSpots: [PhotoSpot]
-    let userCoordinate: CLLocationCoordinate2D?
-    let onSelectFilter: (SavedMapListFilter) -> Void
-    let onSelectSpot: (PhotoSpot) -> Void
-    @State private var level: SavedMapSheetLevel = .collapsed
-    @GestureState private var dragOffset: CGFloat = 0
-
-    var body: some View {
-        GeometryReader { proxy in
-            let collapsedHeight = max(292, proxy.size.height * 0.36)
-            let expandedHeight = max(collapsedHeight, proxy.size.height * 0.68)
-            let sheetHeight = level == .expanded ? expandedHeight : collapsedHeight
-
-            VStack {
-                Spacer(minLength: 0)
-
-                SavedMapBottomSheetView(
-                    selectedFilter: $selectedFilter,
-                    savedSpots: savedSpots,
-                    userCoordinate: userCoordinate,
-                    onSelectFilter: onSelectFilter,
-                    onSelectSpot: onSelectSpot
-                )
-                .frame(height: sheetHeight)
-                .offset(y: max(0, dragOffset))
-                .gesture(sheetDragGesture)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.interactiveSpring(response: 0.32, dampingFraction: 0.88), value: level)
-            .animation(.interactiveSpring(response: 0.32, dampingFraction: 0.88), value: isPresented)
-        }
-        .onChange(of: isPresented) { _, newValue in
-            if newValue {
-                level = .collapsed
-            }
-        }
-    }
-
-    private var sheetDragGesture: some Gesture {
-        DragGesture(minimumDistance: 8)
-            .updating($dragOffset) { value, state, _ in
-                state = max(0, value.translation.height)
-            }
-            .onEnded { value in
-                if value.translation.height < -46 {
-                    level = .expanded
-                } else if value.translation.height > 82 {
-                    if level == .expanded {
-                        level = .collapsed
-                    } else {
-                        isPresented = false
-                    }
-                }
-            }
+        // 유리를 쓰지 않습니다. 밝은 지도 위에서 흰 글자가 묻히기 때문입니다.
+        .mapChromeSurface(RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous))
     }
 }
 

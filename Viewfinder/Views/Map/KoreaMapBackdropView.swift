@@ -73,8 +73,12 @@ private struct NaverMapRepresentable: UIViewRepresentable {
         let naverMapView = NMFNaverMapView(frame: .zero)
         naverMapView.showLocationButton = false
         naverMapView.showZoomControls = false
+        naverMapView.showCompass = false
+        // 축척 바("1km")는 출사지를 찾는 데 쓰이지 않는데
+        // 우하단에서 내 위치 버튼, 네이버 로고와 겹쳐 보였습니다.
+        naverMapView.showScaleBar = false
         naverMapView.mapView.logoAlign = .rightBottom
-        naverMapView.mapView.logoMargin = UIEdgeInsets(top: 0, left: 0, bottom: 92, right: 14)
+        naverMapView.mapView.logoMargin = UIEdgeInsets(top: 0, left: 0, bottom: 6, right: 14)
         context.coordinator.configure(naverMapView)
         context.coordinator.syncMarkers(spots: spots, savedSpotIDs: savedSpotIDs, on: naverMapView.mapView)
         if let userCoordinate {
@@ -132,8 +136,11 @@ private struct NaverMapRepresentable: UIViewRepresentable {
         }
 
         func configure(_ naverMapView: NMFNaverMapView) {
-            naverMapView.mapView.contentInset = UIEdgeInsets(top: 86, left: 0, bottom: 220, right: 0)
-            ViewfinderMapStyle.applyDark(to: naverMapView.mapView)
+            // 상단: 카테고리 칩 한 줄 + 상태 pill.  하단: 탭바 + 내 위치 버튼.
+            // (이전 bottom 220 은 항상 떠 있던 큰 프리뷰 카드를 위한 값이었습니다.
+            //  카드가 선택 시에만 나타나도록 바뀌어 그만큼 필요하지 않습니다.
+            //  이 값이 네이버 로고를 화면 중앙까지 밀어 올리고 있었습니다.)
+            naverMapView.mapView.contentInset = UIEdgeInsets(top: 92, left: 0, bottom: 100, right: 0)
         }
 
         func syncMarkers(spots: [PhotoSpot], savedSpotIDs: Set<String>, on mapView: NMFMapView) {
@@ -251,10 +258,6 @@ struct NaverSpotPreviewMap: UIViewRepresentable {
         naverMapView.mapView.isScrollGestureEnabled = false
         naverMapView.mapView.isRotateGestureEnabled = false
         naverMapView.mapView.isTiltGestureEnabled = false
-
-        // 지도 탭과 같은 스타일을 씁니다.
-        // 상세 화면의 위치 미리보기만 밝은 지도면 앱 안에서 재료가 어긋납니다.
-        ViewfinderMapStyle.applyDark(to: naverMapView.mapView)
         naverMapView.mapView.logoAlign = .rightBottom
         naverMapView.mapView.logoMargin = UIEdgeInsets(top: 0, left: 0, bottom: 10, right: 10)
         context.coordinator.render(spot: spot, on: naverMapView.mapView, animated: false)
@@ -309,15 +312,14 @@ private struct LocateMeButton: View {
 
     var body: some View {
         Button(action: action) {
+            // 저장 버튼과 같은 표면·같은 크기를 씁니다.
+            // 지도 위 컨트롤이 서로 다른 재료로 보이지 않게 하기 위한 것입니다.
             Image(systemName: "location.fill")
-                .font(.system(size: 17, weight: .bold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(AppColors.accent)
-                .frame(width: 46, height: 46)
-                .background(AppColors.cardBackground, in: Circle())
-                .overlay(
-                    Circle()
-                        .stroke(AppColors.divider, lineWidth: 1)
-                )
+                .frame(width: MapChrome.circleSize, height: MapChrome.circleSize)
+                .mapChromeSurface(Circle())
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("내 위치로 이동")
@@ -490,34 +492,16 @@ private enum ViewfinderMapMarkerIcon {
 // ═══════════════════════════════════════════════════════════════════
 // MARK: - 지도 스타일
 //
-//  지도를 앱의 다크 캔버스에 맞추고, 우리 콘텐츠를 주인공으로 만듭니다.
+//  Phase 4A 에서 지도를 앱의 다크 캔버스에 맞추려고
+//  ViewfinderMapStyle.applyDark(lightness / symbolScale / setLayerGroup)
+//  를 넣었지만 실기에서 효과가 나타나지 않았고,
+//  사용자 판단으로 지도는 네이버 기본 외관을 그대로 쓰기로 했습니다.
 //
-//  이전에는 밝고 컬러풀한 기본 지도라서
-//   1. 지도 탭에 들어가면 앱이 갑자기 다른 앱처럼 보였습니다.
-//      앱 전체가 무채색 + 오렌지인데 지도만 초록/파랑/노랑이었습니다.
-//   2. 네이버 기본 POI("스타필드", "이케아")가 우리 핀보다 눈에 띄었습니다.
-//      사진 출사지 앱에서 상업 시설 라벨이 콘텐츠를 이기면 안 됩니다.
-//
-//  ⚠️ 이 파일에서 네이버 SDK 프로퍼티에 의존하는 유일한 곳입니다.
-//     빌드 에러가 나면 해당 줄만 주석 처리하면 됩니다.
-//     지도 스타일만 원래대로 돌아가고 나머지 기능은 그대로 동작합니다.
+//  검증되지 않은 SDK 프로퍼티 3개를 코드에 남겨둘 이유가 없어 제거했습니다.
+//  지도 위 컨트롤의 대비는 지도를 어둡게 만드는 방식이 아니라,
+//  컨트롤 자체를 불투명 검정으로 만드는 방식으로 확보합니다.
+//  (MapCategoryFilter.swift 의 MapChrome 참고)
 // ═══════════════════════════════════════════════════════════════════
-
-enum ViewfinderMapStyle {
-    static func applyDark(to mapView: NMFMapView) {
-        // 지도 전체를 어둡게. -1(가장 어둡게) ~ 1(가장 밝게)
-        mapView.lightness = -0.45
-
-        // POI 심볼/라벨 크기를 줄여 우리 핀보다 약하게 만듭니다.
-        mapView.symbolScale = 0.62
-
-        // 출사와 무관한 레이어를 끕니다.
-        mapView.setLayerGroup(NMF_LAYER_GROUP_TRANSIT, isEnabled: false)
-        mapView.setLayerGroup(NMF_LAYER_GROUP_BICYCLE, isEnabled: false)
-        mapView.setLayerGroup(NMF_LAYER_GROUP_TRAFFIC, isEnabled: false)
-        mapView.setLayerGroup(NMF_LAYER_GROUP_CADASTRAL, isEnabled: false)
-    }
-}
 
 // ═══════════════════════════════════════════════════════════════════
 // MARK: - 사진 핀
