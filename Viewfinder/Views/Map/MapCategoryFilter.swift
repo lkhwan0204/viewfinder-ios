@@ -233,11 +233,20 @@ struct MapFilterPill: View {
 struct MapCircleButton: View {
     let symbolName: String
     var isActive = false
+    /// 아이콘 색을 따로 지정할 때. (내 위치 버튼은 앰버 화살표)
+    /// 이 뷰가 내부에서 foregroundStyle 을 정하므로
+    /// 바깥에서 .foregroundStyle 을 걸어도 덮어쓰지 못합니다.
+    var tint: Color?
+
+    private var iconColor: Color {
+        if let tint { return tint }
+        return isActive ? AppColors.onAccent : MapChrome.ink
+    }
 
     var body: some View {
         Image(systemName: symbolName)
             .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(isActive ? AppColors.onAccent : MapChrome.ink)
+            .foregroundStyle(iconColor)
             .frame(width: MapChrome.circleSize, height: MapChrome.circleSize)
             .mapChromeSurface(Circle(), isActive: isActive)
             .contentShape(Circle())

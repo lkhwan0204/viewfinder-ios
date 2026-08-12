@@ -113,6 +113,8 @@ struct MapTabView: View {
     let searchableSpots: [PhotoSpot]
     /// 검색 결과를 골랐을 때. ContentView.openMap 으로 연결됩니다.
     let onSelectSearchResult: (PhotoSpot) -> Void
+    /// 내 위치로 카메라 이동.
+    let onFocusUserLocation: () -> Void
 
     // 사용자가 실제로 고른 핀. 앱 전역 selectedSpot 과 다릅니다.
     //
@@ -314,6 +316,35 @@ struct MapTabView: View {
 
                 Spacer(minLength: 0)
 
+                // ═══════════════════════════════════════════════════
+                //  하단 컨트롤을 한 스택으로 모았습니다.
+                //
+                //  [문제였던 상황]
+                //  내 위치 버튼은 KoreaMapBackdropView 안에서
+                //  .ignoresSafeArea() 된 좌표계에 bottom 104 로 있었고,
+                //  카드는 safe area 를 지키는 이 VStack 에 bottom 92 로
+                //  있었습니다. safe area 하단에는 탭바 높이까지 포함되므로
+                //  카드는 실제로 화면 아래에서 약 190pt 에 놓였습니다.
+                //  두 컨트롤이 서로 다른 좌표계라 높이가 어긋났고,
+                //  카드 아래에 지도가 100pt 넘게 비어 보였습니다.
+                //
+                //  지금은 내 위치 버튼이 카드 바로 위에 쌓입니다.
+                //  같은 좌우 여백(16), 같은 컨테이너.
+                // ═══════════════════════════════════════════════════
+                if !isSearching {
+                    HStack {
+                        Spacer(minLength: 0)
+
+                        Button(action: onFocusUserLocation) {
+                            MapCircleButton(symbolName: "location.fill", tint: AppColors.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("내 위치로 이동")
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.bottom, 2)
+                }
+
                 if let previewSpot {
                     Button {
                         onShowDetail(previewSpot)
@@ -361,7 +392,10 @@ struct MapTabView: View {
             }
             .padding(.horizontal, 12)
             .padding(.top, 8)
-            .padding(.bottom, 92)
+            // safe area 하단에는 탭바 높이가 이미 포함되어 있습니다.
+            // 여기에 92 를 더하면 카드가 탭바에서 190pt 나 떨어져
+            // 화면 중간에 떠 있게 됩니다. 탭바와의 간격만 남깁니다.
+            .padding(.bottom, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             // 카드가 "있다/없다" 에만 애니메이션을 씁니다.
             // 전에는 previewSpot?.id 를 기준으로 삼아서, 핀에서 다른 핀으로

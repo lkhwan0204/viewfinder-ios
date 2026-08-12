@@ -17,6 +17,17 @@ struct KoreaMapBackdropView: View {
     @StateObject private var locationPermission = LocationPermissionRequester()
 
     var body: some View {
+        // 내 위치 버튼은 여기 있지 않습니다.
+        //
+        // [문제였던 상황]
+        // 이 파일의 ZStack 안에서 .padding(.bottom, 104) 로 띄우고 있었는데,
+        // 이 뷰 전체가 MapTabView 에서 .ignoresSafeArea() 로 감싸져 있습니다.
+        // 반면 하단 카드는 safe area 를 지키는 컨테이너에 있었습니다.
+        // 두 컨트롤이 서로 다른 좌표계에 놓여서 높이가 어긋났고,
+        // 카드와 버튼 사이에 지도가 100pt 넘게 비어 보였습니다.
+        //
+        // 지금은 검색바·칩·내 위치·카드가 모두 MapTabView 의 한 VStack 안에
+        // 있습니다. 같은 좌표계, 같은 좌우 여백을 씁니다.
         ZStack {
             NaverMapRepresentable(
                 spots: spots,
@@ -43,21 +54,6 @@ struct KoreaMapBackdropView: View {
                 onDeselect: onDeselect
             )
             .ignoresSafeArea()
-
-            VStack {
-                Spacer()
-
-                HStack {
-                    Spacer()
-
-                    LocateMeButton {
-                        locationPermission.requestWhenInUse()
-                        locationPermission.focusRevision += 1
-                    }
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 104)
-                }
-            }
         }
         .onAppear {
             locationPermission.requestWhenInUse()
@@ -417,25 +413,6 @@ struct NaverSpotPreviewMap: UIViewRepresentable {
             }
             mapView.moveCamera(update)
         }
-    }
-}
-
-private struct LocateMeButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            // 저장 버튼과 같은 표면·같은 크기를 씁니다.
-            // 지도 위 컨트롤이 서로 다른 재료로 보이지 않게 하기 위한 것입니다.
-            Image(systemName: "location.fill")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(AppColors.accent)
-                .frame(width: MapChrome.circleSize, height: MapChrome.circleSize)
-                .mapChromeSurface(Circle())
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("내 위치로 이동")
     }
 }
 

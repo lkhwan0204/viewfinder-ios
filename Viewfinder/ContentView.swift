@@ -632,7 +632,8 @@ struct ContentView: View {
             searchableSpots: selectableSpots,
             // 검색 결과 선택은 상세의 "지도에서 보기" 와 같은 경로입니다.
             // 그 장소를 지도에 명시적으로 올리고 카메라를 옮깁니다.
-            onSelectSearchResult: openMap
+            onSelectSearchResult: openMap,
+            onFocusUserLocation: focusUserLocationOnMap
         )
         .onAppear {
             guard selectedTab == .map, mapState.shouldFocusUserOnSelection else { return }
@@ -976,6 +977,14 @@ struct ContentView: View {
         }
 
         selectedTab = .map
+    }
+
+    /// 지도의 내 위치 버튼.
+    /// 추천 모드로 되돌리지 않습니다. 저장 목록을 보다가 눌러도
+    /// 목록이 초기화되지 않고 카메라만 움직여야 합니다.
+    private func focusUserLocationOnMap() {
+        locationReader.requestLocation()
+        mapState.userLocationFocusRevision += 1
     }
 
     private func showCurrentLocationOnMap() {
