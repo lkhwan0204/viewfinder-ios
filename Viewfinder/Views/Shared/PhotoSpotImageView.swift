@@ -104,7 +104,10 @@ struct MissingSpotPhotoPrompt: View {
     }
 }
 
-private extension URL {
+// private 에서 internal 로 올렸습니다.
+// 지도 사진 핀에서도 같은 축소 규칙을 써야 하는데, 로직을 복사하면
+// 두 곳이 어긋날 수 있습니다.
+extension URL {
     func wikimediaPreviewURL(width: Int) -> URL? {
         guard host == "upload.wikimedia.org",
               path.contains("/wikipedia/commons/") else {

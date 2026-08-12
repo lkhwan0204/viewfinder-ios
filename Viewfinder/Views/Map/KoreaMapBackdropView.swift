@@ -133,6 +133,7 @@ private struct NaverMapRepresentable: UIViewRepresentable {
 
         func configure(_ naverMapView: NMFNaverMapView) {
             naverMapView.mapView.contentInset = UIEdgeInsets(top: 86, left: 0, bottom: 220, right: 0)
+            ViewfinderMapStyle.applyDark(to: naverMapView.mapView)
         }
 
         func syncMarkers(spots: [PhotoSpot], savedSpotIDs: Set<String>, on mapView: NMFMapView) {
@@ -173,16 +174,34 @@ private struct NaverMapRepresentable: UIViewRepresentable {
             marker.captionHaloColor = AppColors.uiCardBackground.withAlphaComponent(0.96)
             marker.captionAligns = [NMFAlignType.bottom]
             marker.captionOffset = 5
-            marker.iconImage = isSaved ? ViewfinderMapMarkerIcon.saved : ViewfinderMapMarkerIcon.normal
             marker.iconTintColor = .clear
-            marker.width = 38
-            marker.height = 50
             marker.anchor = CGPoint(x: 0.5, y: 1.0)
             marker.isHideCollidedSymbols = false
             marker.isHideCollidedMarkers = false
             marker.isHideCollidedCaptions = false
             marker.isForceShowIcon = true
             marker.isForceShowCaption = true
+
+            // 사진 핀이 준비되어 있으면 그것을, 아니면 물방울 핀을 먼저 씁니다.
+            // 사진은 비동기로 준비되고, 도착하면 해당 마커만 교체합니다.
+            if let photoOverlay = MapPinPhotoStore.shared.cachedOverlay(for: spot, isSaved: isSaved) {
+                apply(photoOverlay: photoOverlay, to: marker)
+            } else {
+                marker.iconImage = isSaved ? ViewfinderMapMarkerIcon.saved : ViewfinderMapMarkerIcon.normal
+                marker.width = 38
+                marker.height = 50
+
+                MapPinPhotoStore.shared.loadOverlay(for: spot, isSaved: isSaved) { [weak self] overlay in
+                    guard let self, let target = self.markers[spot.id] else { return }
+                    self.apply(photoOverlay: overlay, to: target)
+                }
+            }
+        }
+
+        private func apply(photoOverlay: NMFOverlayImage, to marker: NMFMarker) {
+            marker.iconImage = photoOverlay
+            marker.width = ViewfinderMapPhotoPin.size.width
+            marker.height = ViewfinderMapPhotoPin.size.height
         }
 
         func focus(on spot: PhotoSpot, mapView: NMFMapView, animated: Bool) {
@@ -232,6 +251,10 @@ struct NaverSpotPreviewMap: UIViewRepresentable {
         naverMapView.mapView.isScrollGestureEnabled = false
         naverMapView.mapView.isRotateGestureEnabled = false
         naverMapView.mapView.isTiltGestureEnabled = false
+
+        // 지도 탭과 같은 스타일을 씁니다.
+        // 상세 화면의 위치 미리보기만 밝은 지도면 앱 안에서 재료가 어긋납니다.
+        ViewfinderMapStyle.applyDark(to: naverMapView.mapView)
         naverMapView.mapView.logoAlign = .rightBottom
         naverMapView.mapView.logoMargin = UIEdgeInsets(top: 0, left: 0, bottom: 10, right: 10)
         context.coordinator.render(spot: spot, on: naverMapView.mapView, animated: false)
@@ -460,5 +483,221 @@ private enum ViewfinderMapMarkerIcon {
         }
 
         return NMFOverlayImage(image: image, reuseIdentifier: reuseIdentifier)
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 지도 스타일
+//
+//  지도를 앱의 다크 캔버스에 맞추고, 우리 콘텐츠를 주인공으로 만듭니다.
+//
+//  이전에는 밝고 컬러풀한 기본 지도라서
+//   1. 지도 탭에 들어가면 앱이 갑자기 다른 앱처럼 보였습니다.
+//      앱 전체가 무채색 + 오렌지인데 지도만 초록/파랑/노랑이었습니다.
+//   2. 네이버 기본 POI("스타필드", "이케아")가 우리 핀보다 눈에 띄었습니다.
+//      사진 출사지 앱에서 상업 시설 라벨이 콘텐츠를 이기면 안 됩니다.
+//
+//  ⚠️ 이 파일에서 네이버 SDK 프로퍼티에 의존하는 유일한 곳입니다.
+//     빌드 에러가 나면 해당 줄만 주석 처리하면 됩니다.
+//     지도 스타일만 원래대로 돌아가고 나머지 기능은 그대로 동작합니다.
+// ═══════════════════════════════════════════════════════════════════
+
+enum ViewfinderMapStyle {
+    static func applyDark(to mapView: NMFMapView) {
+        // 지도 전체를 어둡게. -1(가장 어둡게) ~ 1(가장 밝게)
+        mapView.lightness = -0.45
+
+        // POI 심볼/라벨 크기를 줄여 우리 핀보다 약하게 만듭니다.
+        mapView.symbolScale = 0.62
+
+        // 출사와 무관한 레이어를 끕니다.
+        mapView.setLayerGroup(NMF_LAYER_GROUP_TRANSIT, isEnabled: false)
+        mapView.setLayerGroup(NMF_LAYER_GROUP_BICYCLE, isEnabled: false)
+        mapView.setLayerGroup(NMF_LAYER_GROUP_TRAFFIC, isEnabled: false)
+        mapView.setLayerGroup(NMF_LAYER_GROUP_CADASTRAL, isEnabled: false)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 사진 핀
+//
+//  [문제였던 상황]
+//  사진 출사지 앱인데 지도에 사진이 한 장도 없었습니다.
+//  검정 물방울 핀만 떠 있어서, 지도만 보면 무슨 앱인지 알 수 없었습니다.
+//  게다가 네이버 기본 POI("스타필드", "이케아")가 우리 핀보다 시각적으로
+//  강해서, 우리 콘텐츠가 배경으로 밀려 있었습니다.
+//
+//  [변경]
+//  핀 안에 그 장소의 사진을 넣습니다.
+//  "문래창작촌" 이라는 텍스트보다 그 골목 사진 한 장이
+//  "여기 갈까?" 판단에 압도적으로 유용합니다.
+//  기능적으로도 우월하고, 사진 앱이라는 정체성을 지도에서도 유지합니다.
+//
+//  사진이 없거나 아직 로딩 중인 장소는 기존 물방울 핀으로 폴백합니다.
+// ═══════════════════════════════════════════════════════════════════
+
+final class MapPinPhotoStore {
+    static let shared = MapPinPhotoStore()
+
+    private var overlays: [String: NMFOverlayImage] = [:]
+    private var inFlight: Set<String> = []
+
+    private init() {}
+
+    private func cacheKey(spotID: String, isSaved: Bool) -> String {
+        "vf-photo-pin-\(spotID)-\(isSaved ? "saved" : "normal")"
+    }
+
+    /// 이미 만들어둔 핀이 있으면 즉시 반환합니다. (메인 스레드에서만 호출)
+    func cachedOverlay(for spot: PhotoSpot, isSaved: Bool) -> NMFOverlayImage? {
+        overlays[cacheKey(spotID: spot.id, isSaved: isSaved)]
+    }
+
+    /// 사진 핀을 준비합니다. 완료 콜백은 메인 스레드에서 호출됩니다.
+    /// 사진을 구할 수 없으면 콜백이 호출되지 않고, 호출부는 물방울 핀을 유지합니다.
+    func loadOverlay(
+        for spot: PhotoSpot,
+        isSaved: Bool,
+        completion: @escaping (NMFOverlayImage) -> Void
+    ) {
+        let key = cacheKey(spotID: spot.id, isSaved: isSaved)
+
+        if let existing = overlays[key] {
+            completion(existing)
+            return
+        }
+
+        guard !inFlight.contains(key) else { return }
+        inFlight.insert(key)
+
+        // 1) 번들 애셋이 있으면 네트워크를 타지 않습니다.
+        if let imageName = spot.imageName, let asset = UIImage(named: imageName) {
+            render(key: key, source: asset, isSaved: isSaved, completion: completion)
+            return
+        }
+
+        // 2) 원격 이미지. 핀은 48pt 짜리라 아주 작게 받습니다.
+        guard let imageURL = spot.imageURL else {
+            inFlight.remove(key)
+            return
+        }
+
+        let requestURL = imageURL.wikimediaPreviewURL(width: 240) ?? imageURL
+
+        URLSession.shared.dataTask(with: requestURL) { [weak self] data, _, _ in
+            guard let self else { return }
+
+            guard let data, let image = UIImage(data: data) else {
+                DispatchQueue.main.async { self.inFlight.remove(key) }
+                return
+            }
+
+            self.render(key: key, source: image, isSaved: isSaved, completion: completion)
+        }
+        .resume()
+    }
+
+    private func render(
+        key: String,
+        source: UIImage,
+        isSaved: Bool,
+        completion: @escaping (NMFOverlayImage) -> Void
+    ) {
+        // 그리기는 백그라운드에서 해도 안전하지만,
+        // NMFOverlayImage 생성과 캐시 갱신은 메인에서 합니다.
+        let rendered = ViewfinderMapPhotoPin.image(from: source, isSaved: isSaved)
+
+        DispatchQueue.main.async {
+            let overlay = NMFOverlayImage(image: rendered, reuseIdentifier: key)
+            self.overlays[key] = overlay
+            self.inFlight.remove(key)
+            completion(overlay)
+        }
+    }
+}
+
+enum ViewfinderMapPhotoPin {
+    /// 핀 전체 크기. 사진 48 + 꼬리 + 여백.
+    static let size = CGSize(width: 54, height: 64)
+
+    private static let photoInset: CGFloat = 3
+    private static let photoSide: CGFloat = 48
+    private static let cornerRadius: CGFloat = 12
+
+    static func image(from source: UIImage, isSaved: Bool) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: size)
+
+        return renderer.image { context in
+            let cgContext = context.cgContext
+
+            let photoRect = CGRect(
+                x: photoInset,
+                y: photoInset,
+                width: photoSide,
+                height: photoSide
+            )
+
+            let ringColor: UIColor = isSaved ? AppColors.uiAccent : .white
+            let ringWidth: CGFloat = isSaved ? 2.6 : 2.0
+
+            // 꼬리. 사진 아래 중앙에서 아래로 뾰족하게.
+            let tailPath = UIBezierPath()
+            tailPath.move(to: CGPoint(x: size.width / 2 - 6, y: photoRect.maxY - 2))
+            tailPath.addLine(to: CGPoint(x: size.width / 2, y: size.height - photoInset))
+            tailPath.addLine(to: CGPoint(x: size.width / 2 + 6, y: photoRect.maxY - 2))
+            tailPath.close()
+
+            cgContext.saveGState()
+            cgContext.setShadow(
+                offset: CGSize(width: 0, height: 2),
+                blur: 6,
+                color: UIColor.black.withAlphaComponent(0.35).cgColor
+            )
+            ringColor.setFill()
+            tailPath.fill()
+            cgContext.restoreGState()
+
+            // 사진. 링 아래에 그림자를 한 번 더 둬서 어떤 지도 색에서도 떠 보이게.
+            cgContext.saveGState()
+            cgContext.setShadow(
+                offset: CGSize(width: 0, height: 2),
+                blur: 6,
+                color: UIColor.black.withAlphaComponent(0.35).cgColor
+            )
+            ringColor.setFill()
+            UIBezierPath(roundedRect: photoRect, cornerRadius: cornerRadius).fill()
+            cgContext.restoreGState()
+
+            // 사진을 링 안쪽에 aspect fill 로 클리핑해서 그립니다.
+            let innerRect = photoRect.insetBy(dx: ringWidth, dy: ringWidth)
+            let clipPath = UIBezierPath(
+                roundedRect: innerRect,
+                cornerRadius: cornerRadius - ringWidth
+            )
+
+            cgContext.saveGState()
+            clipPath.addClip()
+            draw(source, filling: innerRect)
+            cgContext.restoreGState()
+        }
+    }
+
+    /// aspect fill: 잘리더라도 빈 공간이 생기지 않게 채웁니다.
+    private static func draw(_ image: UIImage, filling rect: CGRect) {
+        guard image.size.width > 0, image.size.height > 0 else { return }
+
+        let scale = max(rect.width / image.size.width, rect.height / image.size.height)
+        let scaledSize = CGSize(
+            width: image.size.width * scale,
+            height: image.size.height * scale
+        )
+
+        let origin = CGPoint(
+            x: rect.midX - scaledSize.width / 2,
+            y: rect.midY - scaledSize.height / 2
+        )
+
+        image.draw(in: CGRect(origin: origin, size: scaledSize))
     }
 }
