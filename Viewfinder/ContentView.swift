@@ -23,17 +23,16 @@ struct ContentView: View {
                 //
                 // 한동안 라벨을 완전히 비워봤지만 되살렸습니다.
                 // 중앙 + 는 학습된 패턴이지만, 그 패턴이 통하는 앱들(TikTok, Instagram)의
-                // + 는 "사진 올리기" 라서 추측이 쉽습니다. 이 앱의 기여는
-                // "현장 정보 제보" 라서 훨씬 덜 자명하고, 게다가 이 버튼은
-                // 두 가지 다른 일(현장 정보 / 새 장소)을 합니다.
-                // 아이콘 하나로 전달할 수 있는 정보량이 아닙니다.
+                // + 는 "사진 올리기" 라서 추측이 쉽습니다.
+                // 이 앱의 기여는 "출사지 제보" 라서 훨씬 덜 자명합니다.
                 //
                 // 또 나머지 4개에는 라벨이 있는데 중앙만 없으면
                 // "특별하다" 가 아니라 "빠졌다" 로 읽힐 위험이 있습니다.
                 //
-                // 원래 문제는 4글자가 다른 라벨을 눌렀던 것이었습니다.
-                // 2글자면 그 문제가 없고, 오렌지 + 채워진 원형이라
-                // 여전히 동작으로 읽힙니다.
+                // 원래 문제는 라벨의 존재가 아니라 길이였습니다.
+                // 4글자가 다른 라벨을 눌러 타이포가 답답했습니다.
+                // 2글자면 그 문제가 없고, 오렌지 색 덕분에
+                // 여전히 목적지가 아니라 동작으로 읽힙니다.
                 return "제보"
             case .community:
                 return "커뮤니티"
@@ -64,8 +63,6 @@ struct ContentView: View {
     @State private var selectedSpotRevision = 0
     @State private var aiSpots: [PhotoSpot] = []
     @State private var detailPresentation: SpotDetailPresentation?
-    /// 중앙 액션 버튼을 눌렀을 때 뜨는 2택 시트.
-    @State private var isContributeChooserPresented = false
     @State private var isWeatherDetailPresented = false
     @State private var composerPurpose: CommunityComposerPurpose = .fieldReport
     @State private var submittedSpotsState: AsyncLoadState = .idle
@@ -173,21 +170,31 @@ struct ContentView: View {
                 playTabSelectionHaptic()
 
                 guard newTab != .add else {
-                    // 기여에는 두 종류가 있고 성격이 완전히 다릅니다.
-                    //   현장 정보  가볍고 잦음. 지금 그 자리에 있으면 됩니다.
-                    //   장소 제보  무겁고 드묾. 아직 없는 장소를 알아야 합니다.
-                    // 이전에는 중앙 버튼이 곧바로 "장소 추가" 로 갔습니다.
-                    // 앱을 살아있게 만드는 잦은 기여(현장 정보)가
-                    // 커뮤니티 화면 우상단 작은 아이콘에만 있었습니다.
-                    // 둘 중에 고르게 해서 잦은 기여를 앞에 둡니다.
+                    // 탭 바 중앙은 "새 출사지 제보" 전용입니다.
                     //
-                    // 로그인은 여기서 요구하지 않습니다.
-                    // 무엇을 할 수 있는지 먼저 보여주고, 고른 다음에 확인합니다.
+                    // 한동안 2택 시트(현장 정보 / 새 장소)를 띄웠지만 되돌렸습니다.
+                    // 두 동작의 전제 조건이 다르기 때문입니다.
+                    //
+                    //   현장 정보 공유  장소가 이미 있어야 하는 동작입니다.
+                    //                  탭 바는 앱 어디서든 누르는 버튼이라 장소 맥락이
+                    //                  없어서, 여기서 시작하면 "어느 장소요?" 를
+                    //                  먼저 골라야 하는 단계가 붙습니다.
+                    //                  정작 이 기능은 내가 그 장소에 있을 때 쓰는 것입니다.
+                    //   새 장소 제보    정의상 맥락이 없는 동작입니다.
+                    //                  전역 버튼이 정확한 자리입니다.
+                    //
+                    // 현장 정보가 묻혀 있다는 진단은 맞았지만 처방이 틀렸습니다.
+                    // 처방은 탭 바가 아니라 컨텍스트 노출입니다.
+                    //   현재: 장소 상세의 현장 정보 섹션 (SpotDetailCommunitySection.onWrite)
+                    //   추후: GPS 가 저장된 장소와 일치할 때 프롬프트,
+                    //         검색 결과 0건일 때 제보 유도
                     let returnTab = lastContentTab
                     selectedTab = .add
                     DispatchQueue.main.async {
                         selectedTab = returnTab
-                        isContributeChooserPresented = true
+                        performAuthenticatedAction { _ in
+                            presentComposer(.addSpot)
+                        }
                     }
                     return
                 }
@@ -241,28 +248,7 @@ struct ContentView: View {
                 .presentationDetents(presentation.source.detents)
                 .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $isContributeChooserPresented) {
-            ContributeChooserView(
-                onFieldReport: {
-                    isContributeChooserPresented = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
-                        performAuthenticatedAction { _ in
-                            presentComposer(.fieldReport)
-                        }
-                    }
-                },
-                onAddSpot: {
-                    isContributeChooserPresented = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
-                        performAuthenticatedAction { _ in
-                            presentComposer(.addSpot)
-                        }
-                    }
-                }
-            )
-            .presentationDetents([.height(300)])
-            .presentationDragIndicator(.visible)
-        }
+
         .sheet(isPresented: $communityViewModel.isComposerPresented) {
             CommunityComposerView(
                 spots: selectableSpots,
@@ -568,7 +554,7 @@ struct ContentView: View {
                 } icon: {
                     contributeTabIcon
                 }
-                .accessibilityHint("현장 정보 공유 또는 새 출사지 제보를 선택합니다")
+                .accessibilityHint("새 출사지를 제보합니다")
             } else {
                 Label {
                     Text(tab.title)
@@ -1023,107 +1009,4 @@ struct ContentView: View {
         }
     }
 
-}
-
-
-// ═══════════════════════════════════════════════════════════════════
-// MARK: - ContributeChooserView
-//
-//  탭 바 중앙 버튼을 눌렀을 때 뜨는 2택 시트.
-//
-//  이 앱은 사용자 제보로 굴러가는 앱이라 중앙 자리를 유지하는 것이 맞습니다.
-//  다만 기여에는 성격이 완전히 다른 두 종류가 있습니다.
-//
-//    현장 정보  가볍고 잦음. 지금 그 자리에 있으면 됩니다.
-//              "27분 전 서울숲 데이지 피었어요" 같은 정보가 앱을 살아있게 만듭니다.
-//    장소 제보  무겁고 드묾. 아직 없는 장소를 알아야 하고 검토도 필요합니다.
-//
-//  이전에는 중앙 버튼이 곧바로 "장소 추가" 로 갔고, 정작 잦은 기여인 현장 정보는
-//  커뮤니티 화면 우상단 작은 아이콘에만 있었습니다. 가치와 노출이 반대였습니다.
-//  그래서 잦은 기여를 위에 두고 고르게 합니다.
-// ═══════════════════════════════════════════════════════════════════
-
-private struct ContributeChooserView: View {
-    let onFieldReport: () -> Void
-    let onAddSpot: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: VFSpace.md) {
-            Text("무엇을 알려주실래요?")
-                .vfText(.title2)
-                .foregroundStyle(AppColors.primary)
-                .padding(.top, VFSpace.lg)
-                .padding(.bottom, VFSpace.xs)
-
-            ContributeChooserRow(
-                symbolName: "dot.radiowaves.left.and.right",
-                title: "현장 정보 공유",
-                subtitle: "지금 이 장소의 혼잡도와 상황을 알려주세요",
-                action: onFieldReport
-            )
-
-            ContributeChooserRow(
-                symbolName: "mappin.and.ellipse",
-                title: "새 출사지 제보",
-                subtitle: "아직 등록되지 않은 장소를 알려주세요",
-                action: onAddSpot
-            )
-        }
-        .vfScreenMargin()
-        .padding(.bottom, VFSpace.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        // 시트 배경을 surface1 로 올립니다.
-        //
-        // 이전에는 시트 배경이 순수 검정(#000)이고 행 카드가 #121214 라
-        // 한 단계 차이뿐이었습니다. 뒤 콘텐츠도 어두운 상태로 딤 처리되어
-        // 시트가 배경과 분리되지 않고 뭉개져 보였습니다.
-        // 시트 = surface1, 행 = surface2 로 두 단계를 확실히 벌립니다.
-        .background(AppColors.cardBackground)
-    }
-}
-
-private struct ContributeChooserRow: View {
-    let symbolName: String
-    let title: String
-    let subtitle: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: VFSpace.md) {
-                Image(systemName: symbolName)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(AppColors.accent)
-                    .frame(width: 42, height: 42)
-                    .background(
-                        AppColors.accentSoft,
-                        in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .vfText(.headline)
-                        .foregroundStyle(AppColors.primary)
-
-                    Text(subtitle)
-                        .vfText(.subhead)
-                        .foregroundStyle(AppColors.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: VFSpace.sm)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppColors.secondaryText)
-            }
-            .padding(VFSpace.md + 2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // 시트 배경(surface1)보다 한 단계 위(surface2)에 올려서
-            // 탭할 수 있는 행임이 드러나게 합니다.
-            .appCardSurface(elevated: true)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(title). \(subtitle)")
-    }
 }
