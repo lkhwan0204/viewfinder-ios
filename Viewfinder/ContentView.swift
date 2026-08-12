@@ -260,7 +260,7 @@ struct ContentView: View {
                     }
                 }
             )
-            .presentationDetents([.height(260)])
+            .presentationDetents([.height(300)])
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $communityViewModel.isComposerPresented) {
@@ -582,18 +582,27 @@ struct ContentView: View {
 
     /// 중앙 액션 버튼 아이콘.
     ///
-    /// 브랜드 오렌지로 미리 칠한 이미지를 alwaysOriginal 로 넘겨서
-    /// 선택 여부와 무관하게 항상 오렌지로 보이게 합니다.
-    /// (탭 바 아이콘은 기본적으로 tint 색으로 템플릿 렌더되기 때문입니다)
-    /// 실패해도 tint 색으로 그려질 뿐이라 기능 손실은 없습니다.
+    /// 한동안 plus.circle.fill(꽉 찬 원반)을 27pt 로 키워 썼는데 되돌렸습니다.
+    /// 나머지 4개는 얇은 선 아이콘인데 중앙만 꽉 찬 원반이라
+    /// 아이콘 패밀리가 깨지고 스티커를 붙인 것처럼 보였습니다.
+    /// 반투명 유리 pill 안에 불투명한 원이 들어가 재료도 싸웠습니다.
+    ///
+    /// 원래 에셋(다른 탭과 같은 선 스타일, 같은 크기)을 그대로 쓰고
+    /// 색만 브랜드 오렌지로 입힙니다.
+    /// 형태로는 패밀리에 속하고, 색으로만 "동작" 임을 구분합니다.
+    ///
+    /// withTintColor + alwaysOriginal 이라 선택 여부와 무관하게 오렌지를 유지합니다.
+    /// (탭 바 아이콘은 기본적으로 tint 색으로 템플릿 렌더됩니다)
     private var contributeTabIcon: Image {
-        let configuration = UIImage.SymbolConfiguration(pointSize: 27, weight: .semibold)
-
-        guard let symbol = UIImage(systemName: "plus.circle.fill", withConfiguration: configuration) else {
-            return Image(systemName: "plus.circle.fill")
+        guard let asset = UIImage(named: AppTab.add.assetName) else {
+            return Image(systemName: "plus")
         }
 
-        return Image(uiImage: symbol.withTintColor(AppColors.uiAccent, renderingMode: .alwaysOriginal))
+        let tinted = asset
+            .withRenderingMode(.alwaysTemplate)
+            .withTintColor(AppColors.uiAccent, renderingMode: .alwaysOriginal)
+
+        return Image(uiImage: tinted)
     }
 
     private var mapLayer: some View {
@@ -1043,7 +1052,8 @@ private struct ContributeChooserView: View {
             Text("무엇을 알려주실래요?")
                 .vfText(.title2)
                 .foregroundStyle(AppColors.primary)
-                .padding(.top, VFSpace.sm)
+                .padding(.top, VFSpace.lg)
+                .padding(.bottom, VFSpace.xs)
 
             ContributeChooserRow(
                 symbolName: "dot.radiowaves.left.and.right",
@@ -1061,8 +1071,14 @@ private struct ContributeChooserView: View {
         }
         .vfScreenMargin()
         .padding(.bottom, VFSpace.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColors.background)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // 시트 배경을 surface1 로 올립니다.
+        //
+        // 이전에는 시트 배경이 순수 검정(#000)이고 행 카드가 #121214 라
+        // 한 단계 차이뿐이었습니다. 뒤 콘텐츠도 어두운 상태로 딤 처리되어
+        // 시트가 배경과 분리되지 않고 뭉개져 보였습니다.
+        // 시트 = surface1, 행 = surface2 로 두 단계를 확실히 벌립니다.
+        .background(AppColors.cardBackground)
     }
 }
 
@@ -1103,7 +1119,9 @@ private struct ContributeChooserRow: View {
             }
             .padding(VFSpace.md + 2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .appCardSurface()
+            // 시트 배경(surface1)보다 한 단계 위(surface2)에 올려서
+            // 탭할 수 있는 행임이 드러나게 합니다.
+            .appCardSurface(elevated: true)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(title). \(subtitle)")
