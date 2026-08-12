@@ -109,6 +109,10 @@ struct MapTabView: View {
     let onSelectCategory: (MapCategoryFilter) -> Void
     let onSelectSavedCategory: (SavedMapListFilter) -> Void
     let onSelectSavedSpot: (PhotoSpot) -> Void
+    /// 검색 대상. 지도에 찍힌 핀이 아니라 앱이 아는 모든 장소입니다.
+    let searchableSpots: [PhotoSpot]
+    /// 검색 결과를 골랐을 때. ContentView.openMap 으로 연결됩니다.
+    let onSelectSearchResult: (PhotoSpot) -> Void
 
     // 사용자가 실제로 고른 핀. 앱 전역 selectedSpot 과 다릅니다.
     //
@@ -124,6 +128,7 @@ struct MapTabView: View {
     // 그리고 사용자가 그 핀을 눌렀을 때만 나타납니다.
     @State private var focusedSpotID: String?
     @State private var cardDragY: CGFloat = 0
+    @State private var isSearchPresented = false
 
     private var previewSpot: PhotoSpot? {
         guard let focusedSpotID else { return nil }
@@ -177,11 +182,36 @@ struct MapTabView: View {
             .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 8) {
-                mapControls
+                // ═══════════════════════════════════════════════════
+                //  상단은 컨트롤, 하단은 지금 상황.
+                //
+                //  상태 pill 을 아래로 내렸습니다.
+                //  검색바를 넣으면 상단이 검색 + 칩 + 상태 3줄이 되는데,
+                //  상단 복잡함은 이미 한 번 지적받은 문제입니다.
+                //  상태 pill 은 조작하는 것이 아니라 읽는 것이므로
+                //  카드가 나타나는 자리(하단)가 제자리입니다.
+                //  선택하면 그 자리를 카드가 대신합니다.
+                // ═══════════════════════════════════════════════════
+                MapSearchBar { isSearchPresented = true }
+                    // 저장 목록 시트가 이미 ZStack 에 붙어 있습니다.
+                    // 같은 뷰에 .sheet 를 두 개 달면 한쪽이 무시될 수 있어
+                    // 검색 시트는 검색바에 직접 붙입니다.
+                    .sheet(isPresented: $isSearchPresented) {
+                        MapSearchSheet(
+                            spots: searchableSpots,
+                            userCoordinate: userCoordinate,
+                            onSelect: { spot in
+                                isSearchPresented = false
+                                // 시트가 닫히는 동안 카메라를 움직이면
+                                // 두 애니메이션이 겹쳐 어색합니다.
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                    onSelectSearchResult(spot)
+                                }
+                            }
+                        )
+                    }
 
-                if let statusText {
-                    MapStatusPill(text: statusText, hint: statusHint)
-                }
+                mapControls
 
                 Spacer(minLength: 0)
 
@@ -224,6 +254,10 @@ struct MapTabView: View {
                                 }
                             }
                     )
+                } else if let statusText {
+                    MapStatusPill(text: statusText, hint: statusHint)
+                        .padding(.horizontal, 4)
+                        .transition(.opacity)
                 }
             }
             .padding(.horizontal, 12)
@@ -597,5 +631,260 @@ private struct SavedMapSpotListCard: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(AppColors.divider, lineWidth: 1)
         )
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 지도 검색
+//
+//  [문제였던 상황]
+//  지도에 검색이 없었습니다.
+//  "성수동 가려는데 출사지 뭐 있지?" 를 지도에서 할 방법이 없어서,
+//  홈으로 나가 검색하고 상세로 들어가 "지도에서 보기" 를 눌러야 했습니다.
+//  지도야말로 장소를 찾는 화면인데 진입점이 칩과 핀뿐이었습니다.
+//
+//  [홈 검색을 재사용하지 않은 이유]
+//  HomeSearchResultsView 는 검색 뷰모델·AI 추천·커뮤니티 글까지
+//  묶여 있습니다. 지도에서 필요한 것은 "장소를 찾아 그리로 이동" 하나입니다.
+//  네트워크도 AI 도 필요하지 않고, 앱이 이미 아는 장소만 훑으면 됩니다.
+//  기능을 덜 넣는 쪽이 지도의 목적에 맞습니다.
+// ═══════════════════════════════════════════════════════════════════
+
+struct MapSearchBar: View {
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .semibold))
+
+                Text("장소 · 지역 검색")
+                    .font(.system(size: 14, weight: .medium))
+
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(MapChrome.ink)
+            .padding(.horizontal, 14)
+            .frame(height: 44)
+            // 밝은 지도 위이므로 유리를 쓰지 않습니다. 칩과 같은 표면입니다.
+            .mapChromeSurface(Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("장소 또는 지역 검색")
+    }
+}
+
+struct MapSearchSheet: View {
+    let spots: [PhotoSpot]
+    let userCoordinate: CLLocationCoordinate2D?
+    let onSelect: (PhotoSpot) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+    @FocusState private var isFocused: Bool
+
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// 이름 · 지역 · 지도 질의 · 추천 지역만 봅니다.
+    ///
+    /// summary(설명문)와 hashtags 는 일부러 뺐습니다.
+    /// 넣으면 "한강" 으로 검색했을 때 설명에 한강이 언급된 카페가
+    /// 한강공원보다 위에 올 수 있습니다.
+    /// 장소를 찾는 검색에서는 무엇에 매칭됐는지가 예측 가능해야 합니다.
+    private var results: [PhotoSpot] {
+        guard !trimmedQuery.isEmpty else { return [] }
+
+        let matched = spots.filter { spot in
+            let fields = [spot.name, spot.region, spot.mapQuery] + spot.recommendationRegions
+            return fields.contains { $0.localizedCaseInsensitiveContains(trimmedQuery) }
+        }
+
+        guard let userCoordinate else {
+            return matched.sorted { $0.name < $1.name }
+        }
+
+        return matched.sorted {
+            VFSpotDistance.meters(from: userCoordinate, to: $0)
+                < VFSpotDistance.meters(from: userCoordinate, to: $1)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                searchField
+
+                if trimmedQuery.isEmpty {
+                    hintState
+                } else if results.isEmpty {
+                    emptyState
+                } else {
+                    resultList
+                }
+            }
+            .background(AppColors.background)
+            .navigationTitle("장소 찾기")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("닫기") { dismiss() }
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AppColors.accent)
+                }
+            }
+        }
+        .onAppear {
+            // 검색 시트를 열었다는 것은 이미 검색할 의사가 있다는 뜻입니다.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                isFocused = true
+            }
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppColors.secondaryText)
+
+            TextField("성수, 한강, 남산…", text: $query)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(AppColors.primary)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($isFocused)
+
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                    isFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(AppColors.secondaryText)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("검색어 지우기")
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 46)
+        .background(AppColors.mutedSurface, in: Capsule())
+        .padding(.horizontal, VFSpace.screenMargin)
+        .padding(.top, VFSpace.sm)
+        .padding(.bottom, VFSpace.md)
+    }
+
+    private var resultList: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(results) { spot in
+                    Button {
+                        onSelect(spot)
+                    } label: {
+                        MapSearchResultRow(spot: spot, userCoordinate: userCoordinate)
+                    }
+                    .buttonStyle(.plain)
+
+                    if spot.id != results.last?.id {
+                        Divider()
+                            .overlay(AppColors.divider)
+                            .padding(.leading, VFSpace.screenMargin + 62)
+                    }
+                }
+            }
+            .padding(.bottom, VFSpace.xl)
+        }
+    }
+
+    private var hintState: some View {
+        VStack(spacing: VFSpace.sm) {
+            Spacer()
+
+            Text("지역이나 장소 이름으로 찾아보세요")
+                .vfText(.callout)
+                .foregroundStyle(AppColors.secondaryText)
+
+            Text("\(spots.count)곳을 검색합니다")
+                .vfText(.caption)
+                .foregroundStyle(AppColors.secondaryText.opacity(0.7))
+
+            Spacer()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: VFSpace.sm) {
+            Spacer()
+
+            Text("‘\(trimmedQuery)’ 결과가 없어요")
+                .vfText(.headline)
+                .foregroundStyle(AppColors.primary)
+
+            // 여기서 제보를 권하는 것이 맞습니다.
+            // 검색해서 없다는 것은 그 장소를 아는 사람이 지금 화면 앞에
+              // 있다는 뜻입니다. 다만 탭바 중앙 "새 장소" 로 가는 안내만
+            // 하고, 이 시트에서 제보 폼을 바로 띄우지는 않습니다.
+            // 검색 흐름 위에 등록 흐름을 겹치면 되돌아올 자리가 없어집니다.
+            Text("알고 계신 곳이라면 탭바의 ＋ 새 장소로 알려주세요")
+                .vfText(.subhead)
+                .foregroundStyle(AppColors.secondaryText)
+                .multilineTextAlignment(.center)
+
+            Spacer()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, VFSpace.screenMargin)
+    }
+}
+
+private struct MapSearchResultRow: View {
+    let spot: PhotoSpot
+    let userCoordinate: CLLocationCoordinate2D?
+
+    var body: some View {
+        HStack(spacing: 12) {
+            PhotoSpotImageView(spot: spot, symbolSize: 18)
+                .frame(width: 50, height: 50)
+                .clipShape(RoundedRectangle(cornerRadius: VFRadius.tile, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(spot.name)
+                    .vfText(.headline)
+                    .foregroundStyle(AppColors.primary)
+                    .lineLimit(1)
+
+                HStack(spacing: 5) {
+                    Text(HomeSpotDisplayFormatter.region(for: spot))
+                        .lineLimit(1)
+
+                    if let distance = VFSpotDistance.text(from: userCoordinate, to: spot) {
+                        Text("·")
+                        Text(distance)
+                    }
+                }
+                .vfText(.caption)
+                .foregroundStyle(AppColors.secondaryText)
+            }
+
+            Spacer(minLength: 4)
+
+            Image(systemName: "arrow.turn.down.right")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(AppColors.secondaryText)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, VFSpace.screenMargin)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
     }
 }

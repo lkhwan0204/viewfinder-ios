@@ -628,7 +628,11 @@ struct ContentView: View {
             onToggleSavedFilter: toggleSavedMapFilter,
             onSelectCategory: selectMapCategory,
             onSelectSavedCategory: selectSavedMapListFilter,
-            onSelectSavedSpot: focusSavedSpotFromList
+            onSelectSavedSpot: focusSavedSpotFromList,
+            searchableSpots: selectableSpots,
+            // 검색 결과 선택은 상세의 "지도에서 보기" 와 같은 경로입니다.
+            // 그 장소를 지도에 명시적으로 올리고 카메라를 옮깁니다.
+            onSelectSearchResult: openMap
         )
         .onAppear {
             guard selectedTab == .map, mapState.shouldFocusUserOnSelection else { return }
