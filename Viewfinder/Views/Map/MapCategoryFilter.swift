@@ -6,6 +6,7 @@ enum MapCategoryFilter: String, CaseIterable, Identifiable {
     case sunset
     case night
     case cafe
+    case park
     case walk
     case film
     case hidden
@@ -22,6 +23,8 @@ enum MapCategoryFilter: String, CaseIterable, Identifiable {
             return "야경"
         case .cafe:
             return "카페"
+        case .park:
+            return "공원"
         case .walk:
             return "산책"
         case .film:
@@ -45,7 +48,7 @@ enum MapCategoryFilter: String, CaseIterable, Identifiable {
     ///  - `film`("필름감성")은 해시태그 키워드 스캔이라 결과가 들쭉날쭉합니다.
     ///
     /// 두 case 는 enum 에 남겨둡니다. SavedMapListFilter 가 판정 로직을 위임하고 있습니다.
-    static let mapDisplayed: [MapCategoryFilter] = [.all, .sunset, .night, .cafe, .walk]
+    static let mapDisplayed: [MapCategoryFilter] = [.all, .cafe, .park, .walk, .sunset, .night]
 
     var symbolName: String {
         switch self {
@@ -57,6 +60,8 @@ enum MapCategoryFilter: String, CaseIterable, Identifiable {
             return "moon.stars.fill"
         case .cafe:
             return "cup.and.saucer.fill"
+        case .park:
+            return "tree.fill"
         case .walk:
             return "figure.walk"
         case .film:
@@ -82,8 +87,19 @@ enum MapCategoryFilter: String, CaseIterable, Identifiable {
                 || containsAny(spot.hashtags, keywords: ["야경", "night", "밤", "한강야경", "도심야경"])
         case .cafe:
             return CafeRecommendationPolicy.isIndependentCafeCandidate(spot)
+        case .park:
+            // 시드 데이터의 큐레이션된 category 필드를 그대로 씁니다.
+            // 키워드 추측이 아니라 등록 시 정해진 값입니다.
+            return normalized(spot.category) == "park"
         case .walk:
-            return ["park", "walk", "trail"].contains(normalized(spot.category))
+            // park 를 뺐습니다.
+            //
+            // [문제였던 상황]
+            // "산책" 하나가 park + walk + trail 을 전부 삼켜서
+            // 131곳 중 66곳(50%)을 반환했습니다.
+            // 절반을 반환하는 필터는 좁혀주는 일을 하지 않습니다.
+            // 그리고 공원 35곳이 "산책" 안에 숨어 필터로 꺼낼 수 없었습니다.
+            return ["walk", "trail"].contains(normalized(spot.category))
         case .film:
             let strongFilmSignals = ["필름", "레트로", "빈티지", "골목감성", "오래된거리", "로컬감성", "철도출사", "서울철도", "필름무드"]
             return !isGenericAlleyCandidate(spot)

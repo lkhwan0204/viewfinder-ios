@@ -5,6 +5,7 @@ enum SavedMapListFilter: String, CaseIterable, Identifiable {
     case all
     case sunset
     case cafe
+    case park
     case film
     case night
     case walk
@@ -20,6 +21,8 @@ enum SavedMapListFilter: String, CaseIterable, Identifiable {
             return "노을"
         case .cafe:
             return "카페"
+        case .park:
+            return "공원"
         case .film:
             return "필름감성"
         case .night:
@@ -39,6 +42,8 @@ enum SavedMapListFilter: String, CaseIterable, Identifiable {
             return "노을 명소"
         case .cafe:
             return "감성 카페"
+        case .park:
+            return "공원 출사"
         case .film:
             return "필름 감성 스팟"
         case .night:
@@ -58,6 +63,8 @@ enum SavedMapListFilter: String, CaseIterable, Identifiable {
             return MapCategoryFilter.sunset.matches(spot)
         case .cafe:
             return MapCategoryFilter.cafe.matches(spot)
+        case .park:
+            return MapCategoryFilter.park.matches(spot)
         case .film:
             return MapCategoryFilter.film.matches(spot)
         case .night:
