@@ -854,32 +854,63 @@ struct CommunityAttachedPhotoView: View {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  [버그였던 코드]
+    //      Image(uiImage:).resizable().scaledToFill()
+    //          .frame(maxWidth: .infinity)
+    //          .aspectRatio(3/2, contentMode: .fill)   <- 여기
+    //          .clipped()
+    //
+    //  scaledToFill() 이 이미 aspectRatio(contentMode: .fill) 입니다.
+    //  그 위에 또 .fill 비율을 걸면 이미지가 부모 경계를 무시하고
+    //  스스로 커집니다. .clipped() 는 이미 커진 프레임을 자르므로
+    //  아무 소용이 없었습니다.
+    //  결과적으로 사진이 시트 전체 배경으로 퍼졌습니다.
+    //
+    //  [올바른 패턴 — VFPhotoTile 과 동일]
+    //  투명한 상자로 비율을 먼저 확정하고, 사진이 그 상자를 채우게 합니다.
+    //  비율을 가진 쪽은 Color.clear 이고 contentMode 는 .fit 입니다.
+    // ═══════════════════════════════════════════════════════════════
     private func photo(_ image: UIImage) -> some View {
-        Image(uiImage: image)
-            .resizable()
-            .scaledToFill()
-            .frame(maxWidth: maxWidth ?? .infinity)
-            .modifier(CommunityPhotoSizing(height: height, aspectRatio: aspectRatio))
-            .clipped()
+        sizedBox
             .overlay {
-                if showsScrim {
-                    VFScrim(edge: .bottom, strength: 1.0)
-                }
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
             }
+            .clipped()
+            // VFScrim 을 직접 overlay 하면 사진 전체에 그라디언트가 깔려
+            // 위쪽까지 어두워집니다. 전용 모디파이어는 아래 55% 에만
+            // 깔아서 사진을 살립니다. VFPhotoTile 과 같은 값입니다.
+            .modifier(CommunityPhotoScrim(isEnabled: showsScrim))
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
+    /// 사진이 채울 자리를 먼저 만듭니다.
+    ///
+    /// 높이와 비율 중 하나만 씁니다. 둘을 같이 걸면 어느 쪽이 이기는지
+    /// 예측할 수 없습니다. maxWidth 는 고정 높이 경로에서만 씁니다.
+    /// (유일한 사용처가 상세 화면의 92x178 인라인 카드입니다.)
+    @ViewBuilder
+    private var sizedBox: some View {
+        if let height {
+            Color.clear
+                .frame(maxWidth: maxWidth ?? .infinity)
+                .frame(height: height)
+        } else {
+            Color.clear
+                .aspectRatio(aspectRatio ?? VFPhoto.carouselAspect, contentMode: .fit)
+        }
     }
 }
 
-/// 고정 높이와 비율 중 하나만 적용합니다.
-private struct CommunityPhotoSizing: ViewModifier {
-    let height: CGFloat?
-    let aspectRatio: CGFloat?
+/// showsScrim 이 켜졌을 때만 사진 아래 55% 에 scrim 을 깝니다.
+private struct CommunityPhotoScrim: ViewModifier {
+    let isEnabled: Bool
 
     func body(content: Content) -> some View {
-        if let aspectRatio {
-            content.aspectRatio(aspectRatio, contentMode: .fill)
-        } else if let height {
-            content.frame(height: height)
+        if isEnabled {
+            content.vfPhotoScrim()
         } else {
             content
         }
@@ -1256,20 +1287,22 @@ struct CommunityComposerView: View {
                     // iOS 어디에서도 쓰지 않는 표현입니다.
                     // 빈 영역도 사진이 들어갈 3:2 자리를 그대로 차지해서,
                     // 사진을 넣었을 때 레이아웃이 흔들리지 않습니다.
-                    VStack(spacing: VFSpace.sm) {
-                        Image(systemName: "photo.badge.plus")
-                            .font(.system(size: 26, weight: .regular))
+                    // 여기도 비율은 도형이 갖고 내용은 overlay 로 올립니다.
+                    // 내용에 .frame(maxWidth:) + .aspectRatio 를 같이 걸면
+                    // 사진 뷰에서 났던 것과 같은 크기 폭주가 생길 수 있습니다.
+                    RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
+                        .fill(AppColors.mutedSurface)
+                        .aspectRatio(VFPhoto.carouselAspect, contentMode: .fit)
+                        .overlay {
+                            VStack(spacing: VFSpace.sm) {
+                                Image(systemName: "photo.badge.plus")
+                                    .font(.system(size: 26, weight: .regular))
 
-                        Text("사진 선택")
-                            .vfText(.callout)
-                    }
-                    .foregroundStyle(AppColors.secondaryText)
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(VFPhoto.carouselAspect, contentMode: .fit)
-                    .background(
-                        AppColors.mutedSurface,
-                        in: RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
-                    )
+                                Text("사진 선택")
+                                    .vfText(.callout)
+                            }
+                            .foregroundStyle(AppColors.secondaryText)
+                        }
                 }
             }
 
