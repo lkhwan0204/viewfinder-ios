@@ -133,7 +133,11 @@ struct MapTabView: View {
         if isMapSavedFilterEnabled {
             return "저장한 출사지 \(spots.count)곳"
         }
-        return "이 지역 출사지 \(spots.count)곳"
+        // "이 지역" 이라고 말하지 않습니다.
+        // 핀은 지도에 보이는 영역이 아니라 "내 위치" 기준으로 계산됩니다.
+        // 지도를 부산으로 끌어도 핀은 서울 것 그대로입니다.
+        // 영역 기준 재검색을 넣기 전까지는 문구가 사실을 말해야 합니다.
+        return "내 주변 출사지 \(spots.count)곳"
     }
 
     var body: some View {
@@ -144,12 +148,12 @@ struct MapTabView: View {
                 selectedSpotRevision: selectedSpotRevision,
                 focusUserLocationRevision: focusUserLocationRevision,
                 userCoordinate: userCoordinate,
-                savedSpotIDs: savedSpotIDs,
+                selectedPinID: focusedSpotID,
                 onSelectSpot: { spot in
                     focusedSpotID = spot.id
                     onSelectSpot(spot)
                 },
-                onShowDetail: onShowDetail
+                onDeselect: { focusedSpotID = nil }
             )
             .ignoresSafeArea()
 
@@ -174,6 +178,15 @@ struct MapTabView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(previewSpot.name) 상세 보기")
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                    // 카드를 아래로 밀어 선택 해제.
+                    // minimumDistance 를 두면 탭은 버튼으로 그대로 전달됩니다.
+                    .gesture(
+                        DragGesture(minimumDistance: 14)
+                            .onEnded { value in
+                                guard value.translation.height > 40 else { return }
+                                focusedSpotID = nil
+                            }
+                    )
                 }
             }
             .padding(.horizontal, 12)
