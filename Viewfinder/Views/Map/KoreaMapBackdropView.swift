@@ -158,7 +158,17 @@ private struct NaverMapRepresentable: UIViewRepresentable {
             let update = NMFCameraUpdate(
                 scrollTo: NMGLatLng(lat: spot.latitude, lng: spot.longitude)
             )
-            update.pivot = CGPoint(x: 0.5, y: 0.36)
+            // pivot y 0.43 은 "카드에 가리지 않는 지도 영역의 중앙" 입니다.
+            //
+            // [계산]
+            // contentInset 이 top 92 / bottom 100 이므로 콘텐츠 영역은 92~752 (660).
+            // 카드 상단은 화면 아래에서 92+96 이므로 y=664.
+            // 즉 핀이 보일 수 있는 구간은 92~664, 그 중앙이 378.
+            // (378 - 92) / 660 = 0.43
+            //
+            // 전에는 0.36 이라 누른 핀은 화면 위쪽, 카드는 화면 맨 아래에 놓여
+            // 방금 누른 것과 그 정보가 화면 양 끝으로 갈렸습니다.
+            update.pivot = CGPoint(x: 0.5, y: 0.43)
             update.animation = .easeIn
             update.animationDuration = 0.28
             mapView.moveCamera(update)
@@ -287,7 +297,8 @@ private struct NaverMapRepresentable: UIViewRepresentable {
 
         func focus(on spot: PhotoSpot, mapView: NMFMapView, animated: Bool) {
             let update = NMFCameraUpdate(scrollTo: NMGLatLng(lat: spot.latitude, lng: spot.longitude), zoomTo: 14.5)
-            update.pivot = CGPoint(x: 0.5, y: 0.38)
+            // center(on:) 과 같은 값. 이 경로도 하단 카드를 함께 띄웁니다.
+            update.pivot = CGPoint(x: 0.5, y: 0.43)
 
             if animated {
                 update.animation = .easeIn

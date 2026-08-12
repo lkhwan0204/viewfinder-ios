@@ -116,6 +116,7 @@ struct MapTabView: View {
     // 이제 카드는 이 지도에 실제로 핀이 찍혀 있는 장소만,
     // 그리고 사용자가 그 핀을 눌렀을 때만 나타납니다.
     @State private var focusedSpotID: String?
+    @State private var cardDragY: CGFloat = 0
 
     private var previewSpot: PhotoSpot? {
         guard let focusedSpotID else { return nil }
@@ -177,23 +178,48 @@ struct MapTabView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(previewSpot.name) 상세 보기")
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    // 카드를 아래로 밀어 선택 해제.
-                    // minimumDistance 를 두면 탭은 버튼으로 그대로 전달됩니다.
+                    // 탭바와 좌우 여백을 맞춥니다. (칩은 12, 카드·탭바는 16)
+                    // 카드가 탭바보다 4pt 넓어서 두 요소가 어긋나 보였습니다.
+                    .padding(.horizontal, 4)
+                    // 슬라이드가 아니라 페이드로 나타납니다.
+                    //
+                    // [문제였던 상황]
+                    // .move(edge: .bottom) 이라 카드가 화면 밖에서 탭바를 통과해
+                    // 올라왔습니다. 카드를 눌러 상세 시트가 올라올 때는
+                    // 시트가 위로 올라오는 동시에 카드가 아래로 빠져
+                    // 두 움직임이 서로 반대 방향으로 부딪혔습니다.
+                    .transition(.opacity)
+                    .offset(y: cardDragY)
+                    // 아래로 밀어 선택 해제. 손가락을 따라 움직이게 해서
+                    // 정해진 애니메이션이 재생되는 느낌을 없앱니다.
                     .gesture(
-                        DragGesture(minimumDistance: 14)
+                        DragGesture(minimumDistance: 12)
+                            .onChanged { value in
+                                cardDragY = max(0, value.translation.height * 0.7)
+                            }
                             .onEnded { value in
-                                guard value.translation.height > 40 else { return }
-                                focusedSpotID = nil
+                                if value.translation.height > 44 {
+                                    focusedSpotID = nil
+                                    cardDragY = 0
+                                } else {
+                                    withAnimation(VFMotion.quick) { cardDragY = 0 }
+                                }
                             }
                     )
                 }
             }
             .padding(.horizontal, 12)
             .padding(.top, 8)
-            .padding(.bottom, 96)
+            .padding(.bottom, 92)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .animation(VFMotion.quick, value: previewSpot?.id)
+            // 카드가 "있다/없다" 에만 애니메이션을 씁니다.
+            // 전에는 previewSpot?.id 를 기준으로 삼아서, 핀에서 다른 핀으로
+            // 옮길 때 카드가 아래로 빠지고 다시 올라왔습니다.
+            // 같은 자리에 내용만 바뀌어야 하는 상황이었습니다.
+            .animation(VFMotion.quick, value: previewSpot == nil)
+            .onChange(of: previewSpot?.id) { _, _ in
+                cardDragY = 0
+            }
         }
         .onChange(of: selectedSpotRevision) { _, newValue in
             // 홈 상세에서 "지도에서 보기" 로 들어온 경우엔
