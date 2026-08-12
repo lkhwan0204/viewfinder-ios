@@ -371,7 +371,10 @@ struct MyTabView: View {
                     message: "남긴 현장 정보가 아직 없어요"
                 )
             } else {
-                LazyVStack(spacing: 10) {
+                // CommunityPostCard 가 카드 표면을 버리고 사진 우선으로
+                // 바뀌었습니다. 글을 나누는 수단이 여백뿐이므로
+                // 커뮤니티 피드와 같은 간격을 씁니다.
+                LazyVStack(spacing: VFSpace.xl) {
                     ForEach(myPosts) { post in
                         CommunityPostCard(
                             post: post,

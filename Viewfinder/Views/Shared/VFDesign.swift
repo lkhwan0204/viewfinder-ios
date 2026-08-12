@@ -562,15 +562,20 @@ enum VFCrowdLevel: Int, CaseIterable {
     }
 
     /// 채워진 점의 개수. 색맹 사용자를 위한 형태 인코딩.
+    ///
+    /// calm 이 0 이었는데, 그러면 "여유" 일 때 점 3개가 모두 흐려져
+    /// 정보가 없는 상태와 구별되지 않았습니다.
+    /// 최소 1개는 채웁니다. 점 개수는 "얼마나 붐비는가" 를 뜻합니다.
+    ///   1 여유 · 2 보통 · 3 붐빔
+    /// busy 와 veryBusy 는 점이 같습니다. 색도 이미 같고(crowdBusy),
+    /// 구분은 라벨이 합니다.
     var filledDots: Int {
         switch self {
         case .calm:
-            return 0
-        case .normal:
             return 1
-        case .busy:
+        case .normal:
             return 2
-        case .veryBusy:
+        case .busy, .veryBusy:
             return 3
         }
     }
