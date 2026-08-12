@@ -148,6 +148,17 @@ struct MapTabView: View {
         return "내 주변 출사지 \(spots.count)곳"
     }
 
+    /// 핀이 많으면 겹침 때문에 일부가 숨습니다. 그 차이를 설명합니다.
+    /// 12곳은 기본 줌(12.2)에서 54pt 핀이 서로 붙기 시작하는 대략의 개수입니다.
+    private var statusHint: String? {
+        guard !isRecommendationLoading,
+              emptyRecommendationMessage == nil,
+              spots.count >= 12
+        else { return nil }
+
+        return "확대하면 더 보여요"
+    }
+
     var body: some View {
         ZStack {
             KoreaMapBackdropView(
@@ -169,7 +180,7 @@ struct MapTabView: View {
                 mapControls
 
                 if let statusText {
-                    MapStatusPill(text: statusText)
+                    MapStatusPill(text: statusText, hint: statusHint)
                 }
 
                 Spacer(minLength: 0)

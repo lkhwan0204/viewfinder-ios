@@ -245,16 +245,32 @@ struct MapCircleButton: View {
 /// 지도 상태 한 줄. 핀이 몇 개인지 / 왜 비었는지 알려줍니다.
 struct MapStatusPill: View {
     let text: String
+    /// 핀 겹침 때문에 일부가 숨어 있을 때 덧붙이는 안내.
+    ///
+    /// 겹침 처리를 켜면 가까이 붙은 핀은 숨습니다.
+    /// 그러면 "35곳" 이라고 써 놓고 화면에는 12개만 보이는 불일치가 생깁니다.
+    /// 개수는 사실이지만, 그 차이를 설명하지 않으면 사용자는
+    /// 핀이 사라졌다고 생각합니다.
+    var hint: String?
 
     var body: some View {
         // 칩 줄 바로 아래에 또 검은 캡슐이 오므로,
         // 한 단계 작게 만들어 칩보다 아래 계층으로 읽히게 합니다.
-        Text(text)
-            .font(.system(size: 11.5, weight: .semibold))
-            .foregroundStyle(MapChrome.ink)
-            .lineLimit(1)
-            .padding(.horizontal, 10)
-            .frame(height: 28)
-            .mapChromeSurface(Capsule())
+        HStack(spacing: 5) {
+            Text(text)
+                .foregroundStyle(MapChrome.ink)
+
+            if let hint {
+                Text("·")
+                    .foregroundStyle(MapChrome.inkDim)
+                Text(hint)
+                    .foregroundStyle(MapChrome.inkDim)
+            }
+        }
+        .font(.system(size: 11.5, weight: .semibold))
+        .lineLimit(1)
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+        .mapChromeSurface(Capsule())
     }
 }

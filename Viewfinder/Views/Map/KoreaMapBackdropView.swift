@@ -193,17 +193,19 @@ private struct NaverMapRepresentable: UIViewRepresentable {
                 markers[id] = nil
             }
 
-            for spot in spots {
+            for (index, spot) in spots.enumerated() {
                 let isSelected = spot.id == selectedPinID
+                // 앞선 장소일수록 높은 zIndex. 겹치면 뒤쪽이 숨습니다.
+                let priority = spots.count - index
 
                 if let marker = markers[spot.id] {
                     marker.position = NMGLatLng(lat: spot.latitude, lng: spot.longitude)
-                    configure(marker: marker, spot: spot, isSelected: isSelected)
+                    configure(marker: marker, spot: spot, isSelected: isSelected, priority: priority)
                     continue
                 }
 
                 let marker = NMFMarker(position: NMGLatLng(lat: spot.latitude, lng: spot.longitude))
-                configure(marker: marker, spot: spot, isSelected: isSelected)
+                configure(marker: marker, spot: spot, isSelected: isSelected, priority: priority)
                 marker.userInfo = ["spotID": spot.id, "title": spot.name]
                 marker.touchHandler = { [weak self] overlay in
                     guard let self else { return true }
@@ -229,7 +231,7 @@ private struct NaverMapRepresentable: UIViewRepresentable {
             }
         }
 
-        private func configure(marker: NMFMarker, spot: PhotoSpot, isSelected: Bool) {
+        private func configure(marker: NMFMarker, spot: PhotoSpot, isSelected: Bool, priority: Int) {
             // ═══════════════════════════════════════════════════════
             //  이름표는 선택된 핀에만 붙입니다.
             //
@@ -258,13 +260,39 @@ private struct NaverMapRepresentable: UIViewRepresentable {
             // 꼬리가 없어졌으므로 좌표에 정사각형의 "중심"을 맞춥니다.
             // (꼬리가 있을 때는 아래 끝이 좌표를 가리켰으므로 y: 1.0 이었습니다.)
             marker.anchor = CGPoint(x: 0.5, y: 0.5)
+            // ═══════════════════════════════════════════════════════
+            //  핀 겹침
+            //
+            //  [문제였던 상황]
+            //  겹침 처리를 전부 끄고 강제로 다 그리라고 지시했습니다.
+            //      isHideCollidedMarkers = false
+            //      isForceShowIcon       = true
+            //  54pt 사진 핀이 서로 반쯤 포개져서, 사진이 주인공인 앱에서
+            //  사진이 가려졌습니다. 상암에 3장, 여의도에 2장이 겹쳤습니다.
+            //
+            //  [해결]
+            //  네이버 SDK 가 프레임마다 계산해주는 겹침 판정을 그대로 씁니다.
+            //  별도 클러스터러(NMCClusterer)를 쓰지 않는 이유는,
+            //  검증할 수 없는 SDK API 를 늘리지 않기 위해서입니다.
+            //  아래 네 줄은 이미 코드에 있던 프로퍼티를 뒤집은 것뿐입니다.
+            //
+            //  기준을 나눕니다.
+            //   - 네이버 POI 심볼에는 절대 지지 않습니다 (Symbols = false).
+            //     상업 시설 라벨이 우리 콘텐츠를 이기면 안 됩니다.
+            //   - 우리 핀끼리는 겹치면 우선순위가 낮은 쪽이 숨습니다.
+            //     확대하면 자리가 생겨 자연스럽게 다시 나타납니다.
+            //   - 선택된 핀은 어떤 경우에도 숨지 않습니다.
+            // ═══════════════════════════════════════════════════════
             marker.isHideCollidedSymbols = false
-            marker.isHideCollidedMarkers = false
-            marker.isHideCollidedCaptions = false
-            marker.isForceShowIcon = true
+            marker.isHideCollidedMarkers = !isSelected
+            marker.isHideCollidedCaptions = true
+            marker.isForceShowIcon = isSelected
             marker.isForceShowCaption = isSelected
-            // 선택된 핀이 이웃 핀에 가리지 않게 위로 올립니다.
-            marker.zIndex = isSelected ? 100 : 0
+
+            // 겹칠 때 누가 남을지 정합니다.
+            // spots 는 추천 엔진이 매긴 순서(가까운·관련 높은 순)이므로
+            // 앞에 있는 장소가 살아남게 합니다.
+            marker.zIndex = isSelected ? 10_000 : priority
 
             // 핀은 항상 사진 정사각형입니다.
             //
