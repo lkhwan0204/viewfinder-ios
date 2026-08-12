@@ -181,6 +181,9 @@ enum MapCategoryFilter: String, CaseIterable, Identifiable {
 
 enum MapChrome {
     static let surface = Color.black.opacity(0.74)
+    /// 검색 제안처럼 목록을 담는 면. 글을 여러 줄 읽어야 하므로
+    /// 컨트롤보다 더 불투명하게 만들어 지도가 비치지 않게 합니다.
+    static let panel = Color.black.opacity(0.90)
     static let hairline = Color.white.opacity(0.16)
     static let ink = Color.white
     static let inkDim = Color.white.opacity(0.64)
