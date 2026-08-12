@@ -156,7 +156,7 @@ struct CommunityPostCard: View {
             }
             .buttonStyle(.plain)
 
-            VFCrowdBadge(level: VFCrowdLevel.from(post.crowd.rawValue))
+            conditionLine
 
             if !post.message.isEmpty {
                 Text(post.message)
@@ -220,6 +220,47 @@ struct CommunityPostCard: View {
                 .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
                 .padding(VFSpace.md)
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  현재 상태 한 줄: 혼잡도 + 상태 태그
+    //
+    //  [전에 있던 줄의 문제]
+    //  해시태그 줄이 두 가지를 섞고 있었습니다.
+    //      spot.hashtags.prefix(3)  장소의 고정 속성 (#한강 #노을)
+    //      post.tags                지금 현장의 상태 (꽃 만개, 사람 적음)
+    //  "그 장소는 항상 그렇다" 와 "지금만 그렇다" 를 #a #b #c 회색 한 줄로
+    //  합쳐놔서, 어느 것이 지금 정보인지 알 수 없었습니다.
+    //  섞이면 둘 다 의미가 없어집니다.
+    //
+    //  [지금]
+    //  post.tags 만 씁니다. 피드는 "지금" 피드입니다.
+    //  # 을 붙이지 않습니다. 해시태그로 보이면 다시 장식이 됩니다.
+    //  혼잡도와 한 줄에 두어 "현재 상태" 한 문장으로 읽히게 합니다.
+    //      ●●○ 보통 · 꽃 만개 · 사람 적음
+    //
+    //  상태 태그는 장식이 아니라 제보의 본문입니다.
+    //  혼잡도 하나로는 "사람은 보통인데 꽃이 만개했다" 를 전할 수 없고,
+    //  작성 화면에서 사용자에게 고르라고 요구하는 값이기도 합니다.
+    //  요구해놓고 보여주지 않으면 그 입력은 버려지는 노동입니다.
+    // ═══════════════════════════════════════════════════════════════
+    private var conditionLine: some View {
+        HStack(spacing: 6) {
+            VFCrowdBadge(level: VFCrowdLevel.from(post.crowd.rawValue))
+
+            if !statusTagChips.isEmpty {
+                Text("·")
+                    .vfText(.mono)
+                    .foregroundStyle(AppColors.secondaryText)
+
+                VFMetaLine(items: statusTagChips)
+            }
+        }
+    }
+
+    /// 피드 카드는 미리보기이므로 3개까지. 전체는 상세에서 봅니다.
+    private var statusTagChips: [String] {
+        communityDisplayTags(post.tags, excluding: spot, crowd: post.crowd, limit: 3)
     }
 
     private var authorLine: some View {
