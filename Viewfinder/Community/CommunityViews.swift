@@ -197,7 +197,6 @@ struct CommunityPostCard: View {
             if let photoData = post.photoData {
                 CommunityAttachedPhotoView(
                     photoData: photoData,
-                    aspectRatio: VFPhoto.carouselAspect,
                     showsScrim: true,
                     isTappableForPreview: false
                 )
@@ -434,7 +433,9 @@ private struct CommunityPostDetailView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let photoData = post.photoData {
-                        CommunityAttachedPhotoView(photoData: photoData, height: 280)
+                        // 280pt 고정이었습니다. 상세는 사진을 가장 크게
+                        // 보여주는 자리인데 세로 사진이 잘려 있었습니다.
+                        CommunityAttachedPhotoView(photoData: photoData)
                     }
 
                     detailActionRow(proxy: proxy)
@@ -859,11 +860,35 @@ enum CommunityPhotoDecoder {
 }
 
 struct CommunityAttachedPhotoView: View {
+    // ═══════════════════════════════════════════════════════════════
+    //  사진 비율
+    //
+    //  [문제였던 상황]
+    //  모든 사진을 3:2 상자에 scaledToFill 로 채웠습니다.
+    //  세로 사진을 올리면 위아래가 잘려나갔습니다.
+    //  사진 앱에서 사진가가 정한 프레이밍을 앱이 잘라내면 안 됩니다.
+    //  세로로 찍은 이유가 있어서 세로로 찍은 것입니다.
+    //
+    //  [지금]
+    //  높이도 비율도 지정하지 않으면 사진의 실제 비율을 그대로 씁니다.
+    //  다만 범위를 둡니다. 무제한으로 허용하면 9:16 스크린샷 한 장이
+    //  화면 두 개 높이를 차지해서 피드를 스크롤할 수 없게 됩니다.
+    //
+    //    가장 세로  3:4 (0.75)  아이폰 세로 사진이 그대로 들어갑니다.
+    //    가장 가로  16:9 (1.78) 파노라마는 이 선에서 잘립니다.
+    //
+    //  아이폰 기본 카메라가 4:3 이므로, 세로로 찍은 사진은 3:4 입니다.
+    //  하한을 4:5(0.8)로 두면 그 흔한 사진이 조금씩 잘리므로 0.75 로
+    //  내렸습니다.
+    // ═══════════════════════════════════════════════════════════════
+    private static let minAspect: CGFloat = 3.0 / 4.0
+    private static let maxAspect: CGFloat = 16.0 / 9.0
+
     let photoData: Data
-    /// 고정 높이. 비율을 쓰려면 nil 로 두고 aspectRatio 를 지정합니다.
+    /// 고정 높이. 작은 썸네일에만 씁니다.
     var height: CGFloat?
     var maxWidth: CGFloat?
-    /// 가로 세로 비율. 피드에서는 VFPhoto.carouselAspect(3:2)를 씁니다.
+    /// 비율을 강제할 때만 지정합니다. nil 이면 사진의 실제 비율을 씁니다.
     var aspectRatio: CGFloat?
     /// 기존에는 14 로 하드코딩되어 있었습니다.
     /// 같은 카드 안의 장소 사진은 20(VFRadius.photo)이라 두 사진의
@@ -913,7 +938,7 @@ struct CommunityAttachedPhotoView: View {
     //  비율을 가진 쪽은 Color.clear 이고 contentMode 는 .fit 입니다.
     // ═══════════════════════════════════════════════════════════════
     private func photo(_ image: UIImage) -> some View {
-        sizedBox
+        sizedBox(for: image)
             .overlay {
                 Image(uiImage: image)
                     .resizable()
@@ -933,15 +958,29 @@ struct CommunityAttachedPhotoView: View {
     /// 예측할 수 없습니다. maxWidth 는 고정 높이 경로에서만 씁니다.
     /// (유일한 사용처가 상세 화면의 92x178 인라인 카드입니다.)
     @ViewBuilder
-    private var sizedBox: some View {
+    private func sizedBox(for image: UIImage) -> some View {
         if let height {
             Color.clear
                 .frame(maxWidth: maxWidth ?? .infinity)
                 .frame(height: height)
         } else {
             Color.clear
-                .aspectRatio(aspectRatio ?? VFPhoto.carouselAspect, contentMode: .fit)
+                .aspectRatio(resolvedAspect(for: image), contentMode: .fit)
         }
+    }
+
+    /// 지정된 비율이 없으면 사진의 실제 비율을 범위 안으로 좁혀서 씁니다.
+    private func resolvedAspect(for image: UIImage) -> CGFloat {
+        if let aspectRatio {
+            return aspectRatio
+        }
+
+        let size = image.size
+        guard size.width > 0, size.height > 0 else {
+            return VFPhoto.carouselAspect
+        }
+
+        return min(max(size.width / size.height, Self.minAspect), Self.maxAspect)
     }
 }
 
@@ -951,7 +990,12 @@ private struct CommunityPhotoScrim: ViewModifier {
 
     func body(content: Content) -> some View {
         if isEnabled {
-            content.vfPhotoScrim()
+            // 기본값 0.55 대신 0.40 입니다.
+            // 사진 비율을 그대로 쓰게 되면서 세로 사진은 카드가 훨씬
+            // 길어집니다. 그 높이의 55% 를 그라디언트로 덮으면 사진
+            // 절반이 어두워집니다. 사진 위에 놓이는 것은 장소 이름
+            // 한 줄뿐이므로 40% 로 충분합니다.
+            content.vfPhotoScrim(heightRatio: 0.40)
         } else {
             content
         }
@@ -966,7 +1010,9 @@ struct CommunityPhotoPreview: View {
         ZStack(alignment: .topTrailing) {
             Color.black.ignoresSafeArea()
 
-            if let image = UIImage(data: photoData) {
+            // 전체화면에서는 scaledToFit 입니다. 여기서는 어떤 비율이든
+            // 잘리지 않고 사진 전체를 봐야 합니다.
+            if let image = CommunityPhotoDecoder.image(from: photoData) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
@@ -1295,9 +1341,11 @@ struct CommunityComposerView: View {
                 ZStack(alignment: .topTrailing) {
                     // 피드와 같은 3:2 로 미리 봅니다.
                     // 220pt 고정이면 실제 피드에 올라간 모습과 다르게 보입니다.
+                    // 올린 사진의 실제 비율로 보여줍니다.
+                    // 피드에 올라갈 모습과 같아야 하고, 세로 사진을
+                    // 3:2 로 잘라 보여주면 무엇이 잘리는지 알 수 없습니다.
                     CommunityAttachedPhotoView(
                         photoData: selectedPhotoData,
-                        aspectRatio: VFPhoto.carouselAspect,
                         isTappableForPreview: false
                     )
 
