@@ -180,23 +180,27 @@ private struct NaverMapRepresentable: UIViewRepresentable {
             marker.captionColor = AppColors.uiPrimary
             marker.captionHaloColor = AppColors.uiCardBackground.withAlphaComponent(0.96)
             marker.captionAligns = [NMFAlignType.bottom]
-            marker.captionOffset = 5
+            marker.captionOffset = 4
             marker.iconTintColor = .clear
-            marker.anchor = CGPoint(x: 0.5, y: 1.0)
+            // 꼬리가 없어졌으므로 좌표에 정사각형의 "중심"을 맞춥니다.
+            // (꼬리가 있을 때는 아래 끝이 좌표를 가리켰으므로 y: 1.0 이었습니다.)
+            marker.anchor = CGPoint(x: 0.5, y: 0.5)
             marker.isHideCollidedSymbols = false
             marker.isHideCollidedMarkers = false
             marker.isHideCollidedCaptions = false
             marker.isForceShowIcon = true
             marker.isForceShowCaption = true
 
-            // 사진 핀이 준비되어 있으면 그것을, 아니면 물방울 핀을 먼저 씁니다.
-            // 사진은 비동기로 준비되고, 도착하면 해당 마커만 교체합니다.
+            // 핀은 항상 사진 정사각형입니다.
+            //
+            // 이전에는 사진을 못 구하면 검은 물방울 핀으로 폴백했는데,
+            // 한 화면에 물방울과 사진 사각형이 섞여 나와 핀이 두 종류로 보였습니다.
+            // 지금은 사진이 없거나 아직 로딩 중이면 같은 크기·같은 모양의
+            // 회색 자리표시 사각형을 쓰고, 사진이 도착하면 그 자리에서 교체합니다.
             if let photoOverlay = MapPinPhotoStore.shared.cachedOverlay(for: spot, isSaved: isSaved) {
                 apply(photoOverlay: photoOverlay, to: marker)
             } else {
-                marker.iconImage = isSaved ? ViewfinderMapMarkerIcon.saved : ViewfinderMapMarkerIcon.normal
-                marker.width = 38
-                marker.height = 50
+                apply(photoOverlay: MapPinPhotoStore.shared.placeholderOverlay(isSaved: isSaved), to: marker)
 
                 MapPinPhotoStore.shared.loadOverlay(for: spot, isSaved: isSaved) { [weak self] overlay in
                     guard let self, let target = self.markers[spot.id] else { return }
@@ -374,29 +378,16 @@ private enum ViewfinderMapMarkerIcon {
     private static let markerStrokeColor = UIColor.white
     private static let markerCenterColor = UIColor.white
 
-    static let normal: NMFOverlayImage = makeOverlayImage(
-        size: CGSize(width: 38, height: 50),
-        fillColor: markerFillColor,
-        strokeColor: markerStrokeColor,
-        centerColor: markerCenterColor,
-        reuseIdentifier: "viewfinder-marker-normal-fixed-v1"
-    )
-
+    // 지도 탭의 핀은 전부 사진 사각형(ViewfinderMapPhotoPin)입니다.
+    // 물방울 핀은 상세 화면의 위치 미리보기 지도에만 남깁니다.
+    // 그 지도는 장소가 하나뿐이고 위에 이미 대표 사진이 있으므로,
+    // 사진을 한 번 더 반복하는 것보다 좌표를 가리키는 편이 맞습니다.
     static let preview: NMFOverlayImage = makeOverlayImage(
         size: CGSize(width: 42, height: 54),
         fillColor: markerFillColor,
         strokeColor: markerStrokeColor,
         centerColor: markerCenterColor,
         reuseIdentifier: "viewfinder-marker-preview-fixed-v1"
-    )
-
-    static let saved: NMFOverlayImage = makeOverlayImage(
-        size: CGSize(width: 38, height: 50),
-        fillColor: markerFillColor,
-        strokeColor: markerStrokeColor,
-        centerColor: markerCenterColor,
-        reuseIdentifier: "viewfinder-marker-saved-fixed-v1",
-        centerStyle: .bookmark
     )
 
     private static func makeOverlayImage(
@@ -538,8 +529,25 @@ final class MapPinPhotoStore {
         overlays[cacheKey(spotID: spot.id, isSaved: isSaved)]
     }
 
+    /// 사진이 없거나 로딩 중일 때 쓰는 자리표시 핀.
+    /// 사진 핀과 같은 크기·같은 모양이라 지도에 핀이 두 종류로 보이지 않습니다.
+    func placeholderOverlay(isSaved: Bool) -> NMFOverlayImage {
+        let key = "vf-photo-pin-placeholder-\(isSaved ? "saved" : "normal")"
+
+        if let existing = overlays[key] {
+            return existing
+        }
+
+        let overlay = NMFOverlayImage(
+            image: ViewfinderMapPhotoPin.placeholderImage(isSaved: isSaved),
+            reuseIdentifier: key
+        )
+        overlays[key] = overlay
+        return overlay
+    }
+
     /// 사진 핀을 준비합니다. 완료 콜백은 메인 스레드에서 호출됩니다.
-    /// 사진을 구할 수 없으면 콜백이 호출되지 않고, 호출부는 물방울 핀을 유지합니다.
+    /// 사진을 구할 수 없으면 콜백이 호출되지 않고, 호출부는 자리표시 핀을 유지합니다.
     func loadOverlay(
         for spot: PhotoSpot,
         isSaved: Bool,
@@ -602,14 +610,57 @@ final class MapPinPhotoStore {
 }
 
 enum ViewfinderMapPhotoPin {
-    /// 핀 전체 크기. 사진 48 + 꼬리 + 여백.
-    static let size = CGSize(width: 54, height: 64)
+    /// 핀 전체 크기. 사진 48 + 그림자 여백.
+    ///
+    /// 꼬리(아래로 뾰족한 삼각형)를 없앴습니다.
+    /// 꼬리가 있으면 좌표를 정확히 가리키는 장점이 있지만,
+    /// 이 지도에서는 핀이 "사진"이고 사진이 주인공입니다.
+    /// 꼬리는 사진 아래에 흰 삼각형을 덧붙여 사각형의 형태를 흐리고,
+    /// 핀이 여러 개 모이면 삼각형들이 서로 겹쳐 지저분해집니다.
+    static let size = CGSize(width: 54, height: 54)
 
     private static let photoInset: CGFloat = 3
     private static let photoSide: CGFloat = 48
     private static let cornerRadius: CGFloat = 12
 
     static func image(from source: UIImage, isSaved: Bool) -> UIImage {
+        render(isSaved: isSaved) { innerRect in
+            draw(source, filling: innerRect)
+        }
+    }
+
+    /// 사진이 없거나 아직 로딩 중인 장소용.
+    /// 물방울 핀으로 폴백하지 않고, 같은 사각형 안에 조리개 기호만 놓습니다.
+    static func placeholderImage(isSaved: Bool) -> UIImage {
+        render(isSaved: isSaved) { innerRect in
+            UIColor(white: 0.16, alpha: 1).setFill()
+            UIBezierPath(rect: innerRect).fill()
+
+            let glyphSide = innerRect.width * 0.46
+            let config = UIImage.SymbolConfiguration(
+                pointSize: glyphSide,
+                weight: .regular
+            )
+
+            guard let glyph = UIImage(systemName: "camera.aperture", withConfiguration: config)?
+                .withTintColor(UIColor(white: 1, alpha: 0.42), renderingMode: .alwaysOriginal)
+            else { return }
+
+            glyph.draw(
+                in: CGRect(
+                    x: innerRect.midX - glyph.size.width / 2,
+                    y: innerRect.midY - glyph.size.height / 2,
+                    width: glyph.size.width,
+                    height: glyph.size.height
+                )
+            )
+        }
+    }
+
+    private static func render(
+        isSaved: Bool,
+        fillingInner: (CGRect) -> Void
+    ) -> UIImage {
         let renderer = UIGraphicsImageRenderer(size: size)
 
         return renderer.image { context in
@@ -625,24 +676,7 @@ enum ViewfinderMapPhotoPin {
             let ringColor: UIColor = isSaved ? AppColors.uiAccent : .white
             let ringWidth: CGFloat = isSaved ? 2.6 : 2.0
 
-            // 꼬리. 사진 아래 중앙에서 아래로 뾰족하게.
-            let tailPath = UIBezierPath()
-            tailPath.move(to: CGPoint(x: size.width / 2 - 6, y: photoRect.maxY - 2))
-            tailPath.addLine(to: CGPoint(x: size.width / 2, y: size.height - photoInset))
-            tailPath.addLine(to: CGPoint(x: size.width / 2 + 6, y: photoRect.maxY - 2))
-            tailPath.close()
-
-            cgContext.saveGState()
-            cgContext.setShadow(
-                offset: CGSize(width: 0, height: 2),
-                blur: 6,
-                color: UIColor.black.withAlphaComponent(0.35).cgColor
-            )
-            ringColor.setFill()
-            tailPath.fill()
-            cgContext.restoreGState()
-
-            // 사진. 링 아래에 그림자를 한 번 더 둬서 어떤 지도 색에서도 떠 보이게.
+            // 링. 아래에 그림자를 둬서 어떤 지도 색에서도 떠 보이게 합니다.
             cgContext.saveGState()
             cgContext.setShadow(
                 offset: CGSize(width: 0, height: 2),
@@ -653,7 +687,7 @@ enum ViewfinderMapPhotoPin {
             UIBezierPath(roundedRect: photoRect, cornerRadius: cornerRadius).fill()
             cgContext.restoreGState()
 
-            // 사진을 링 안쪽에 aspect fill 로 클리핑해서 그립니다.
+            // 내용을 링 안쪽에 클리핑해서 그립니다.
             let innerRect = photoRect.insetBy(dx: ringWidth, dy: ringWidth)
             let clipPath = UIBezierPath(
                 roundedRect: innerRect,
@@ -662,7 +696,7 @@ enum ViewfinderMapPhotoPin {
 
             cgContext.saveGState()
             clipPath.addClip()
-            draw(source, filling: innerRect)
+            fillingInner(innerRect)
             cgContext.restoreGState()
         }
     }
