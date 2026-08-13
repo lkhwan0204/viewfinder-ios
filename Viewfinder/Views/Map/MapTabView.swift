@@ -902,6 +902,13 @@ struct MapSearchSuggestions: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(MapChrome.inkDim)
                     .fixedSize(horizontal: false, vertical: true)
+
+                // 검색해서 없다는 것은 그 장소를 아는 사람이 지금 화면
+                // 앞에 있다는 뜻입니다. 제보를 권하기 좋은 순간입니다.
+                Text("알고 계신 곳이라면 ＋ 새 장소로 알려주세요")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(MapChrome.inkDim)
+                    .padding(.top, 2)
             }
         }
         .padding(.horizontal, 14)

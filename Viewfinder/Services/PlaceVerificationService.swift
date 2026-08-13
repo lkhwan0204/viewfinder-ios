@@ -348,18 +348,33 @@ final class PlaceFinder: ObservableObject {
             .lowercased()
     }
 
+    /// 원격 검색이 실패했을 때 사용자에게 할 말.
+    ///
+    /// "문제가 생겼어요, 잠시 후 다시 시도해주세요" 라고 쓰고 있었는데
+    /// 두 가지가 잘못됐습니다.
+    ///  1. 앱이 고장난 것처럼 읽힙니다. 실제로는 등록된 출사지 검색이
+    ///     정상 동작했고, 실제 장소 검색만 닿지 않은 것입니다.
+    ///  2. "잠시 후 다시 시도" 가 거짓일 수 있습니다. 서버 주소가
+    ///     설정되지 않았거나 서버가 꺼져 있으면 다시 시도해도 같습니다.
+    ///
+    /// 무엇을 찾았는지를 먼저 말하고, 닿지 않은 범위를 설명합니다.
     private static func failureMessage(for error: Error) -> String {
-        guard let searchError = error as? PhotoSpotSearchError else {
-            return "장소를 찾는 중 문제가 생겼어요. 잠시 후 다시 시도해주세요."
+        if let searchError = error as? PhotoSpotSearchError {
+            switch searchError {
+            case .configuration:
+                return "등록된 출사지에서만 찾았어요. 실제 장소 검색이 아직 연결되지 않았어요."
+            case .server(let message):
+                return message
+            case .empty:
+                return "장소 이름에 지역을 함께 넣어보세요."
+            }
         }
 
-        switch searchError {
-        case .configuration:
-            return "실제 장소 검색이 아직 준비되지 않았어요. 등록된 출사지에서 찾아보세요."
-        case .server(let message):
-            return message
-        default:
-            return "장소를 찾는 중 문제가 생겼어요. 잠시 후 다시 시도해주세요."
+        // URLError. 서버가 꺼져 있거나 같은 네트워크에 없을 때입니다.
+        if error is URLError {
+            return "등록된 출사지에서만 찾았어요. 장소 검색 서버에 연결할 수 없어요."
         }
+
+        return "장소 이름에 지역을 함께 넣어보세요."
     }
 }
