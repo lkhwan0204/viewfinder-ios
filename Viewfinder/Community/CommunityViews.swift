@@ -1112,6 +1112,11 @@ struct CommunityComposerView: View {
     @State private var selectedPhotoData: Data?
     @State private var photoLoadFailed = false
     @State private var hasAcknowledgedSubmissionGuidelines = false
+    /// 입력이 멈춘 뒤 한 번만 원격 검색하도록 이전 작업을 취소하는 데 씁니다.
+    @State private var placeSearchTask: Task<Void, Never>?
+    /// 결과를 골라 검색어를 장소명으로 바꿀 때, 그 변경이 다시 검색을
+    /// 일으키지 않게 막습니다.
+    @State private var suppressPlaceSearch = false
 
     private let statusTags = ["노을 좋음", "꽃 만개", "안개 있음", "사람 적음", "야경 좋음", "사진 찍기 좋음", "비 분위기 좋음", "반영 예쁨", "단풍 절정", "조명 좋음"]
     private let placeSearchService = PlaceSearchService()
@@ -1240,6 +1245,16 @@ struct CommunityComposerView: View {
             }
             .onChange(of: selectedPhotoItem) { _, newItem in
                 loadPhoto(from: newItem)
+            }
+            .onChange(of: placeSearchText) { _, newValue in
+                if suppressPlaceSearch {
+                    suppressPlaceSearch = false
+                    return
+                }
+                schedulePlaceSearch(for: newValue)
+            }
+            .onDisappear {
+                placeSearchTask?.cancel()
             }
         }
     }
@@ -1586,58 +1601,59 @@ struct CommunityComposerView: View {
 
     private var placeSearchSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // ═══════════════════════════════════════════════════════
+            //  검색 버튼을 없앴습니다.
+            //
+            //  [문제였던 상황]
+            //  장소명을 입력하고 오른쪽 화살표 버튼을 눌러야 결과가
+            //  나왔습니다. 글을 쓰러 온 사람이 장소를 고르기까지
+            //  입력 -> 버튼 -> 결과 확인 -> 선택 네 단계를 밟았습니다.
+            //  지도 검색은 이미 입력하는 즉시 좁혀지는데, 같은 앱 안에서
+            //  두 검색이 다르게 동작했습니다.
+            //
+            //  [지금]
+            //  입력하는 즉시 아래에 결과가 뜨고, 누르면 바로 선택됩니다.
+            //  로컬 시드(static 캐시)는 즉시 필터하고,
+            //  원격 검색만 입력이 멈춘 뒤 350ms 후에 한 번 호출합니다.
+            //  키 입력마다 네트워크를 때리지 않기 위해서입니다.
+            // ═══════════════════════════════════════════════════════
             HStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(AppColors.secondaryText)
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(AppColors.secondaryText)
 
-                    TextField("장소명 또는 주소 검색", text: $placeSearchText)
-                        .font(.system(size: 15, weight: .regular))
-                        .submitLabel(.search)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .onSubmit(startPlaceSearch)
-
-                    if !placeSearchText.isEmpty {
-                        Button {
-                            placeSearchText = ""
-                            placeSearchResults = []
-                            placeSearchMessage = nil
-                            selectedSearchedSpot = nil
-                            selectedSpotID = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(AppColors.secondaryText.opacity(0.65))
-                        }
-                        .buttonStyle(.plain)
+                TextField("장소명 또는 주소 검색", text: $placeSearchText)
+                    .vfText(.callout)
+                    .tint(AppColors.accent)
+                    .submitLabel(.done)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .onSubmit {
+                        // 확인을 누르면 첫 결과를 고릅니다.
+                        guard let first = placeSearchResults.first else { return }
+                        selectPlaceSearchResult(first)
                     }
-                }
-                .padding(.horizontal, 13)
-                .frame(height: 48)
-                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
 
-                Button(action: startPlaceSearch) {
-                    Group {
-                        if isPlaceSearching {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(AppColors.onAccent)
-                        } else {
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 14, weight: .bold))
-                        }
+                if !placeSearchText.isEmpty {
+                    Button {
+                        placeSearchTask?.cancel()
+                        placeSearchText = ""
+                        placeSearchResults = []
+                        placeSearchMessage = nil
+                        selectedSearchedSpot = nil
+                        selectedSpotID = ""
+                        isPlaceSearching = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(AppColors.secondaryText.opacity(0.65))
                     }
-                    .foregroundStyle(AppColors.onAccent)
-                    .frame(width: 48, height: 48)
-                    .background(AppColors.accent, in: Circle())
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("검색어 지우기")
                 }
-                .buttonStyle(.plain)
-                .disabled(
-                    placeSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || isPlaceSearching
-                )
             }
+            .padding(.horizontal, 13)
+            .frame(height: 48)
+            .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
 
             if let selectedSpot {
                 selectedPlaceRow(selectedSpot)
@@ -1651,19 +1667,19 @@ struct CommunityComposerView: View {
                             selectPlaceSearchResult(result)
                         } label: {
                             HStack(spacing: 10) {
-                                Image(systemName: "location")
+                                Image(systemName: "mappin.and.ellipse")
                                     .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(AppColors.primary)
+                                    .foregroundStyle(AppColors.secondaryText)
                                     .frame(width: 28)
 
-                                VStack(alignment: .leading, spacing: 3) {
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text(result.name)
-                                        .font(.system(size: 15, weight: .semibold))
+                                        .vfText(.callout)
                                         .foregroundStyle(AppColors.primary)
                                         .lineLimit(1)
 
                                     Text(result.address)
-                                        .font(.system(size: 12, weight: .regular))
+                                        .vfText(.caption)
                                         .foregroundStyle(AppColors.secondaryText)
                                         .lineLimit(2)
                                 }
@@ -1675,22 +1691,31 @@ struct CommunityComposerView: View {
                                     .foregroundStyle(AppColors.secondaryText)
                             }
                             .padding(.horizontal, 2)
-                            .frame(minHeight: 62)
+                            .frame(minHeight: 58)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
 
                         if result.id != placeSearchResults.last?.id {
                             Divider()
+                                .overlay(AppColors.divider)
                                 .padding(.leading, 40)
                         }
                     }
                 }
             }
 
+            // 로컬에 없는 장소는 원격 응답을 기다립니다.
+            // 스피너 대신 한 줄로 알립니다.
+            if isPlaceSearching, placeSearchResults.isEmpty {
+                Text("찾는 중…")
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+            }
+
             if let placeSearchMessage {
                 Text(placeSearchMessage)
-                    .font(.system(size: 12, weight: .medium))
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -1713,33 +1738,66 @@ struct CommunityComposerView: View {
         dismiss()
     }
 
-    private func startPlaceSearch() {
-        let query = placeSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty, !isPlaceSearching else { return }
+    /// 한 번에 보여줄 결과 개수.
+    /// 이 목록은 폼 안에 인라인으로 들어가므로 길어지면 아래 섹션이
+    /// 화면 밖으로 밀려납니다.
+    private var placeResultLimit: Int { 6 }
 
+    private func schedulePlaceSearch(for rawQuery: String) {
+        placeSearchTask?.cancel()
+
+        let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 검색어를 고치는 순간 이전 선택은 무효입니다.
+        // 고른 장소와 입력된 글자가 어긋난 상태로 제출되면 안 됩니다.
         selectedSearchedSpot = nil
         selectedSpotID = ""
-        placeSearchResults = []
+
+        guard query.count >= 2 else {
+            placeSearchResults = []
+            placeSearchMessage = nil
+            isPlaceSearching = false
+            return
+        }
+
+        // 1) 로컬 시드를 먼저 그립니다. static 캐시라 즉시 끝납니다.
+        //    네트워크를 기다리는 동안 화면이 비어 있지 않게 하려는 것입니다.
+        let localResults = LocalSeedDataService().verifiedSpots(matching: query, limit: placeResultLimit)
+        placeSearchResults = localResults
         placeSearchMessage = nil
         isPlaceSearching = true
 
-        Task {
+        // 2) 원격 검색은 입력이 멈춘 뒤 한 번만.
+        placeSearchTask = Task {
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+
             do {
                 let remoteResults = try await placeSearchService.search(query: query, userLocation: nil)
-                let localResults = LocalSeedDataService().verifiedSpots(matching: query, limit: 6)
-                let results = mergedPlaceResults(remoteResults + localResults)
+                guard !Task.isCancelled else { return }
+
+                // 로컬을 앞에 둡니다. 우리가 큐레이션한 장소가 먼저 와야 합니다.
+                let merged = mergedPlaceResults(localResults + remoteResults)
 
                 await MainActor.run {
-                    placeSearchResults = results
-                    placeSearchMessage = results.isEmpty ? "검색 결과가 없어요. 장소명이나 지역명을 함께 입력해보세요." : nil
+                    placeSearchResults = Array(merged.prefix(placeResultLimit))
+                    placeSearchMessage = merged.isEmpty
+                        ? "검색 결과가 없어요. 장소명이나 지역명을 함께 입력해보세요."
+                        : nil
                     isPlaceSearching = false
                 }
             } catch {
-                let localResults = LocalSeedDataService().verifiedSpots(matching: query, limit: 6)
-                let searchErrorMessage = placeSearchFailureMessage(for: error, hasLocalResults: !localResults.isEmpty)
+                guard !Task.isCancelled else { return }
+
+                let searchErrorMessage = placeSearchFailureMessage(
+                    for: error,
+                    hasLocalResults: !localResults.isEmpty
+                )
+
                 await MainActor.run {
-                    placeSearchResults = localResults
-                    placeSearchMessage = searchErrorMessage
+                    // 로컬 결과가 있으면 오류를 굳이 알리지 않습니다.
+                    // 사용자는 이미 고를 수 있는 목록을 보고 있습니다.
+                    placeSearchMessage = localResults.isEmpty ? searchErrorMessage : nil
                     isPlaceSearching = false
                 }
             }
@@ -1761,9 +1819,15 @@ struct CommunityComposerView: View {
     }
 
     private func selectPlaceSearchResult(_ result: VerifiedPhotoSpot) {
+        placeSearchTask?.cancel()
+        isPlaceSearching = false
+
         let spot = result.photoSpot
         selectedSearchedSpot = spot
         selectedSpotID = spot.id
+        // 검색어를 장소명으로 바꾸면 onChange 가 또 검색을 시작합니다.
+        // 그러면 방금 고른 선택이 바로 지워집니다.
+        suppressPlaceSearch = true
         placeSearchText = result.name
         placeSearchResults = []
         placeSearchMessage = nil
