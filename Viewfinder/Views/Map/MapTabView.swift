@@ -132,6 +132,9 @@ struct MapTabView: View {
     @State private var cardDragY: CGFloat = 0
     @State private var searchQuery = ""
     @FocusState private var isSearchFocused: Bool
+    /// 앱이 아는 장소 + 네이버 실제 장소검색.
+    /// 제보 화면과 같은 검색기를 씁니다.
+    @StateObject private var placeFinder = PlaceFinder()
 
     private var previewSpot: PhotoSpot? {
         guard let focusedSpotID else { return nil }
@@ -165,51 +168,6 @@ struct MapTabView: View {
         isSearchFocused || !trimmedQuery.isEmpty
     }
 
-    /// 이름 · 지역 · 지도 질의 · 추천 지역만 봅니다.
-    ///
-    /// summary(설명문)와 hashtags 는 일부러 뺐습니다.
-    /// 넣으면 "한강" 으로 검색했을 때 설명에 한강이 언급된 카페가
-    /// 한강공원보다 위에 올 수 있습니다.
-    /// 장소 검색은 무엇에 매칭됐는지 예측 가능해야 합니다.
-    private var searchResults: [PhotoSpot] {
-        guard !trimmedQuery.isEmpty else { return [] }
-
-        let matched = searchableSpots.filter { spot in
-            let fields = [spot.name, spot.region, spot.mapQuery] + spot.recommendationRegions
-            return fields.contains { $0.localizedCaseInsensitiveContains(trimmedQuery) }
-        }
-
-        guard let userCoordinate else {
-            return matched.sorted { $0.name < $1.name }
-        }
-
-        return matched.sorted {
-            VFSpotDistance.meters(from: userCoordinate, to: $0)
-                < VFSpotDistance.meters(from: userCoordinate, to: $1)
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  검색 결과를 고르면 상세까지 바로 엽니다.
-    //
-    //  핀 탭과 다르게 처리하는 이유가 있습니다.
-    //
-    //  핀 탭은 "이건 뭐지?" 하는 탐색입니다.
-    //  어떤 장소인지 모르는 상태에서 눌러보는 것이므로,
-    //  누를 때마다 모달을 띄우면 6곳 둘러보는 데 모달을 6번 열게 됩니다.
-    //  그래서 카드까지만 보여주고 멈춥니다.
-    //
-    //  검색은 확정된 선택입니다.
-    //  이름을 직접 타이핑하고 목록에서 그 장소를 골라냈습니다.
-    //  이미 어디를 원하는지 알고 있는데 카드를 한 번 더 누르게 하는 것은
-    //  불필요한 관문입니다.
-    //
-    //  같은 "장소를 고른다" 동작이라도 확신의 정도가 다르면
-    //  도착지도 달라야 합니다.
-    //
-    //  지도 이동도 함께 합니다. 상세를 닫으면 그 장소가 선택된 채로
-    //  지도에 남아 있어야 하기 때문입니다.
-    // ═══════════════════════════════════════════════════════════════
     private func commitSearchSelection(_ spot: PhotoSpot) {
         isSearchFocused = false
         searchQuery = ""
@@ -277,8 +235,8 @@ struct MapTabView: View {
                         isFocused: $isSearchFocused,
                         onSubmit: {
                             // 확인을 누르면 첫 제안으로 이동합니다.
-                            guard let first = searchResults.first else { return }
-                            commitSearchSelection(first)
+                            guard let first = placeFinder.results.first else { return }
+                            commitSearchSelection(first.spot)
                         }
                     )
 
@@ -286,6 +244,7 @@ struct MapTabView: View {
                         Button {
                             searchQuery = ""
                             isSearchFocused = false
+                            placeFinder.clear()
                         } label: {
                             Text("취소")
                                 .font(.system(size: 14, weight: .semibold))
@@ -304,11 +263,12 @@ struct MapTabView: View {
                 // 지금 하려는 일(장소 찾기)과 무관한 컨트롤이 남습니다.
                 if isSearching {
                     MapSearchSuggestions(
-                        results: searchResults,
+                        results: placeFinder.results,
                         query: trimmedQuery,
-                        totalSearchable: searchableSpots.count,
+                        isSearching: placeFinder.isSearching,
+                        message: placeFinder.message,
                         userCoordinate: userCoordinate,
-                        onSelect: commitSearchSelection
+                        onSelect: { commitSearchSelection($0.spot) }
                     )
                 } else {
                     mapControls
@@ -406,6 +366,20 @@ struct MapTabView: View {
             .onChange(of: previewSpot?.id) { _, _ in
                 cardDragY = 0
             }
+        }
+        .onChange(of: searchQuery) { _, newValue in
+            let query = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !query.isEmpty else {
+                placeFinder.clear()
+                return
+            }
+
+            placeFinder.search(
+                query,
+                near: userCoordinate,
+                knownSpots: searchableSpots
+            )
         }
         .onChange(of: selectedSpotRevision) { _, newValue in
             // 홈 상세에서 "지도에서 보기" 로 들어온 경우엔
@@ -842,15 +816,15 @@ struct MapSearchField: View {
 /// 구글 자동완성처럼 입력하는 즉시 좁혀집니다.
 /// 확인 버튼을 누를 필요가 없고, 결과를 보려고 화면을 바꾸지도 않습니다.
 struct MapSearchSuggestions: View {
-    let results: [PhotoSpot]
+    let results: [PlaceSearchResult]
     let query: String
-    let totalSearchable: Int
+    let isSearching: Bool
+    let message: String?
     let userCoordinate: CLLocationCoordinate2D?
-    let onSelect: (PhotoSpot) -> Void
+    let onSelect: (PlaceSearchResult) -> Void
 
     /// 한 번에 보여주는 최대 개수.
-    /// "한강" 같은 검색어는 22곳이 걸립니다. 전부 펼치면 지도를 다 덮습니다.
-    /// 제안은 훑어보는 것이므로 스크롤 가능한 높이까지만 씁니다.
+    /// 전부 펼치면 지도를 다 덮어서 시트를 없앤 의미가 사라집니다.
     private let visibleRowLimit = 5
     private let rowHeight: CGFloat = 56
 
@@ -859,7 +833,7 @@ struct MapSearchSuggestions: View {
             if query.isEmpty {
                 hintRow
             } else if results.isEmpty {
-                emptyRow
+                statusRow
             } else {
                 list
             }
@@ -879,19 +853,19 @@ struct MapSearchSuggestions: View {
     private var list: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(results) { spot in
+                ForEach(results) { result in
                     Button {
-                        onSelect(spot)
+                        onSelect(result)
                     } label: {
                         MapSuggestionRow(
-                            spot: spot,
+                            result: result,
                             userCoordinate: userCoordinate,
                             height: rowHeight
                         )
                     }
                     .buttonStyle(.plain)
 
-                    if spot.id != results.last?.id {
+                    if result.id != results.last?.id {
                         Rectangle()
                             .fill(MapChrome.hairline)
                             .frame(height: 0.5)
@@ -900,32 +874,35 @@ struct MapSearchSuggestions: View {
                 }
             }
         }
-        // 결과가 적으면 그만큼만, 많으면 5행까지만 차지하고 스크롤됩니다.
         .frame(height: min(CGFloat(results.count), CGFloat(visibleRowLimit)) * rowHeight)
         .scrollDisabled(results.count <= visibleRowLimit)
     }
 
     private var hintRow: some View {
-        Text("\(totalSearchable)곳을 검색합니다")
+        Text("장소 이름이나 지역을 입력하세요")
             .font(.system(size: 13, weight: .medium))
             .foregroundStyle(MapChrome.inkDim)
             .padding(.horizontal, 14)
             .frame(height: 48, alignment: .leading)
     }
 
-    private var emptyRow: some View {
-        // 검색해서 없다는 것은 그 장소를 아는 사람이 지금 화면 앞에
-        // 있다는 뜻입니다. 제보를 권하기에 가장 좋은 순간입니다.
-        // 다만 안내만 합니다. 검색 흐름 위에 등록 흐름을 겹치면
-        // 되돌아올 자리가 없어집니다.
+    /// 결과가 없을 때. 아직 찾는 중인지, 정말 없는지를 구분해서 말합니다.
+    private var statusRow: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("‘\(query)’ 결과가 없어요")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(MapChrome.ink)
+            if isSearching {
+                Text("찾는 중…")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(MapChrome.ink)
+            } else {
+                Text("‘\(query)’ 결과가 없어요")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(MapChrome.ink)
 
-            Text("알고 계신 곳이라면 ＋ 새 장소로 알려주세요")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(MapChrome.inkDim)
+                Text(message ?? "장소 이름에 지역을 함께 넣어보세요")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(MapChrome.inkDim)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
@@ -934,27 +911,40 @@ struct MapSearchSuggestions: View {
 }
 
 private struct MapSuggestionRow: View {
-    let spot: PhotoSpot
+    let result: PlaceSearchResult
     let userCoordinate: CLLocationCoordinate2D?
     let height: CGFloat
 
     var body: some View {
         HStack(spacing: 11) {
-            PhotoSpotImageView(spot: spot, symbolSize: 15)
-                .frame(width: 38, height: 38)
-                .clipShape(RoundedRectangle(cornerRadius: VFRadius.tile, style: .continuous))
+            // 앱에 등록된 장소는 사진을, 실제 장소 검색 결과는 핀 기호를
+            // 보여줍니다. 아직 우리 데이터가 아닌 곳이라는 뜻입니다.
+            if result.isKnown {
+                PhotoSpotImageView(spot: result.spot, symbolSize: 15)
+                    .frame(width: 38, height: 38)
+                    .clipShape(RoundedRectangle(cornerRadius: VFRadius.tile, style: .continuous))
+            } else {
+                Image(systemName: "mappin.and.ellipse")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(MapChrome.inkDim)
+                    .frame(width: 38, height: 38)
+                    .background(
+                        Color.white.opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: VFRadius.tile, style: .continuous)
+                    )
+            }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(spot.name)
+                Text(result.name)
                     .font(.system(size: 14.5, weight: .semibold))
                     .foregroundStyle(MapChrome.ink)
                     .lineLimit(1)
 
                 HStack(spacing: 4) {
-                    Text(HomeSpotDisplayFormatter.region(for: spot))
+                    Text(result.address)
                         .lineLimit(1)
 
-                    if let distance = VFSpotDistance.text(from: userCoordinate, to: spot) {
+                    if let distance = VFSpotDistance.text(from: userCoordinate, to: result.spot) {
                         Text("·")
                         Text(distance)
                     }

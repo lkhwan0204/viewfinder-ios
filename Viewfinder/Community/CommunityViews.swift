@@ -1100,9 +1100,10 @@ struct CommunityComposerView: View {
     @State private var selectedSpotID: String
     @State private var selectedSearchedSpot: PhotoSpot?
     @State private var placeSearchText: String
-    @State private var placeSearchResults: [VerifiedPhotoSpot] = []
-    @State private var isPlaceSearching = false
-    @State private var placeSearchMessage: String?
+    /// 지도 검색과 같은 검색기입니다.
+    /// 전에는 이 화면만 원격 장소검색을 갖고 있었고, 로컬 후보는
+    /// 시드 JSON 만 봤습니다. spots(AI 추천·저장분 포함)는 보지 않았습니다.
+    @StateObject private var placeFinder = PlaceFinder(resultLimit: 6)
     @State private var message = ""
     @State private var crowd: CommunityPost.Crowd = .normal
     @State private var selectedTags: Set<String> = []
@@ -1112,8 +1113,6 @@ struct CommunityComposerView: View {
     @State private var selectedPhotoData: Data?
     @State private var photoLoadFailed = false
     @State private var hasAcknowledgedSubmissionGuidelines = false
-    /// 입력이 멈춘 뒤 한 번만 원격 검색하도록 이전 작업을 취소하는 데 씁니다.
-    @State private var placeSearchTask: Task<Void, Never>?
     /// 결과를 골라 검색어를 장소명으로 바꿀 때, 그 변경이 다시 검색을
     /// 일으키지 않게 막습니다.
     @State private var suppressPlaceSearch = false
@@ -1254,7 +1253,7 @@ struct CommunityComposerView: View {
                 schedulePlaceSearch(for: newValue)
             }
             .onDisappear {
-                placeSearchTask?.cancel()
+                placeFinder.clear()
             }
         }
     }
@@ -1630,19 +1629,16 @@ struct CommunityComposerView: View {
                     .autocorrectionDisabled()
                     .onSubmit {
                         // 확인을 누르면 첫 결과를 고릅니다.
-                        guard let first = placeSearchResults.first else { return }
+                        guard let first = placeFinder.results.first else { return }
                         selectPlaceSearchResult(first)
                     }
 
                 if !placeSearchText.isEmpty {
                     Button {
-                        placeSearchTask?.cancel()
                         placeSearchText = ""
-                        placeSearchResults = []
-                        placeSearchMessage = nil
+                        placeFinder.clear()
                         selectedSearchedSpot = nil
                         selectedSpotID = ""
-                        isPlaceSearching = false
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(AppColors.secondaryText.opacity(0.65))
@@ -1660,16 +1656,17 @@ struct CommunityComposerView: View {
                     .padding(.top, 2)
             }
 
-            if !placeSearchResults.isEmpty {
+            if !placeFinder.results.isEmpty {
                 VStack(spacing: 0) {
-                    ForEach(placeSearchResults) { result in
+                    ForEach(placeFinder.results) { result in
                         Button {
                             selectPlaceSearchResult(result)
                         } label: {
                             HStack(spacing: 10) {
-                                Image(systemName: "mappin.and.ellipse")
+                                // 등록된 장소와 실제 장소검색 결과를 구분합니다.
+                                Image(systemName: result.isKnown ? "camera.aperture" : "mappin.and.ellipse")
                                     .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(AppColors.secondaryText)
+                                    .foregroundStyle(result.isKnown ? AppColors.accent : AppColors.secondaryText)
                                     .frame(width: 28)
 
                                 VStack(alignment: .leading, spacing: 2) {
@@ -1696,7 +1693,7 @@ struct CommunityComposerView: View {
                         }
                         .buttonStyle(.plain)
 
-                        if result.id != placeSearchResults.last?.id {
+                        if result.id != placeFinder.results.last?.id {
                             Divider()
                                 .overlay(AppColors.divider)
                                 .padding(.leading, 40)
@@ -1707,13 +1704,13 @@ struct CommunityComposerView: View {
 
             // 로컬에 없는 장소는 원격 응답을 기다립니다.
             // 스피너 대신 한 줄로 알립니다.
-            if isPlaceSearching, placeSearchResults.isEmpty {
+            if placeFinder.isSearching, placeFinder.results.isEmpty {
                 Text("찾는 중…")
                     .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
             }
 
-            if let placeSearchMessage {
+            if let placeSearchMessage = placeFinder.message {
                 Text(placeSearchMessage)
                     .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
@@ -1738,14 +1735,7 @@ struct CommunityComposerView: View {
         dismiss()
     }
 
-    /// 한 번에 보여줄 결과 개수.
-    /// 이 목록은 폼 안에 인라인으로 들어가므로 길어지면 아래 섹션이
-    /// 화면 밖으로 밀려납니다.
-    private var placeResultLimit: Int { 6 }
-
     private func schedulePlaceSearch(for rawQuery: String) {
-        placeSearchTask?.cancel()
-
         let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // 검색어를 고치는 순간 이전 선택은 무효입니다.
@@ -1753,99 +1743,25 @@ struct CommunityComposerView: View {
         selectedSearchedSpot = nil
         selectedSpotID = ""
 
-        guard query.count >= 2 else {
-            placeSearchResults = []
-            placeSearchMessage = nil
-            isPlaceSearching = false
+        guard !query.isEmpty else {
+            placeFinder.clear()
             return
         }
 
-        // 1) 로컬 시드를 먼저 그립니다. static 캐시라 즉시 끝납니다.
-        //    네트워크를 기다리는 동안 화면이 비어 있지 않게 하려는 것입니다.
-        let localResults = LocalSeedDataService().verifiedSpots(matching: query, limit: placeResultLimit)
-        placeSearchResults = localResults
-        placeSearchMessage = nil
-        isPlaceSearching = true
-
-        // 2) 원격 검색은 입력이 멈춘 뒤 한 번만.
-        placeSearchTask = Task {
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            guard !Task.isCancelled else { return }
-
-            do {
-                let remoteResults = try await placeSearchService.search(query: query, userLocation: nil)
-                guard !Task.isCancelled else { return }
-
-                // 로컬을 앞에 둡니다. 우리가 큐레이션한 장소가 먼저 와야 합니다.
-                let merged = mergedPlaceResults(localResults + remoteResults)
-
-                await MainActor.run {
-                    placeSearchResults = Array(merged.prefix(placeResultLimit))
-                    placeSearchMessage = merged.isEmpty
-                        ? "검색 결과가 없어요. 장소명이나 지역명을 함께 입력해보세요."
-                        : nil
-                    isPlaceSearching = false
-                }
-            } catch {
-                guard !Task.isCancelled else { return }
-
-                let searchErrorMessage = placeSearchFailureMessage(
-                    for: error,
-                    hasLocalResults: !localResults.isEmpty
-                )
-
-                await MainActor.run {
-                    // 로컬 결과가 있으면 오류를 굳이 알리지 않습니다.
-                    // 사용자는 이미 고를 수 있는 목록을 보고 있습니다.
-                    placeSearchMessage = localResults.isEmpty ? searchErrorMessage : nil
-                    isPlaceSearching = false
-                }
-            }
-        }
+        placeFinder.search(query, near: nil, knownSpots: spots)
     }
 
-    private func placeSearchFailureMessage(for error: Error, hasLocalResults: Bool) -> String {
-        let message = error.localizedDescription
+    private func selectPlaceSearchResult(_ result: PlaceSearchResult) {
+        placeFinder.clear()
 
-        if message.contains("네이버 실제 장소검색 설정") {
-            return hasLocalResults
-                ? "네이버 실제 장소검색 설정이 필요해 등록된 출사지를 먼저 보여드려요."
-                : "네이버 실제 장소검색 설정이 아직 완료되지 않았어요."
-        }
-
-        return hasLocalResults
-            ? "실제 장소 검색 연결이 원활하지 않아 등록된 출사지를 먼저 보여드려요."
-            : "실제 장소 검색에 연결하지 못했어요. 잠시 후 다시 시도해주세요."
-    }
-
-    private func selectPlaceSearchResult(_ result: VerifiedPhotoSpot) {
-        placeSearchTask?.cancel()
-        isPlaceSearching = false
-
-        let spot = result.photoSpot
+        let spot = result.spot
         selectedSearchedSpot = spot
         selectedSpotID = spot.id
         // 검색어를 장소명으로 바꾸면 onChange 가 또 검색을 시작합니다.
         // 그러면 방금 고른 선택이 바로 지워집니다.
         suppressPlaceSearch = true
         placeSearchText = result.name
-        placeSearchResults = []
-        placeSearchMessage = nil
         hasAcknowledgedSubmissionGuidelines = false
-    }
-
-    private func mergedPlaceResults(_ results: [VerifiedPhotoSpot]) -> [VerifiedPhotoSpot] {
-        results.reduce(into: []) { merged, result in
-            let key = "\(result.name)-\(result.address)"
-                .replacingOccurrences(of: " ", with: "")
-                .lowercased()
-            guard !merged.contains(where: {
-                "\($0.name)-\($0.address)"
-                    .replacingOccurrences(of: " ", with: "")
-                    .lowercased() == key
-            }) else { return }
-            merged.append(result)
-        }
     }
 
     private static func normalizedTags(_ values: [String]) -> [String] {
