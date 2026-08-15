@@ -422,15 +422,22 @@ private struct CommunityPostDetailView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
+                // ═══════════════════════════════════════════════════
+                //  피드와 같은 순서로 맞췄습니다.
+                //
+                //  [문제였던 상황]
+                //  피드는 작성자 -> 사진 -> 혼잡도 -> 글 순서인데
+                //  상세는 작성자 -> 장소명 -> 글 -> 사진 순서였습니다.
+                //  피드에서 사진을 눌러 들어왔는데 상세에서는 사진이
+                //  글 아래로 내려가 있어서, 방금 본 것을 다시 찾아야
+                //  했습니다.
+                //
+                //  상세는 사진을 가장 크게 보는 자리입니다.
+                //  장소명은 사진 위에 올리지 않았습니다. 상세에서는
+                //  장소로 이동하는 버튼이어야 하므로 사진 아래 둡니다.
+                // ═══════════════════════════════════════════════════
+                VStack(alignment: .leading, spacing: VFSpace.md) {
                     authorHeader
-                    placeTitle
-
-                    Text(post.message)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(AppColors.primary)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
 
                     if let photoData = post.photoData {
                         // 280pt 고정이었습니다. 상세는 사진을 가장 크게
@@ -438,21 +445,28 @@ private struct CommunityPostDetailView: View {
                         CommunityAttachedPhotoView(photoData: photoData)
                     }
 
-                    detailActionRow(proxy: proxy)
+                    placeTitle
 
-                    Rectangle()
-                        .fill(AppColors.divider)
-                        .frame(height: 1)
+                    conditionLine
+
+                    Text(post.message)
+                        .vfText(.body)
+                        .foregroundStyle(AppColors.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    detailActionRow(proxy: proxy)
+                        .padding(.top, VFSpace.xs)
 
                     commentSection
+                        .padding(.top, VFSpace.lg)
 
                     Color.clear
                         .frame(height: 1)
                         .id(commentComposerAnchorID)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 18)
-                .padding(.bottom, 16)
+                .vfScreenMargin()
+                .padding(.top, VFSpace.md)
+                .padding(.bottom, VFSpace.md)
             }
             .safeAreaInset(edge: .bottom) {
                 commentComposer
@@ -467,31 +481,55 @@ private struct CommunityPostDetailView: View {
         }
     }
 
-    private var authorHeader: some View {
-        HStack(spacing: 10) {
-            CommunityAuthorAvatar(authorName: post.authorName)
+    /// 피드 카드와 같은 줄입니다. 혼잡도 + 상태 태그.
+    private var conditionLine: some View {
+        HStack(spacing: 6) {
+            VFCrowdBadge(level: VFCrowdLevel.from(post.crowd.rawValue))
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(post.authorName)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(AppColors.primary)
-
-                Text(communityRelativeTimeText(for: post.createdAt))
-                    .font(.system(size: 12, weight: .semibold))
+            if !statusTagChips.isEmpty {
+                Text("·")
+                    .vfText(.mono)
                     .foregroundStyle(AppColors.secondaryText)
-            }
 
-            Spacer(minLength: 0)
+                VFMetaLine(items: statusTagChips)
+            }
+        }
+    }
+
+    /// 상세는 전부 보여줍니다. 피드 카드만 3개로 줄입니다.
+    private var statusTagChips: [String] {
+        communityDisplayTags(post.tags, excluding: spot, crowd: post.crowd, limit: 8)
+    }
+
+    private var authorHeader: some View {
+        HStack(spacing: VFSpace.sm) {
+            CommunityAuthorAvatar(authorName: post.authorName, size: 28)
+
+            Text(post.authorName)
+                .vfText(.caption)
+                .foregroundStyle(AppColors.primary)
+                .lineLimit(1)
+
+            VFMetaLine(
+                items: post.updatedAt == nil
+                    ? [communityRelativeTimeText(for: post.createdAt)]
+                    : [communityRelativeTimeText(for: post.createdAt), "수정됨"]
+            )
+
+            Spacer(minLength: 4)
 
             if post.authorID != currentUserID {
                 Button {
                     onToggleFollow(post)
                 } label: {
                     Text(isFollowing ? "팔로잉" : "팔로우")
-                        .font(.system(size: 13, weight: .bold))
+                        .vfText(.caption)
                         .foregroundStyle(isFollowing ? AppColors.secondaryText : AppColors.primary)
+                        .frame(minWidth: 44, minHeight: 32, alignment: .trailing)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(isFollowing ? "팔로우 취소" : "팔로우")
             }
         }
     }
@@ -510,20 +548,41 @@ private struct CommunityPostDetailView: View {
         }
     }
 
+    /// 장소로 이동하는 버튼입니다.
+    /// 전에는 24pt 굵은 글자만 있어서 눌릴 수 있다는 신호가 없었습니다.
+    /// 실제로는 탭하면 그 출사지로 가는데 아무 표시가 없었습니다.
     private var placeTitleText: some View {
-        Text(post.spotName)
-            .font(.system(size: 24, weight: .bold))
-            .foregroundStyle(AppColors.primary)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 5) {
+            Text(post.spotName)
+                .vfText(.title2)
+                .foregroundStyle(AppColors.primary)
+
+            if spot != nil {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(AppColors.secondaryText)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
+    /// 피드 카드의 액션 줄과 같은 형태입니다.
+    /// 아이콘 + 숫자, 앰버는 좋아요한 하트에만.
     private func detailActionRow(proxy: ScrollViewProxy) -> some View {
-        HStack(spacing: 22) {
+        HStack(spacing: VFSpace.lg) {
             Button {
+                VFHaptics.like()
                 onToggleLike(post)
             } label: {
-                Label("\(likeCount)", systemImage: isLiked ? "heart.fill" : "heart")
-                    .foregroundStyle(isLiked ? communityLikeTint : AppColors.secondaryText)
+                HStack(spacing: 5) {
+                    Image(systemName: isLiked ? "heart.fill" : "heart")
+                    Text("\(likeCount)")
+                }
+                .vfText(.callout)
+                .foregroundStyle(isLiked ? communityLikeTint : AppColors.secondaryText)
+                .frame(minHeight: AppLayout.touchTarget)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isLiked ? "좋아요 취소" : "좋아요")
@@ -531,49 +590,60 @@ private struct CommunityPostDetailView: View {
             Button {
                 focusCommentComposer(using: proxy)
             } label: {
-                Label("댓글 \(comments.count)", systemImage: "bubble.left")
-                    .foregroundStyle(AppColors.secondaryText)
+                HStack(spacing: 5) {
+                    Image(systemName: "bubble.left")
+                    Text("\(comments.count)")
+                }
+                .vfText(.callout)
+                .foregroundStyle(AppColors.secondaryText)
+                .frame(minHeight: AppLayout.touchTarget)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("댓글 작성")
 
             ShareLink(item: shareText) {
-                Label("공유", systemImage: "square.and.arrow.up")
+                Image(systemName: "square.and.arrow.up")
+                    .vfText(.callout)
                     .foregroundStyle(AppColors.secondaryText)
+                    .frame(minHeight: AppLayout.touchTarget)
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel("공유")
+
+            Spacer(minLength: 0)
         }
-        .font(.system(size: 14, weight: .semibold))
     }
 
     @ViewBuilder
     private var commentSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("댓글 \(comments.count)")
-                .font(.system(size: 17, weight: .bold))
+                .vfText(.headline)
                 .foregroundStyle(AppColors.primary)
 
             if comments.isEmpty {
                 Text("첫 댓글을 남겨보세요.")
-                    .font(.system(size: 14, weight: .medium))
+                    .vfText(.subhead)
                     .foregroundStyle(AppColors.secondaryText)
             } else {
                 ForEach(comments) { comment in
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 6) {
+                            CommunityAuthorAvatar(authorName: comment.authorName, size: 22)
+
                             Text(comment.authorName)
-                                .font(.system(size: 13, weight: .bold))
+                                .vfText(.caption)
                                 .foregroundStyle(AppColors.primary)
 
-                            Text(communityRelativeTimeText(for: comment.createdAt))
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(AppColors.secondaryText)
+                            VFMetaLine(items: [communityRelativeTimeText(for: comment.createdAt)])
                         }
 
                         Text(comment.message)
-                            .font(.system(size: 14, weight: .medium))
+                            .vfText(.subhead)
                             .foregroundStyle(AppColors.primary)
                             .fixedSize(horizontal: false, vertical: true)
+                            .padding(.leading, 28)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -582,28 +652,42 @@ private struct CommunityPostDetailView: View {
     }
 
     private var commentComposer: some View {
-        HStack(spacing: 10) {
-            TextField("댓글 추가...", text: $draft)
-                .font(.system(size: 14, weight: .medium))
+        HStack(spacing: VFSpace.sm) {
+            TextField("댓글 추가…", text: $draft)
+                .vfText(.subhead)
+                .tint(AppColors.accent)
                 .focused($isCommentFieldFocused)
                 .submitLabel(.send)
                 .onSubmit(submit)
+                .padding(.horizontal, 14)
+                .frame(height: 40)
+                .background(AppColors.mutedSurface, in: Capsule())
 
+            // 전송 버튼이 AppColors.primary 였습니다.
+            // 다크에서 그 값은 흰색이라 25pt 흰 원반이 화면에서 가장
+            // 밝은 요소가 됐습니다. 주 동작이므로 앰버입니다.
+            // 보낼 내용이 없으면 비활성으로 낮춥니다.
             Button(action: submit) {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 25))
-                    .foregroundStyle(AppColors.primary)
+                    .font(.system(size: 28))
+                    .foregroundStyle(canSubmitComment ? AppColors.accent : AppColors.secondaryText.opacity(0.45))
             }
             .buttonStyle(.plain)
-            .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(!canSubmitComment)
+            .accessibilityLabel("댓글 보내기")
         }
-        .padding(12)
-        .background(AppColors.cardBackground)
+        .padding(.horizontal, VFSpace.md)
+        .padding(.vertical, VFSpace.sm)
+        .background(AppColors.background)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(AppColors.divider)
-                .frame(height: 1)
+                .frame(height: 0.5)
         }
+    }
+
+    private var canSubmitComment: Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var shareText: String {
