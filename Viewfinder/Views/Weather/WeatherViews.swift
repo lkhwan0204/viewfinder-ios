@@ -143,101 +143,52 @@ struct WeatherVisualTheme {
     let primaryText: Color
     let secondaryText: Color
 
+    // ═══════════════════════════════════════════════════════════════
+    //  조건별 컬러 테마를 걷어냈습니다.
+    //
+    //  [문제였던 상황]
+    //  이 파일이 앱 41개 파일 중 유일하게 토큰을 쓰지 않았습니다.
+    //  하드코딩된 색이 41개, 날씨 조건 5종마다 전체 화면 그라디언트가
+    //  바뀌고, 카드는 white.opacity(0.13), 글자는 순백이었습니다.
+    //  앱은 검정 캔버스 + surface1/surface2 + 앰버인데, 날씨 시트만
+    //  파란 하늘색 세계였습니다. 탭을 옮기면 다른 앱처럼 보였습니다.
+    //
+    //  [남긴 색]
+    //  색을 다 없애지는 않았습니다. 날씨에서 색은 정보입니다.
+    //  다만 새 색을 만들지 않고 이미 있는 토큰만 씁니다.
+    //
+    //    앰버        골든아워와 기온.
+    //                골든아워는 브랜드 색과 의미가 정확히 겹치는
+    //                유일한 지점입니다. 이 앱의 존재 이유가
+    //                "언제 가면 빛이 좋은가" 이고 그 색이 앰버입니다.
+    //                전에는 이걸 노란색(#FFD129)으로 칠하고 있었습니다.
+    //    혼잡도 3색  미세먼지 등급. 좋음/보통/나쁨은 여유/보통/붐빔과
+    //                같은 의미 구조라 같은 색을 재사용합니다.
+    //                전에는 미세먼지에만 하드코딩 초록이 있었습니다.
+    //    무채색      그 외 전부.
+    //
+    //  구조체 모양은 그대로 둡니다. 18곳의 사용부를 건드리지 않고
+    //  색 정의만 바꾸기 위해서입니다.
+    // ═══════════════════════════════════════════════════════════════
     static let fallback = WeatherVisualTheme(
-        gradientColors: [
-            Color(red: 0.10, green: 0.15, blue: 0.23),
-            Color(red: 0.18, green: 0.25, blue: 0.36),
-            Color(red: 0.07, green: 0.10, blue: 0.16)
-        ],
-        accent: Color(red: 0.92, green: 0.94, blue: 0.98),
-        warmAccent: Color(red: 1.00, green: 0.82, blue: 0.24),
-        coolAccent: Color(red: 0.65, green: 0.86, blue: 1.00),
-        rainAccent: Color(red: 0.43, green: 0.74, blue: 1.00),
-        glow: Color(red: 0.55, green: 0.65, blue: 0.78),
-        cardFill: Color.white.opacity(0.13),
-        cardStroke: Color.white.opacity(0.18),
-        separator: Color.white.opacity(0.15),
-        primaryText: .white,
-        secondaryText: .white.opacity(0.72)
+        gradientColors: [AppColors.background, AppColors.background],
+        accent: AppColors.primary,
+        warmAccent: AppColors.accent,
+        coolAccent: AppColors.secondaryText,
+        rainAccent: AppColors.secondaryText,
+        glow: .clear,
+        cardFill: AppColors.cardBackground,
+        cardStroke: .clear,
+        separator: AppColors.divider,
+        primaryText: AppColors.primary,
+        secondaryText: AppColors.secondaryText
     )
 
+    /// 조건에 따라 색을 바꾸지 않습니다.
+    /// 날씨 조건은 심볼(sun.max.fill / cloud.rain.fill …)이 말합니다.
+    /// 배경색까지 바꾸면 같은 화면이 조건마다 다른 화면처럼 보입니다.
     static func theme(for condition: String) -> WeatherVisualTheme {
-        switch condition {
-        case "맑음":
-            return WeatherVisualTheme(
-                gradientColors: [
-                    Color(red: 0.15, green: 0.47, blue: 0.84),
-                    Color(red: 0.29, green: 0.65, blue: 0.92),
-                    Color(red: 0.89, green: 0.58, blue: 0.20)
-                ],
-                accent: Color(red: 1.00, green: 0.84, blue: 0.16),
-                warmAccent: Color(red: 1.00, green: 0.76, blue: 0.10),
-                coolAccent: Color(red: 0.56, green: 0.86, blue: 1.00),
-                rainAccent: Color(red: 0.36, green: 0.72, blue: 1.00),
-                glow: Color(red: 1.00, green: 0.74, blue: 0.20),
-                cardFill: Color.white.opacity(0.16),
-                cardStroke: Color.white.opacity(0.24),
-                separator: Color.white.opacity(0.18),
-                primaryText: .white,
-                secondaryText: .white.opacity(0.78)
-            )
-        case "비", "천둥":
-            return WeatherVisualTheme(
-                gradientColors: [
-                    Color(red: 0.05, green: 0.10, blue: 0.18),
-                    Color(red: 0.12, green: 0.20, blue: 0.31),
-                    Color(red: 0.03, green: 0.06, blue: 0.11)
-                ],
-                accent: Color(red: 0.45, green: 0.76, blue: 1.00),
-                warmAccent: Color(red: 1.00, green: 0.68, blue: 0.22),
-                coolAccent: Color(red: 0.55, green: 0.82, blue: 1.00),
-                rainAccent: Color(red: 0.39, green: 0.72, blue: 1.00),
-                glow: Color(red: 0.30, green: 0.55, blue: 0.82),
-                cardFill: Color.white.opacity(0.12),
-                cardStroke: Color.white.opacity(0.17),
-                separator: Color.white.opacity(0.14),
-                primaryText: .white,
-                secondaryText: .white.opacity(0.70)
-            )
-        case "눈":
-            return WeatherVisualTheme(
-                gradientColors: [
-                    Color(red: 0.28, green: 0.46, blue: 0.66),
-                    Color(red: 0.49, green: 0.63, blue: 0.77),
-                    Color(red: 0.18, green: 0.28, blue: 0.42)
-                ],
-                accent: Color(red: 0.88, green: 0.96, blue: 1.00),
-                warmAccent: Color(red: 1.00, green: 0.78, blue: 0.30),
-                coolAccent: Color(red: 0.78, green: 0.94, blue: 1.00),
-                rainAccent: Color(red: 0.60, green: 0.84, blue: 1.00),
-                glow: Color(red: 0.78, green: 0.90, blue: 1.00),
-                cardFill: Color.white.opacity(0.15),
-                cardStroke: Color.white.opacity(0.22),
-                separator: Color.white.opacity(0.17),
-                primaryText: .white,
-                secondaryText: .white.opacity(0.76)
-            )
-        case "안개":
-            return WeatherVisualTheme(
-                gradientColors: [
-                    Color(red: 0.22, green: 0.28, blue: 0.36),
-                    Color(red: 0.35, green: 0.42, blue: 0.50),
-                    Color(red: 0.14, green: 0.18, blue: 0.25)
-                ],
-                accent: Color(red: 0.88, green: 0.90, blue: 0.92),
-                warmAccent: Color(red: 1.00, green: 0.74, blue: 0.28),
-                coolAccent: Color(red: 0.76, green: 0.86, blue: 0.94),
-                rainAccent: Color(red: 0.56, green: 0.74, blue: 0.92),
-                glow: Color(red: 0.72, green: 0.76, blue: 0.80),
-                cardFill: Color.white.opacity(0.13),
-                cardStroke: Color.white.opacity(0.18),
-                separator: Color.white.opacity(0.15),
-                primaryText: .white,
-                secondaryText: .white.opacity(0.72)
-            )
-        default:
-            return fallback
-        }
+        fallback
     }
 }
 
@@ -401,6 +352,10 @@ struct WeatherDetailView: View {
                             theme: theme
                         )
 
+                        // 사진가가 날씨를 여는 이유는 "지금 가면 빛이 어떤가"
+                        // 입니다. 그 답을 기온 다음 자리에 둡니다.
+                        WeatherSunSection(snapshot: snapshot, theme: theme)
+
                         if !snapshot.hourlyForecasts.isEmpty {
                             WeatherHourlySection(
                                 forecasts: snapshot.hourlyForecasts,
@@ -421,73 +376,36 @@ struct WeatherDetailView: View {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  배경
+//
+//  [전에 있던 것]
+//  조건별 3색 그라디언트 + 260pt 블러 심볼 2개 + 흰 구름 밴드 2개
+//  + 방사형 글로우. 파란 하늘을 그려내는 구성이었습니다.
+//
+//  [지금]
+//  앱과 같은 검정 캔버스 + 조건 심볼 하나만 아주 흐리게 남깁니다.
+//  심볼이 조건(맑음/비/눈)을 이미 말하고 있으므로 배경색까지
+//  바꿀 필요가 없습니다.
+//  구름 밴드와 글로우는 하늘을 흉내내는 장식이었고, 검정 캔버스
+//  위에서는 흰 얼룩으로만 보입니다.
+// ═══════════════════════════════════════════════════════════════════
+
 struct WeatherAtmosphericBackground: View {
     let theme: WeatherVisualTheme
     let symbolName: String
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: theme.gradientColors,
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .blur(radius: 8)
-            .scaleEffect(1.06)
+            AppColors.background
 
+            // 조건을 알려주는 유일한 배경 요소.
+            // 사진 위가 아니라 독립 시트이므로 이 정도 질감은 허용합니다.
             Image(systemName: symbolName)
-                .font(.system(size: 260, weight: .black))
-                .foregroundStyle(theme.accent.opacity(0.18))
-                .blur(radius: 24)
-                .offset(x: 118, y: -160)
-
-            Image(systemName: symbolName)
-                .font(.system(size: 170, weight: .bold))
-                .foregroundStyle(Color.white.opacity(0.08))
+                .font(.system(size: 240, weight: .black))
+                .foregroundStyle(AppColors.primary.opacity(0.04))
                 .blur(radius: 18)
-                .offset(x: -128, y: 68)
-
-            VStack(spacing: -34) {
-                WeatherCloudBand(opacity: 0.18)
-                    .offset(x: -64)
-
-                WeatherCloudBand(opacity: 0.10)
-                    .scaleEffect(1.25)
-                    .offset(x: 72, y: -18)
-
-                Spacer()
-            }
-            .padding(.top, 44)
-
-            RadialGradient(
-                colors: [
-                    theme.glow.opacity(0.34),
-                    theme.glow.opacity(0.10),
-                    Color.clear
-                ],
-                center: .topTrailing,
-                startRadius: 18,
-                endRadius: 360
-            )
-        }
-    }
-}
-
-struct WeatherCloudBand: View {
-    let opacity: Double
-
-    var body: some View {
-        ZStack {
-            Capsule()
-                .fill(Color.white.opacity(opacity))
-                .frame(width: 360, height: 78)
-                .blur(radius: 30)
-
-            Capsule()
-                .fill(Color.white.opacity(opacity * 0.72))
-                .frame(width: 260, height: 52)
-                .offset(x: 84, y: 18)
-                .blur(radius: 24)
+                .offset(x: 112, y: -180)
         }
     }
 }
@@ -755,6 +673,20 @@ struct WeatherMetricCard: View {
     let tint: Color
     let theme: WeatherVisualTheme
 
+    /// 미세먼지 등급을 혼잡도 색 체계로 옮깁니다.
+    static func airQualityTint(for value: String) -> Color {
+        if value.contains("좋음") {
+            return AppColors.crowdRelaxed
+        }
+        if value.contains("나쁨") {
+            return AppColors.crowdCrowded
+        }
+        if value.contains("보통") {
+            return AppColors.crowdNormal
+        }
+        return AppColors.secondaryText
+    }
+
     private var iconTint: Color {
         switch metric.title {
         case "현재 기온":
@@ -764,7 +696,10 @@ struct WeatherMetricCard: View {
         case "강수확률", "습도":
             return theme.rainAccent
         case "미세먼지":
-            return Color(red: 0.68, green: 0.93, blue: 0.66)
+            // 좋음/보통/나쁨은 여유/보통/붐빔과 같은 의미 구조입니다.
+            // 새 색을 만들지 않고 혼잡도 토큰을 재사용합니다.
+            // 전에는 여기만 하드코딩 초록이었습니다.
+            return WeatherMetricCard.airQualityTint(for: metric.value)
         case "바람":
             return theme.coolAccent
         default:
@@ -910,4 +845,123 @@ extension Array {
 
 #Preview {
     ContentView()
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 해 시간
+//
+//  [문제였던 상황]
+//  날씨 상세 시트에 일출·일몰이 없었습니다.
+//
+//  시트 구성이 이랬습니다.
+//    현재 기온 -> 시간별 예보 -> 오늘 정보(기온·기상상태·강수확률·미세먼지)
+//
+//  미세먼지는 카드를 하나 받는데 일몰 시각은 어디에도 없었습니다.
+//  사진가가 날씨를 여는 이유는 기온이 아니라 빛입니다.
+//  같은 장소가 시각에 따라 완전히 다른 사진이 되기 때문에
+//  "지금 나가면 빛이 좋은가" 가 이 화면의 존재 이유입니다.
+//
+//  데이터는 이미 있었습니다.
+//  Phase 2B 에서 Open-Meteo 의 sunrise/sunset 을 받아
+//  WeatherSnapshot.nextSunEvent 까지 만들어 뒀는데,
+//  홈 화면에서만 쓰고 상세 시트에서는 표시하지 않았습니다.
+//
+//  [표시 원칙]
+//  아는 값만 보여줍니다.
+//  "골든아워 18:47부터" 같은 문구는 넣지 않았습니다.
+//  골든아워 시작 시각을 서버에서 받지 않기 때문입니다.
+//  일몰에서 60분을 빼서 만들어낼 수도 있지만, 그것은 근거 없는 값을
+//  정확한 시각처럼 보여주는 일입니다. "추천 렌즈" 를 걷어낸 것과
+//  같은 이유로 하지 않습니다.
+//  대신 남은 시간 카운트다운으로 행동 가능한 정보를 줍니다.
+// ═══════════════════════════════════════════════════════════════════
+
+struct WeatherSunSection: View {
+    let snapshot: WeatherSnapshot
+    let theme: WeatherVisualTheme
+
+    private var hasAnyEvent: Bool {
+        snapshot.sunrise != nil || snapshot.sunset != nil || snapshot.nextSunEvent != nil
+    }
+
+    var body: some View {
+        if hasAnyEvent {
+            VStack(alignment: .leading, spacing: VFSpace.md) {
+                if let event = snapshot.nextSunEvent {
+                    countdown(event)
+                }
+
+                if snapshot.sunrise != nil || snapshot.sunset != nil {
+                    HStack(spacing: 0) {
+                        if let sunrise = snapshot.sunrise {
+                            timeColumn(symbol: "sunrise.fill", title: "일출", date: sunrise)
+                        }
+
+                        if snapshot.sunrise != nil, snapshot.sunset != nil {
+                            Rectangle()
+                                .fill(theme.separator)
+                                .frame(width: 0.5, height: 34)
+                        }
+
+                        if let sunset = snapshot.sunset {
+                            timeColumn(symbol: "sunset.fill", title: "일몰", date: sunset)
+                        }
+                    }
+                }
+            }
+            .padding(VFSpace.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                theme.cardFill,
+                in: RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
+            )
+        }
+    }
+
+    /// 다음 해 이벤트까지 남은 시간.
+    ///
+    /// 이 앱에서 앰버가 의미와 정확히 겹치는 유일한 자리입니다.
+    /// 골든아워는 브랜드 색이 곧 정보인 지점입니다.
+    private func countdown(_ event: SunEvent) -> some View {
+        HStack(spacing: VFSpace.sm) {
+            Image(systemName: event.symbolName)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(AppColors.accent)
+
+            Text(event.label)
+                .vfText(.headline)
+                .foregroundStyle(AppColors.accent)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func timeColumn(symbol: String, title: String, date: Date) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 5) {
+                Image(systemName: symbol)
+                    .font(.system(size: 11, weight: .semibold))
+
+                Text(title)
+                    .vfText(.caption)
+            }
+            .foregroundStyle(theme.secondaryText)
+
+            Text(Self.timeFormatter.string(from: date))
+                .vfText(.title2)
+                .foregroundStyle(theme.primaryText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, VFSpace.xs)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title) \(Self.timeFormatter.string(from: date))")
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
 }
