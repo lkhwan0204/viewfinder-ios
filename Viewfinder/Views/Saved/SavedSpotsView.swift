@@ -149,9 +149,19 @@ struct MyTabView: View {
             Button {
                 onRequestSignIn()
             } label: {
+                // 문구를 줄였습니다.
+                //
+                // 전에는 세 덩어리가 겹쳐 있었습니다.
+                //   "게스트로 둘러보는 중"
+                //   "로그인하면 내 글과 제보를 한곳에서 관리할 수 있어요."
+                //   [로그인 →] 배지
+                // 셋 다 "로그인해라" 는 같은 말이었고, 가장 긴 문장이
+                // 가장 큰 자리를 차지했습니다.
+                //
+                // 무엇을 하는 곳인지(로그인)와 왜 필요한지(한 줄)만 남깁니다.
                 MyProfileCard(
-                    title: "게스트로 둘러보는 중",
-                    subtitle: "로그인하면 내 글과 제보를 한곳에서 관리할 수 있어요.",
+                    title: "로그인",
+                    subtitle: "글과 제보를 남기려면 필요해요",
                     isGuest: true
                 )
             }
@@ -265,19 +275,34 @@ struct MyTabView: View {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  로그아웃
+    //
+    //  [문제였던 상황]
+    //  회색 글자(secondaryText #98989D) + 1pt 얇은 테두리뿐이었습니다.
+    //  검정 배경에 채움이 없어서 버튼이 있는지조차 알기 어려웠습니다.
+    //
+    //  [앰버로 하지 않은 이유]
+    //  이 화면에서 앰버는 이미 "로그인" 이 쓰고 있었습니다.
+    //  로그아웃까지 앰버로 하면, 같은 색이 서로 반대인 두 동작을
+    //  가리키게 됩니다. 그러면 앰버가 아무 의미도 갖지 못합니다.
+    //  앰버는 "지금 하면 좋은 일" 이고, 로그아웃은 그 반대입니다.
+    //
+    //  안 보이는 원인은 색이 아니라 대비였습니다.
+    //  글자를 흰색으로 올리고 표면을 채우면 색을 쓰지 않고도 보입니다.
+    // ═══════════════════════════════════════════════════════════════
     private var signOutButton: some View {
         Button(action: onSignOut) {
             Label("로그아웃", systemImage: "rectangle.portrait.and.arrow.right")
                 .vfText(.callout)
-                .foregroundStyle(AppColors.secondaryText)
+                .fontWeight(.semibold)
+                .foregroundStyle(AppColors.primary)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .frame(minHeight: 52)
+                .background(AppColors.mutedSurface, in: Capsule())
         }
         .buttonStyle(.plain)
-        .overlay(
-            Capsule()
-                .stroke(AppColors.divider, lineWidth: 1)
-        )
+        .contentShape(Capsule())
     }
 
     private func scroll(to anchor: MySectionAnchor, using proxy: ScrollViewProxy) {
@@ -460,26 +485,50 @@ private struct MyProfileCard: View {
     let title: String
     let subtitle: String
     let isGuest: Bool
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: VFSpace.md) {
-                    identity
-                    if isGuest { signInBadge }
-                }
-            } else {
-                HStack(spacing: VFSpace.md) {
-                    identity
-                    Spacer(minLength: VFSpace.sm)
-                    if isGuest { signInBadge }
-                }
+        // 접근성 큰 글자용 세로 분기를 없앴습니다.
+        // 트레일링이 앰버 배지에서 chevron 으로 바뀌면서 가로 폭에
+        // 여유가 생겼고, 글자는 fixedSize 로 줄바꿈됩니다.
+        HStack(spacing: VFSpace.md) {
+            identity
+
+            Spacer(minLength: VFSpace.sm)
+
+            // 앰버 "로그인" 배지를 chevron 으로 바꿨습니다.
+            //
+            // 카드 제목이 이미 "로그인" 입니다. 그 옆에 앰버 배지로
+            // "로그인" 을 또 적으면 같은 단어가 두 번 나옵니다.
+            // 카드 전체가 버튼이므로 갈 수 있다는 신호(chevron)만
+            // 있으면 충분합니다.
+            //
+            // 앰버를 아낀 덕에 이 화면에서 앰버는 활동 요약 숫자와
+            // 저장 상태에만 남습니다.
+            if isGuest {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(AppColors.secondaryText)
+                    .accessibilityHidden(true)
             }
         }
         .padding(VFSpace.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .appCardSurface()
+        // ═══════════════════════════════════════════════════════════
+        //  표면을 surface1 -> surface2 로 올렸습니다.
+        //
+        //  appCardSurface() 는 surface1(#121214)을 씁니다.
+        //  캔버스가 #000000 이라 두 색의 차이가 거의 없습니다.
+        //  카드가 "있는 듯 없는 듯" 흐릿한 사각형으로 보였고,
+        //  그게 배경이 어색하게 느껴지는 원인이었습니다.
+        //
+        //  surface2(#1C1C1F)는 검정 위에서 경계가 읽힙니다.
+        //  사진 카드가 아니라 정보 블록이므로 한 단계 올라와도
+        //  사진과 경쟁하지 않습니다.
+        // ═══════════════════════════════════════════════════════════
+        .background(
+            AppColors.mutedSurface,
+            in: RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
+        )
     }
 
     private var identity: some View {
@@ -498,22 +547,6 @@ private struct MyProfileCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-    }
-
-    /// 게스트에게만 보이는 로그인 유도.
-    /// 주 동작이므로 앰버입니다.
-    private var signInBadge: some View {
-        HStack(spacing: 5) {
-            Text("로그인")
-            Image(systemName: "arrow.right")
-                .accessibilityHidden(true)
-        }
-        .vfText(.callout)
-        .fontWeight(.semibold)
-        .foregroundStyle(AppColors.onAccent)
-        .padding(.horizontal, 14)
-        .frame(minHeight: AppLayout.touchTarget)
-        .background(AppColors.accent, in: Capsule())
     }
 }
 
@@ -538,7 +571,9 @@ private struct MyProfileAvatar: View {
         }
         .foregroundStyle(inkColor)
         .frame(width: size, height: size)
-        .background(AppColors.mutedSurface, in: Circle())
+        // 카드가 surface2 이므로 아바타는 캔버스 색으로 내려
+        // 두 면이 구분되게 합니다.
+        .background(AppColors.background, in: Circle())
         .accessibilityHidden(true)
     }
 
