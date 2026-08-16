@@ -105,6 +105,52 @@ struct CommunityTabView: View {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  글의 사진
+//
+//  [버그였던 상황]
+//  피드와 상세가 사진을 각각 그리고 있었고 규칙이 달랐습니다.
+//      피드  post.photoData -> 없으면 spot 사진 -> 없으면 회색
+//      상세  post.photoData -> 없으면 아무것도 안 그림
+//  시드 글은 photoData 가 없어서 피드는 장소 사진을 쓰는데
+//  상세는 비어 있었습니다. 피드에서 사진을 보고 들어갔더니
+//  사진이 사라지는 것처럼 보였습니다.
+//
+//  같은 규칙을 두 곳에 각각 쓰면 반드시 어긋납니다.
+//  한 컴포넌트로 묶어 규칙이 하나만 존재하게 합니다.
+// ═══════════════════════════════════════════════════════════════════
+
+struct CommunityPostPhoto: View {
+    let post: CommunityPost
+    let spot: PhotoSpot?
+    /// 사진 위에 글자를 올릴 때만 켭니다. (피드의 장소 이름)
+    var showsScrim = false
+    /// 사진 전체가 NavigationLink 안에 있으면 끕니다. 제스처가 충돌합니다.
+    var isTappableForPreview = true
+
+    var body: some View {
+        if let photoData = post.photoData {
+            CommunityAttachedPhotoView(
+                photoData: photoData,
+                showsScrim: showsScrim,
+                isTappableForPreview: isTappableForPreview
+            )
+        } else if let spot {
+            // 제보 사진이 없으면 그 장소의 사진을 씁니다.
+            // 글이 어디에 대한 것인지는 사진 없이도 보여줄 수 있습니다.
+            VFPhotoTile(
+                spot: spot,
+                aspectRatio: VFPhoto.carouselAspect,
+                showsScrim: showsScrim
+            )
+        } else {
+            RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
+                .fill(AppColors.mutedSurface)
+                .aspectRatio(VFPhoto.carouselAspect, contentMode: .fit)
+        }
+    }
+}
+
 struct CommunityPostCard: View {
     let post: CommunityPost
     let spot: PhotoSpot?
@@ -194,23 +240,12 @@ struct CommunityPostCard: View {
     @ViewBuilder
     private var photoWithPlaceName: some View {
         ZStack(alignment: .bottomLeading) {
-            if let photoData = post.photoData {
-                CommunityAttachedPhotoView(
-                    photoData: photoData,
-                    showsScrim: true,
-                    isTappableForPreview: false
-                )
-            } else if let spot {
-                VFPhotoTile(
-                    spot: spot,
-                    aspectRatio: VFPhoto.carouselAspect,
-                    showsScrim: true
-                )
-            } else {
-                RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
-                    .fill(AppColors.mutedSurface)
-                    .aspectRatio(VFPhoto.carouselAspect, contentMode: .fit)
-            }
+            CommunityPostPhoto(
+                post: post,
+                spot: spot,
+                showsScrim: true,
+                isTappableForPreview: false
+            )
 
             Text(post.spotName)
                 .vfText(.title2)
@@ -262,12 +297,26 @@ struct CommunityPostCard: View {
         communityDisplayTags(post.tags, excluding: spot, crowd: post.crowd, limit: 3)
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  아바타 38 -> 28 로 줄였다가 34 로 되돌립니다.
+    //
+    //  "작성자는 콘텐츠가 아니라 신뢰 신호" 라는 판단은 맞았지만
+    //  너무 줄여서 두 가지가 깨졌습니다.
+    //   1. 28pt 아바타와 12pt 이름은 누가 올린 글인지 읽기 어렵습니다.
+    //      커뮤니티에서 작성자는 부차적이더라도 식별은 되어야 합니다.
+    //   2. 위계가 뒤집혔습니다. 이름은 caption(12pt)인데
+    //      VFMetaLine 이 쓰는 mono 는 13pt 라서, 시간 표시가
+    //      이름보다 커져 있었습니다.
+    //
+    //  이름을 callout(15pt) semibold 로 올려 시간(13pt)보다 크게 만듭니다.
+    // ═══════════════════════════════════════════════════════════════
     private var authorLine: some View {
         HStack(alignment: .center, spacing: VFSpace.sm) {
-            CommunityAuthorAvatar(authorName: post.authorName, size: 28)
+            CommunityAuthorAvatar(authorName: post.authorName, size: 34)
 
             Text(post.authorName)
-                .vfText(.caption)
+                .vfText(.callout)
+                .fontWeight(.semibold)
                 .foregroundStyle(AppColors.primary)
                 .lineLimit(1)
 
@@ -378,16 +427,47 @@ private struct CommunityAuthorAvatar: View {
     let authorName: String
     var size: CGFloat = 42
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
-        Image(systemName: "person.fill")
-            .font(.system(size: size * 0.42, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.94))
+        // ═══════════════════════════════════════════════════════════
+        //  person.fill 아이콘 -> 이름 첫 글자
+        //
+        //  전에는 모든 사용자가 같은 사람 실루엣이었습니다.
+        //  배경만 무채색 6단계로 달랐는데, 무채색끼리는 차이가 작아서
+        //  결과적으로 아바타가 사용자를 구분해주지 못했습니다.
+        //  아바타의 목적은 장식이 아니라 "누가 올렸는지" 입니다.
+        //
+        //  첫 글자를 쓰면 6개 톤보다 훨씬 많은 구분이 생깁니다.
+        //  프로필 사진 필드가 아직 모델에 없으므로 이것이 최선입니다.
+        // ═══════════════════════════════════════════════════════════
+        Text(initial)
+            .font(.system(size: size * 0.44, weight: .semibold))
+            .foregroundStyle(inkColor)
             .frame(width: size, height: size)
             .background(avatarColor, in: Circle())
             .overlay {
                 Circle()
-                    .stroke(.white.opacity(0.25), lineWidth: 1)
+                    .stroke(AppColors.divider, lineWidth: 0.5)
             }
+            .accessibilityLabel("\(authorName) 프로필")
+    }
+
+    private var initial: String {
+        let trimmed = authorName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first else { return "?" }
+        return String(first).uppercased()
+    }
+
+    /// 글자 색을 모드에 따라 정합니다.
+    ///
+    /// avatarTones 는 다이내믹 컬러입니다.
+    /// 다크에서는 어두운 회색(#2A2A2E~#61616A)이라 흰 글자가 맞고,
+    /// 라이트에서는 밝은 회색(#E4E4E9~#A8A8B2)이라 어두운 글자가 맞습니다.
+    /// 전에는 항상 흰색이라 라이트 모드에서 가장 밝은 톤 위의 글자가
+    /// 거의 보이지 않았습니다.
+    private var inkColor: Color {
+        colorScheme == .dark ? .white.opacity(0.94) : .black.opacity(0.72)
     }
 
     private var avatarColor: Color {
@@ -439,11 +519,9 @@ private struct CommunityPostDetailView: View {
                 VStack(alignment: .leading, spacing: VFSpace.md) {
                     authorHeader
 
-                    if let photoData = post.photoData {
-                        // 280pt 고정이었습니다. 상세는 사진을 가장 크게
-                        // 보여주는 자리인데 세로 사진이 잘려 있었습니다.
-                        CommunityAttachedPhotoView(photoData: photoData)
-                    }
+                    // 280pt 고정이었습니다. 상세는 사진을 가장 크게
+                    // 보여주는 자리인데 세로 사진이 잘려 있었습니다.
+                    CommunityPostPhoto(post: post, spot: spot)
 
                     placeTitle
 
@@ -503,10 +581,12 @@ private struct CommunityPostDetailView: View {
 
     private var authorHeader: some View {
         HStack(spacing: VFSpace.sm) {
-            CommunityAuthorAvatar(authorName: post.authorName, size: 28)
+            // 피드 카드와 같은 크기입니다.
+            CommunityAuthorAvatar(authorName: post.authorName, size: 34)
 
             Text(post.authorName)
-                .vfText(.caption)
+                .vfText(.callout)
+                .fontWeight(.semibold)
                 .foregroundStyle(AppColors.primary)
                 .lineLimit(1)
 
@@ -630,10 +710,11 @@ private struct CommunityPostDetailView: View {
                 ForEach(comments) { comment in
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 6) {
-                            CommunityAuthorAvatar(authorName: comment.authorName, size: 22)
+                            CommunityAuthorAvatar(authorName: comment.authorName, size: 26)
 
                             Text(comment.authorName)
-                                .vfText(.caption)
+                                .vfText(.subhead)
+                                .fontWeight(.semibold)
                                 .foregroundStyle(AppColors.primary)
 
                             VFMetaLine(items: [communityRelativeTimeText(for: comment.createdAt)])
@@ -643,7 +724,7 @@ private struct CommunityPostDetailView: View {
                             .vfText(.subhead)
                             .foregroundStyle(AppColors.primary)
                             .fixedSize(horizontal: false, vertical: true)
-                            .padding(.leading, 28)
+                            .padding(.leading, 32)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
