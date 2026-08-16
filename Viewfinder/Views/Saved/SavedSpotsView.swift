@@ -224,16 +224,16 @@ struct MyTabView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(AppColors.primary)
                     .frame(width: 46, height: 46)
-                    .background(AppColors.primarySoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("게스트로 둘러보는 중")
-                        .font(AppTypography.cardTitle)
+                        .vfText(.headline)
                         .foregroundStyle(AppColors.primary)
 
                     Text("글을 쓰거나 장소를 제보할 때 로그인하면 돼요.")
-                        .font(AppTypography.metadata)
+                        .vfText(.subhead)
                         .foregroundStyle(AppColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -259,7 +259,7 @@ struct MyTabView: View {
     private var usageInfoSection: some View {
         VStack(alignment: .leading, spacing: AppLayout.contentSpacing) {
             Text("이용 안내")
-                .font(AppTypography.sectionTitle)
+                .vfText(.title2)
                 .foregroundStyle(AppColors.primary)
                 .accessibilityAddTraits(.isHeader)
 
@@ -287,7 +287,7 @@ struct MyTabView: View {
     private var signOutButton: some View {
         Button(action: onSignOut) {
             Label("로그아웃", systemImage: "rectangle.portrait.and.arrow.right")
-                .font(AppTypography.bodyStrong)
+                .vfText(.callout)
                 .foregroundStyle(AppColors.secondaryText)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
@@ -322,12 +322,32 @@ struct MyTabView: View {
                     action: onExploreSpots
                 )
             } else {
-                LazyVStack(spacing: 10) {
+                // ═══════════════════════════════════════════════════
+                //  목록 -> 2열 사진 격자
+                //
+                //  [문제였던 상황]
+                //  84pt 썸네일 + 이름·지역·시간 3줄짜리 행이었습니다.
+                //  저장한 장소는 "여기 가고 싶다" 고 표시해둔 사진입니다.
+                //  그런데 사진이 전체 폭의 1/4 을 차지하고 나머지를
+                //  글자가 채우고 있었습니다. 연락처 목록과 같은 형태입니다.
+                //
+                //  사진을 크게 하면 저장 목록이 "가고 싶은 곳 모음" 으로
+                //  읽힙니다. 홈에서 사진을 보고 저장한 것이므로
+                //  다시 찾을 때도 사진으로 찾습니다.
+                //  이름은 사진 아래 한 줄로 충분합니다.
+                // ═══════════════════════════════════════════════════
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: VFSpace.sm),
+                        GridItem(.flexible(), spacing: VFSpace.sm)
+                    ],
+                    spacing: VFSpace.md
+                ) {
                     ForEach(savedSpots) { spot in
                         Button {
                             onSelectSpot(spot)
                         } label: {
-                            SavedSpotRow(spot: spot)
+                            SavedSpotTile(spot: spot)
                         }
                         .buttonStyle(.plain)
                     }
@@ -356,7 +376,7 @@ struct MyTabView: View {
                     }
                 }
                 .padding(.horizontal, 14)
-                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
             }
         }
     }
@@ -428,6 +448,30 @@ struct MyTabView: View {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  프로필 카드
+//
+//  [문제였던 상황]
+//  카드 배경이 AppColors.primary 였습니다.
+//  다크 모드에서 그 값은 흰색이라, 마이 탭을 열면 화면 최상단에
+//  거대한 흰 블록이 있었습니다. 앱에서 가장 밝고 가장 큰 면이
+//  프로필 카드였습니다.
+//  검정 캔버스 + 사진이 주인공인 앱에서 가장 눈에 띄는 것이
+//  내 이메일 주소일 이유가 없습니다.
+//
+//  같은 실수를 작성 화면(제출 버튼·혼잡도 선택)과 댓글 전송 버튼에서도
+//  했습니다. AppColors.primary 는 "글자색" 이고 표면색이 아닙니다.
+//
+//  [바꾼 것]
+//  1. 배경을 surface1(카드 표면)로 내렸습니다.
+//  2. 아바타를 커뮤니티와 같은 "이름 첫 글자" 로 통일했습니다.
+//     person.crop.circle.fill 아이콘은 모든 사용자가 같아서
+//     내 프로필이라는 느낌을 주지 못했습니다.
+//  3. "로그인됨" 배지를 없앴습니다. 이름과 이메일이 보이는 것이
+//     이미 로그인 상태를 말합니다. 배지는 같은 말을 반복했습니다.
+//     게스트일 때만 행동 유도가 필요하므로 그때만 표시합니다.
+// ═══════════════════════════════════════════════════════════════════
+
 private struct MyProfileCard: View {
     let title: String
     let subtitle: String
@@ -437,61 +481,91 @@ private struct MyProfileCard: View {
     var body: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: VFSpace.md) {
                     identity
-                    statusBadge
+                    if isGuest { signInBadge }
                 }
             } else {
-                HStack(spacing: 14) {
+                HStack(spacing: VFSpace.md) {
                     identity
-                    Spacer(minLength: 8)
-                    statusBadge
+                    Spacer(minLength: VFSpace.sm)
+                    if isGuest { signInBadge }
                 }
             }
         }
-        .padding(18)
+        .padding(VFSpace.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            AppColors.primary,
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-        )
+        .appCardSurface()
     }
 
     private var identity: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 42, weight: .medium))
-                .foregroundStyle(AppColors.background)
-                .frame(width: 56, height: 56)
-                .background(AppColors.background.opacity(0.14), in: Circle())
-                .accessibilityHidden(true)
+        HStack(spacing: VFSpace.md) {
+            MyProfileAvatar(name: title, isGuest: isGuest)
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(AppColors.background)
+                    .vfText(.title2)
+                    .foregroundStyle(AppColors.primary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(subtitle)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(AppColors.background.opacity(0.72))
+                    .vfText(.subhead)
+                    .foregroundStyle(AppColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    private var statusBadge: some View {
-        HStack(spacing: 6) {
-            Image(systemName: isGuest ? "arrow.right" : "checkmark.circle.fill")
+    /// 게스트에게만 보이는 로그인 유도.
+    /// 주 동작이므로 앰버입니다.
+    private var signInBadge: some View {
+        HStack(spacing: 5) {
+            Text("로그인")
+            Image(systemName: "arrow.right")
                 .accessibilityHidden(true)
-
-            Text(isGuest ? "로그인" : "로그인됨")
         }
-        .font(.subheadline.weight(.bold))
-        .foregroundStyle(AppColors.primary)
-        .padding(.horizontal, 13)
-        .frame(minHeight: 44)
-        .background(AppColors.background, in: Capsule())
+        .vfText(.callout)
+        .fontWeight(.semibold)
+        .foregroundStyle(AppColors.onAccent)
+        .padding(.horizontal, 14)
+        .frame(minHeight: AppLayout.touchTarget)
+        .background(AppColors.accent, in: Capsule())
+    }
+}
+
+/// 커뮤니티 아바타와 같은 규칙(이름 첫 글자)을 씁니다.
+/// 두 화면에서 같은 사람이 다르게 보이면 같은 사람인지 알 수 없습니다.
+private struct MyProfileAvatar: View {
+    let name: String
+    let isGuest: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
+    private let size: CGFloat = 52
+
+    var body: some View {
+        Group {
+            if isGuest {
+                Image(systemName: "person.fill")
+                    .font(.system(size: size * 0.42, weight: .semibold))
+            } else {
+                Text(initial)
+                    .font(.system(size: size * 0.42, weight: .semibold))
+            }
+        }
+        .foregroundStyle(inkColor)
+        .frame(width: size, height: size)
+        .background(AppColors.mutedSurface, in: Circle())
+        .accessibilityHidden(true)
+    }
+
+    private var initial: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first else { return "?" }
+        return String(first).uppercased()
+    }
+
+    private var inkColor: Color {
+        colorScheme == .dark ? .white.opacity(0.94) : .black.opacity(0.72)
     }
 }
 
@@ -510,7 +584,7 @@ private struct MyActivitySummaryCard: View {
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(AppColors.primary)
                         .frame(width: 34, height: 34)
-                        .background(AppColors.primarySoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.tile, style: .continuous))
                         .accessibilityHidden(true)
 
                     Spacer(minLength: 4)
@@ -525,12 +599,13 @@ private struct MyActivitySummaryCard: View {
 
                 Text(value)
                     .font(isLocked ? AppTypography.caption : .title2.weight(.bold))
+                    .fontWeight(isLocked ? .medium : .bold)
                     .foregroundStyle(isLocked ? AppColors.secondaryText : AppColors.primary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(title)
-                    .font(AppTypography.metadata)
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(2)
             }
@@ -556,7 +631,7 @@ private struct MyGuestBenefitsCard: View {
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(AppColors.primary)
                     .frame(width: 40, height: 40)
-                    .background(AppColors.primarySoft, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -590,12 +665,16 @@ private struct MyGuestBenefitsCard: View {
             }
 
             Button(action: onSignIn) {
+                // 주 동작이므로 앰버입니다.
+                // AppColors.primary 는 다크에서 흰색이라
+                // 카드 안에 흰 판이 들어가 있었습니다.
                 Text("로그인하고 활동 연결하기")
-                    .font(AppTypography.bodyStrong)
-                    .foregroundStyle(AppColors.background)
+                    .vfText(.callout)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(AppColors.onAccent)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(AppColors.primary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .frame(minHeight: AppLayout.touchTarget)
+                    .background(AppColors.accent, in: Capsule())
             }
             .buttonStyle(.plain)
             .accessibilityHint("로그인 안내를 엽니다")
@@ -621,11 +700,12 @@ private struct MyBenefitRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(AppTypography.bodyStrong)
+                    .vfText(.callout)
+                    .fontWeight(.semibold)
                     .foregroundStyle(AppColors.primary)
 
                 Text(detail)
-                    .font(AppTypography.metadata)
+                    .vfText(.subhead)
                     .foregroundStyle(AppColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -647,16 +727,17 @@ private struct MyInformationRow: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(AppColors.primary)
                 .frame(width: 38, height: 38)
-                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(AppTypography.bodyStrong)
+                    .vfText(.callout)
+                    .fontWeight(.semibold)
                     .foregroundStyle(AppColors.primary)
 
                 Text(detail)
-                    .font(AppTypography.metadata)
+                    .vfText(.subhead)
                     .foregroundStyle(AppColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -677,16 +758,17 @@ private struct PlaceSubmissionReceiptRow: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(AppColors.primary)
                 .frame(width: 28, height: 28)
-                .background(AppColors.background, in: Circle())
+                .background(AppColors.mutedSurface, in: Circle())
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(receipt.name)
-                    .font(.system(size: 15, weight: .bold))
+                    .vfText(.callout)
+                    .fontWeight(.semibold)
                     .foregroundStyle(AppColors.primary)
                     .lineLimit(1)
 
                 Text(receipt.status.detail)
-                    .font(.system(size: 12, weight: .medium))
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(2)
             }
@@ -694,11 +776,11 @@ private struct PlaceSubmissionReceiptRow: View {
             Spacer(minLength: 8)
 
             Text(receipt.status.title)
-                .font(.system(size: 12, weight: .bold))
+                .vfText(.caption)
                 .foregroundStyle(AppColors.primary)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 6)
-                .background(AppColors.background, in: Capsule())
+                .background(AppColors.mutedSurface, in: Capsule())
         }
         .padding(.vertical, 13)
     }
@@ -711,11 +793,11 @@ private struct MySectionHeader: View {
     var body: some View {
         HStack(spacing: 7) {
             Text(title)
-                .font(.system(size: 19, weight: .bold))
+                .vfText(.title2)
                 .foregroundStyle(AppColors.primary)
 
             Text("\(count)")
-                .font(.system(size: 12, weight: .bold))
+                .vfText(.mono)
                 .foregroundStyle(AppColors.secondaryText)
         }
         .accessibilityElement(children: .ignore)
@@ -735,101 +817,44 @@ private struct MyEmptyState: View {
                 .foregroundStyle(AppColors.secondaryText)
 
             Text(message)
-                .font(.system(size: 14, weight: .semibold))
+                .vfText(.subhead)
                 .foregroundStyle(AppColors.secondaryText)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
     }
 }
 
-struct SavedSpotsView: View {
-    let spots: [PhotoSpot]
-    let onSelect: (PhotoSpot) -> Void
-
-    var body: some View {
-        NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("저장")
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundStyle(AppColors.primary)
-
-                    if spots.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Image(systemName: "bookmark")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(AppColors.secondaryText)
-                                .frame(width: 40, height: 40)
-                                .background(AppColors.primarySoft, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                            Text("아직 저장한 출사지가 없어요")
-                                .font(.system(size: 17, weight: .bold))
-                        }
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    } else {
-                        LazyVStack(spacing: 10) {
-                            ForEach(spots) { spot in
-                                Button {
-                                    onSelect(spot)
-                                } label: {
-                                    SavedSpotRow(spot: spot)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 18)
-                .padding(.top, 16)
-                .padding(.bottom, 28)
-            }
-            .background(AppColors.background.ignoresSafeArea())
-            .navigationBarHidden(true)
-        }
-    }
-}
-
-struct SavedSpotRow: View {
+/// 저장 격자의 한 칸.
+///
+/// 사진이 주인공이고 이름은 아래 한 줄입니다.
+/// 지역과 촬영 시간은 뺐습니다. 격자 칸 폭에 3줄을 넣으면
+/// 글자가 잘리거나 사진이 작아집니다. 그 정보는 상세에 있습니다.
+struct SavedSpotTile: View {
     let spot: PhotoSpot
 
     var body: some View {
-        HStack(spacing: 12) {
-            PhotoSpotImageView(spot: spot, symbolSize: 20)
-                .frame(width: 84, height: 84)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        VStack(alignment: .leading, spacing: 6) {
+            VFPhotoTile(
+                spot: spot,
+                aspectRatio: VFPhoto.squareAspect,
+                imageDetail: .thumbnail
+            )
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text(spot.name)
-                    .font(.system(size: 15.5, weight: .bold))
-                    .foregroundStyle(AppColors.primary)
-                    .lineLimit(1)
+            Text(spot.name)
+                .vfText(.callout)
+                .fontWeight(.semibold)
+                .foregroundStyle(AppColors.primary)
+                .lineLimit(1)
 
-                Text(HomeSpotDisplayFormatter.region(for: spot))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineLimit(1)
-
-                Text(HomeSpotDisplayFormatter.bestTime(spot.bestTime))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(spot.theme.primary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(AppColors.secondaryText.opacity(0.65))
+            Text(HomeSpotDisplayFormatter.region(for: spot))
+                .vfText(.caption)
+                .foregroundStyle(AppColors.secondaryText)
+                .lineLimit(1)
         }
-        .padding(10)
-        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(AppColors.divider.opacity(0.72), lineWidth: 1)
-        )
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(spot.name), \(HomeSpotDisplayFormatter.region(for: spot))")
     }
 }
