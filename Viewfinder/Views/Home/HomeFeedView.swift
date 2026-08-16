@@ -182,7 +182,8 @@ struct HomeFeedView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
                             onShowSearchDetail(spot)
                         }
-                    }
+                    },
+                    onQueryChange: performLocalKeywordSearch
                 )
             }
             .onAppear {
@@ -458,6 +459,27 @@ struct HomeFeedView: View {
         return "오늘 날씨"
     }
 
+    /// 로컬 키워드 검색만 실행합니다.
+    ///
+    /// performSearch 는 로컬 검색 뒤에 AI 검색까지 이어서 돌립니다.
+    /// AI 는 돈과 시간이 드니 키 입력마다 부를 수 없습니다.
+    /// 입력 중에는 이 함수만 돌리고, AI 는 결과가 없을 때 사용자가
+    /// 명시적으로 요청하도록 남겨둡니다.
+    private func performLocalKeywordSearch() {
+        let query = searchViewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !query.isEmpty else {
+            keywordSearchResults = .empty
+            return
+        }
+
+        keywordSearchResults = searchProvider.search(
+            query: query,
+            spots: searchableSpots,
+            communityPosts: communityPosts
+        )
+    }
+
     private func performSearch() {
         let query = searchViewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty, !searchViewModel.isLoading else { return }
@@ -637,10 +659,38 @@ struct HomeSearchResultsView: View {
     let onSelectSpot: (PhotoSpot) -> Void
     let onReportMissingPhoto: (PhotoSpot) -> Void
     let onSelectCommunityPost: (CommunityPost) -> Void
+    /// 입력하는 즉시 실행되는 로컬 키워드 검색.
+    /// AI 검색(onSubmitSearch)과 분리했습니다.
+    let onQueryChange: () -> Void
     @FocusState private var isSearchFocused: Bool
 
+    // ═══════════════════════════════════════════════════════════════
+    //  홈 검색이 세 갈래로 나뉩니다.
+    //
+    //  [문제였던 상황]
+    //  안내 문구가 "앱의 출사지와 실제 장소를 함께 찾아드려요" 라고
+    //  약속하는데, 실제 장소는 찾지 않았습니다.
+    //  지도와 제보 화면은 네이버 실제 장소검색을 쓰는데 홈만 안 썼습니다.
+    //
+    //  그리고 검색이 화살표 버튼을 눌러야 실행됐습니다.
+    //  performSearch 가 로컬 검색과 AI 검색을 한 번에 하기 때문입니다.
+    //  AI 는 돈과 시간이 드니 키 입력마다 부를 수 없었습니다.
+    //
+    //  [나눈 기준]
+    //    로컬 키워드   즉시. 동기 함수이고 비용이 없습니다.
+    //    실제 장소     입력이 멈춘 뒤 350ms. PlaceFinder 가 담당합니다.
+    //    AI 추천       명시적으로 요청할 때만. 결과가 없을 때 권합니다.
+    // ═══════════════════════════════════════════════════════════════
+    @StateObject private var placeFinder = PlaceFinder(resultLimit: 6)
+
+    /// 앱에 없는 장소만 남깁니다.
+    /// 등록된 장소는 위쪽 "출사지 결과" 에 이미 나옵니다.
+    private var unknownPlaces: [PlaceSearchResult] {
+        placeFinder.results.filter { !$0.isKnown }
+    }
+
     private var hasResults: Bool {
-        !spotRecommendations.isEmpty || !communityPosts.isEmpty
+        !spotRecommendations.isEmpty || !communityPosts.isEmpty || !unknownPlaces.isEmpty
     }
 
     var body: some View {
@@ -683,37 +733,43 @@ struct HomeSearchResultsView: View {
                             .focused($isSearchFocused)
                             .onSubmit(onSubmitSearch)
 
-                        if isLoading {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else if !query.isEmpty {
-                            Button(action: onSubmitSearch) {
-                                Image(systemName: "arrow.right")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(AppColors.primary)
-                                    .frame(width: 30, height: 30)
+                        // 화살표 버튼을 없앴습니다.
+                        // 이제 입력하는 즉시 로컬 검색과 실제 장소 검색이
+                        // 돌아가므로 누를 것이 없습니다.
+                        if !query.isEmpty {
+                            Button {
+                                query = ""
+                                placeFinder.clear()
+                                onQueryChange()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(AppColors.secondaryText)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("검색어 지우기")
                         }
                     }
                     .padding(.horizontal, 16)
                     .frame(height: 54)
-                    .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(AppColors.divider, lineWidth: 1)
-                    }
+                    // Phase 1 에서 걷어낸 1pt 테두리가 여기만 남아 있었습니다.
+                    .background(AppColors.mutedSurface, in: Capsule())
 
                     if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text("검색어를 입력하면 앱의 출사지와 실제 장소를 함께 찾아드려요.")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(AppColors.secondaryText)
                             .padding(.top, 8)
-                    } else if isLoading {
+                    } else if isLoading || (placeFinder.isSearching && !hasResults) {
                         SearchStatusRow(message: "검색 중이에요", isLoading: true, isError: false)
                     } else if !hasResults {
+                        // 실제 장소 검색이 실패했으면 그 사실을 먼저 말합니다.
+                        // "데이터가 부족해요" 로만 끝내면 앱이 아는 범위가
+                        // 좁은 것인지 서버에 못 닿은 것인지 알 수 없습니다.
                         EmptySearchResultView(
-                            message: message ?? "\(query) 출사지 데이터가 아직 부족해요.",
+                            message: message
+                                ?? placeFinder.message
+                                ?? "\(query) 출사지 데이터가 아직 부족해요.",
                             onRequestAI: onRequestAI
                         )
                     } else {
@@ -728,6 +784,33 @@ struct HomeSearchResultsView: View {
                                             onSelect: { onSelectSpot(recommendation.spot) },
                                             onReportMissingPhoto: { onReportMissingPhoto(recommendation.spot) }
                                         )
+                                    }
+                                }
+                            }
+
+                            if !unknownPlaces.isEmpty {
+                                SearchResultSectionHeader(
+                                    title: "등록되지 않은 장소",
+                                    count: unknownPlaces.count
+                                )
+
+                                // 우리 데이터에 없는 실제 장소입니다.
+                                // 출사지 결과보다 아래에 둡니다.
+                                // 큐레이션된 출사지가 먼저 와야 합니다.
+                                LazyVStack(spacing: 0) {
+                                    ForEach(unknownPlaces) { result in
+                                        Button {
+                                            onSelectSpot(result.spot)
+                                        } label: {
+                                            HomeUnknownPlaceRow(result: result)
+                                        }
+                                        .buttonStyle(.plain)
+
+                                        if result.id != unknownPlaces.last?.id {
+                                            Divider()
+                                                .overlay(AppColors.divider)
+                                                .padding(.leading, 44)
+                                        }
                                     }
                                 }
                             }
@@ -754,6 +837,19 @@ struct HomeSearchResultsView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 18)
+                .onChange(of: query) { _, newValue in
+                    // 로컬 키워드 검색은 즉시. 동기 함수라 비용이 없습니다.
+                    onQueryChange()
+
+                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else {
+                        placeFinder.clear()
+                        return
+                    }
+
+                    // 실제 장소 검색은 디바운스됩니다.
+                    placeFinder.search(trimmed, near: nil, knownSpots: spots)
+                }
                 .padding(.bottom, 28)
             }
             .background(AppColors.background.ignoresSafeArea())
@@ -770,6 +866,46 @@ struct HomeSearchResultsView: View {
 
     private func spot(for post: CommunityPost) -> PhotoSpot? {
         spots.first { $0.id == post.spotID }
+    }
+}
+
+/// 앱에 등록되지 않은 실제 장소 한 줄.
+///
+/// 출사지 카드와 다르게 생겨야 합니다. 사진도 큐레이션 정보도 없고,
+/// "여기 이런 곳이 있다" 는 사실만 있습니다.
+/// 카드처럼 그리면 같은 무게로 읽혀서 등록된 출사지와 구별되지 않습니다.
+struct HomeUnknownPlaceRow: View {
+    let result: PlaceSearchResult
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "mappin.and.ellipse")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(AppColors.secondaryText)
+                .frame(width: 32, height: 32)
+                .background(AppColors.mutedSurface, in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(result.name)
+                    .vfText(.callout)
+                    .foregroundStyle(AppColors.primary)
+                    .lineLimit(1)
+
+                Text(result.address)
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 4)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(AppColors.secondaryText)
+                .accessibilityHidden(true)
+        }
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
     }
 }
 
