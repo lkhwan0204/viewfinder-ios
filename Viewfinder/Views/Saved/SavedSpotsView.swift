@@ -38,6 +38,15 @@ struct MyTabView: View {
     @State private var isTabBarHidden = false
     @State private var isSignInConfirmationPresented = false
 
+    // 미리보기 개수.
+    //
+    // 저장은 2열 격자이므로 2개 = 정확히 한 줄입니다.
+    // 제보는 한 줄짜리 행이라 3개까지 부담이 없습니다.
+    // 내 글은 사진 전체 폭 카드라 2개만 해도 화면을 채웁니다.
+    private let savedPreviewLimit = 2
+    private let submissionPreviewLimit = 3
+    private let postPreviewLimit = 2
+
     private var myPosts: [CommunityPost] {
         guard let user else { return [] }
         return posts.filter { $0.authorID == user.id }
@@ -211,6 +220,26 @@ struct MyTabView: View {
         )
     }
 
+    /// 미리보기와 전체 보기가 같은 카드를 쓰게 합니다.
+    /// 두 곳에서 각각 만들면 인자 하나가 어긋나도 알아채기 어렵습니다.
+    private func postCard(_ post: CommunityPost) -> some View {
+        CommunityPostCard(
+            post: post,
+            spot: spot(for: post),
+            currentUserID: user?.id ?? "",
+            isLiked: likedPostIDs.contains(post.id),
+            likeCount: post.likeCount + (likedPostIDs.contains(post.id) ? 1 : 0),
+            isFollowing: followedAuthorIDs.contains(post.authorID),
+            comments: commentsByPostID[post.id] ?? [],
+            onEdit: onEditPost,
+            onDelete: onDeletePost,
+            onToggleLike: onToggleLike,
+            onToggleFollow: onToggleFollow,
+            onAddComment: onAddComment,
+            onSelectSpot: onSelectSpot
+        )
+    }
+
     private var guestBenefitsSection: some View {
         MyGuestBenefitsCard {
             requestSignInConfirmation()
@@ -311,7 +340,13 @@ struct MyTabView: View {
 
     private var savedSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            MySectionHeader(title: "저장한 장소", count: savedSpots.count)
+            if savedSpots.count > savedPreviewLimit {
+                MySectionHeader(title: "저장한 장소", count: savedSpots.count) {
+                    SavedSpotsGridView(spots: savedSpots, onSelect: onSelectSpot)
+                }
+            } else {
+                MySectionHeader(title: "저장한 장소", count: savedSpots.count)
+            }
 
             if savedSpots.isEmpty {
                 AppStatePanel(
@@ -343,7 +378,7 @@ struct MyTabView: View {
                     ],
                     spacing: VFSpace.md
                 ) {
-                    ForEach(savedSpots) { spot in
+                    ForEach(savedSpots.prefix(savedPreviewLimit)) { spot in
                         Button {
                             onSelectSpot(spot)
                         } label: {
@@ -358,7 +393,13 @@ struct MyTabView: View {
 
     private var submissionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            MySectionHeader(title: "내 장소 제보", count: submissionReceipts.count)
+            if submissionReceipts.count > submissionPreviewLimit {
+                MySectionHeader(title: "내 장소 제보", count: submissionReceipts.count) {
+                    MySubmissionListView(receipts: submissionReceipts)
+                }
+            } else {
+                MySectionHeader(title: "내 장소 제보", count: submissionReceipts.count)
+            }
 
             if submissionReceipts.isEmpty {
                 MyEmptyState(
@@ -367,11 +408,14 @@ struct MyTabView: View {
                 )
             } else {
                 LazyVStack(spacing: 0) {
-                    ForEach(submissionReceipts) { receipt in
+                    let preview = Array(submissionReceipts.prefix(submissionPreviewLimit))
+
+                    ForEach(preview) { receipt in
                         PlaceSubmissionReceiptRow(receipt: receipt)
 
-                        if receipt.id != submissionReceipts.last?.id {
+                        if receipt.id != preview.last?.id {
                             Divider()
+                                .overlay(AppColors.divider)
                         }
                     }
                 }
@@ -383,7 +427,13 @@ struct MyTabView: View {
 
     private var postSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            MySectionHeader(title: "내 글", count: myPosts.count)
+            if myPosts.count > postPreviewLimit {
+                MySectionHeader(title: "내 글", count: myPosts.count) {
+                    MyPostListView(posts: myPosts, makeCard: postCard)
+                }
+            } else {
+                MySectionHeader(title: "내 글", count: myPosts.count)
+            }
 
             if myPosts.isEmpty {
                 MyEmptyState(
@@ -395,22 +445,8 @@ struct MyTabView: View {
                 // 바뀌었습니다. 글을 나누는 수단이 여백뿐이므로
                 // 커뮤니티 피드와 같은 간격을 씁니다.
                 LazyVStack(spacing: VFSpace.xl) {
-                    ForEach(myPosts) { post in
-                        CommunityPostCard(
-                            post: post,
-                            spot: spot(for: post),
-                            currentUserID: user?.id ?? "",
-                            isLiked: likedPostIDs.contains(post.id),
-                            likeCount: post.likeCount + (likedPostIDs.contains(post.id) ? 1 : 0),
-                            isFollowing: followedAuthorIDs.contains(post.authorID),
-                            comments: commentsByPostID[post.id] ?? [],
-                            onEdit: onEditPost,
-                            onDelete: onDeletePost,
-                            onToggleLike: onToggleLike,
-                            onToggleFollow: onToggleFollow,
-                            onAddComment: onAddComment,
-                            onSelectSpot: onSelectSpot
-                        )
+                    ForEach(myPosts.prefix(postPreviewLimit)) { post in
+                        postCard(post)
                     }
                 }
             }
@@ -786,9 +822,36 @@ private struct PlaceSubmissionReceiptRow: View {
     }
 }
 
-private struct MySectionHeader: View {
+// ═══════════════════════════════════════════════════════════════════
+//  섹션 헤더 + 더보기
+//
+//  [문제였던 상황]
+//  마이 탭이 저장·제보·내 글을 전부 나열했습니다.
+//  마이 탭은 hub 입니다. 내 활동이 얼마나 있는지 보고, 필요하면
+//  그 목록으로 들어가는 화면입니다. 그런데 목록 자체가 되어 있어서
+//  저장한 장소가 많으면 이용 안내와 로그아웃까지 한참 스크롤해야
+//  했습니다.
+//
+//  커뮤니티 카드를 사진 전체 폭으로 키운 뒤 "내 글" 이 특히
+//  심해졌습니다. 글 5개면 3000pt 가까이 됩니다.
+//  제가 커뮤니티를 바꾸면서 만든 문제입니다.
+//
+//  [지금]
+//  각 섹션은 미리보기만 보여주고, 개수가 더 있으면 헤더 오른쪽에
+//  "더보기" 가 나타납니다. 전용 화면으로 push 합니다.
+// ═══════════════════════════════════════════════════════════════════
+
+private struct MySectionHeader<Destination: View>: View {
     let title: String
     let count: Int
+    /// 미리보기보다 항목이 많을 때만 전달합니다.
+    ///
+    /// var 로 두면 memberwise init 에 nil 기본값이 생겨서
+    /// MySectionHeader(title:count:) 호출이 이 init 과 아래 확장 init
+    /// 양쪽에 맞아버리고, Destination 을 추론할 수 없게 됩니다.
+    /// let 이면 memberwise init 이 이 인자를 반드시 요구하므로
+    /// 두 경로가 겹치지 않습니다.
+    let destination: (() -> Destination)?
 
     var body: some View {
         HStack(spacing: 7) {
@@ -799,10 +862,36 @@ private struct MySectionHeader: View {
             Text("\(count)")
                 .vfText(.mono)
                 .foregroundStyle(AppColors.secondaryText)
+
+            Spacer(minLength: VFSpace.sm)
+
+            if let destination {
+                NavigationLink {
+                    destination()
+                } label: {
+                    HStack(spacing: 3) {
+                        Text("더보기")
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .frame(minHeight: AppLayout.touchTarget)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(title) 전체 보기")
+            }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title), \(count)개")
-        .accessibilityAddTraits(.isHeader)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+extension MySectionHeader where Destination == EmptyView {
+    init(title: String, count: Int) {
+        self.title = title
+        self.count = count
+        self.destination = nil
     }
 }
 
@@ -856,5 +945,107 @@ struct SavedSpotTile: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(spot.name), \(HomeSpotDisplayFormatter.region(for: spot))")
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 전체 보기 화면
+//
+//  마이 탭의 각 섹션에서 "더보기" 로 들어옵니다.
+//  마이 탭은 hub 이고 여기가 목록입니다.
+//
+//  세 화면 모두 미리보기와 같은 컴포넌트를 씁니다.
+//  같은 데이터를 두 곳에서 다르게 그리면 같은 것으로 안 읽힙니다.
+//  (커뮤니티에서 피드와 상세가 사진 규칙이 달라 버그가 났던 것과
+//   같은 이유입니다.)
+// ═══════════════════════════════════════════════════════════════════
+
+struct SavedSpotsGridView: View {
+    let spots: [PhotoSpot]
+    let onSelect: (PhotoSpot) -> Void
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: VFSpace.sm),
+                    GridItem(.flexible(), spacing: VFSpace.sm)
+                ],
+                spacing: VFSpace.md
+            ) {
+                ForEach(spots) { spot in
+                    Button {
+                        onSelect(spot)
+                    } label: {
+                        SavedSpotTile(spot: spot)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .vfScreenMargin()
+            .padding(.top, VFSpace.md)
+            .vfScrollBottomInset()
+        }
+        .background(AppColors.background.ignoresSafeArea())
+        .navigationTitle("저장한 장소")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct MySubmissionListView: View {
+    let receipts: [PlaceSubmissionReceipt]
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            LazyVStack(spacing: 0) {
+                ForEach(receipts) { receipt in
+                    PlaceSubmissionReceiptRow(receipt: receipt)
+
+                    if receipt.id != receipts.last?.id {
+                        Divider()
+                            .overlay(AppColors.divider)
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .background(
+                AppColors.mutedSurface,
+                in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
+            )
+            .vfScreenMargin()
+            .padding(.top, VFSpace.md)
+            .vfScrollBottomInset()
+        }
+        .background(AppColors.background.ignoresSafeArea())
+        .navigationTitle("내 장소 제보")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// 카드 생성을 클로저로 받습니다.
+///
+/// CommunityPostCard 는 인자가 13개입니다. 이 화면이 그것들을 다시
+/// 프로퍼티로 받으면 MyTabView 의 인자 목록을 그대로 복사해야 하고,
+/// 하나라도 어긋나면 미리보기와 전체 보기가 다르게 동작합니다.
+/// MyTabView.postCard 를 그대로 넘겨받아 같은 카드임을 보장합니다.
+struct MyPostListView<Card: View>: View {
+    let posts: [CommunityPost]
+    let makeCard: (CommunityPost) -> Card
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            LazyVStack(spacing: VFSpace.xl) {
+                ForEach(posts) { post in
+                    makeCard(post)
+                }
+            }
+            .vfScreenMargin()
+            .padding(.top, VFSpace.md)
+            .vfScrollBottomInset()
+        }
+        .background(AppColors.background.ignoresSafeArea())
+        .navigationTitle("내 글")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
