@@ -106,25 +106,23 @@ struct CommunityTabView: View {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  글의 사진
+//  글의 사진 — 사용자가 올린 사진만
 //
-//  [버그였던 상황]
-//  피드와 상세가 사진을 각각 그리고 있었고 규칙이 달랐습니다.
-//      피드  post.photoData -> 없으면 spot 사진 -> 없으면 회색
-//      상세  post.photoData -> 없으면 아무것도 안 그림
-//  시드 글은 photoData 가 없어서 피드는 장소 사진을 쓰는데
-//  상세는 비어 있었습니다. 피드에서 사진을 보고 들어갔더니
-//  사진이 사라지는 것처럼 보였습니다.
+//  [전에 있던 문제]
+//  제보 사진이 없으면 그 장소의 대표 사진으로 채우고 있었습니다.
+//  "서울숲이 좋다" 는 글을 사진 없이 올리면, 피드에는 우리가 가진
+//  서울숲 스톡 사진이 떴습니다. 사용자가 찍지 않은 사진이 그 사람의
+//  사진처럼 보였습니다. 사진 앱에서 이건 거짓입니다.
+//  게다가 그 사진은 "지금" 이 아니라 언제인지도 모르는 사진인데,
+//  현장 정보 제보 옆에 붙어 지금처럼 읽혔습니다.
 //
-//  같은 규칙을 두 곳에 각각 쓰면 반드시 어긋납니다.
-//  한 컴포넌트로 묶어 규칙이 하나만 존재하게 합니다.
+//  [지금]
+//  post.photoData 가 있을 때만 그립니다. 없으면 사진 영역이 없습니다.
+//  장소와의 연결은 사진이 아니라 장소 태그가 담당합니다.
 // ═══════════════════════════════════════════════════════════════════
 
 struct CommunityPostPhoto: View {
     let post: CommunityPost
-    let spot: PhotoSpot?
-    /// 사진 위에 글자를 올릴 때만 켭니다. (피드의 장소 이름)
-    var showsScrim = false
     /// 사진 전체가 NavigationLink 안에 있으면 끕니다. 제스처가 충돌합니다.
     var isTappableForPreview = true
 
@@ -132,22 +130,58 @@ struct CommunityPostPhoto: View {
         if let photoData = post.photoData {
             CommunityAttachedPhotoView(
                 photoData: photoData,
-                showsScrim: showsScrim,
                 isTappableForPreview: isTappableForPreview
             )
-        } else if let spot {
-            // 제보 사진이 없으면 그 장소의 사진을 씁니다.
-            // 글이 어디에 대한 것인지는 사진 없이도 보여줄 수 있습니다.
-            VFPhotoTile(
-                spot: spot,
-                aspectRatio: VFPhoto.carouselAspect,
-                showsScrim: showsScrim
-            )
-        } else {
-            RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
-                .fill(AppColors.mutedSurface)
-                .aspectRatio(VFPhoto.carouselAspect, contentMode: .fit)
         }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  장소 태그
+//
+//  글이 어느 출사지에 대한 것인지 알려주고, 누르면 그 장소의 상세로
+//  갑니다. 전에는 피드에서 장소 이름이 사진 위에 얹힌 라벨이라
+//  누를 수 없었고, 사진이 없는 글은 장소가 어디인지 아예 보이지
+//  않았습니다.
+//
+//  사진 위에서 내려온 이유가 하나 더 있습니다.
+//  사진 위에 글자를 얹으면 scrim 으로 사진 아래쪽을 어둡게 해야 합니다.
+//  사용자가 올린 사진을 앱이 가리는 셈입니다.
+//  이제 사진에는 아무것도 얹지 않습니다.
+// ═══════════════════════════════════════════════════════════════════
+
+struct CommunityPlaceTag: View {
+    let spotName: String
+    let spot: PhotoSpot?
+    let onSelect: (PhotoSpot) -> Void
+
+    var body: some View {
+        Button {
+            guard let spot else { return }
+            onSelect(spot)
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "mappin.and.ellipse")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppColors.secondaryText)
+
+                Text(spotName)
+                    .vfText(.headline)
+                    .foregroundStyle(AppColors.primary)
+                    .lineLimit(1)
+
+                if spot != nil {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(AppColors.secondaryText)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(spot == nil)
+        .accessibilityLabel("\(spotName) 장소 상세 보기")
     }
 }
 
@@ -195,21 +229,38 @@ struct CommunityPostCard: View {
         VStack(alignment: .leading, spacing: VFSpace.sm) {
             authorLine
 
-            NavigationLink {
-                detailView(focusCommentComposer: false)
-            } label: {
-                photoWithPlaceName
+            if post.photoData != nil {
+                NavigationLink {
+                    detailView(focusCommentComposer: false)
+                } label: {
+                    CommunityPostPhoto(post: post, isTappableForPreview: false)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+
+            CommunityPlaceTag(
+                spotName: post.spotName,
+                spot: spot,
+                onSelect: onSelectSpot
+            )
 
             conditionLine
 
+            // 본문도 상세로 가는 링크입니다.
+            // 사진이 없는 글은 사진을 누를 수 없으므로, 본문이
+            // 상세로 들어가는 유일한 경로가 됩니다.
             if !post.message.isEmpty {
-                Text(post.message)
-                    .vfText(.body)
-                    .foregroundStyle(AppColors.primary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                NavigationLink {
+                    detailView(focusCommentComposer: false)
+                } label: {
+                    Text(post.message)
+                        .vfText(.body)
+                        .foregroundStyle(AppColors.primary)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
 
             listActionRow
@@ -229,30 +280,6 @@ struct CommunityPostCard: View {
                     Label("삭제", systemImage: "trash")
                 }
             }
-        }
-    }
-
-    /// 사진 + 사진 위 장소 이름.
-    ///
-    /// 장소 이름만 올립니다. 혼잡도까지 사진 위에 얹으면
-    /// 상세 화면에서 걷어낸 문제("사진 위에 또 현장정보")를 반복하게 됩니다.
-    /// 혼잡도는 사진 아래 자기 줄을 가집니다.
-    @ViewBuilder
-    private var photoWithPlaceName: some View {
-        ZStack(alignment: .bottomLeading) {
-            CommunityPostPhoto(
-                post: post,
-                spot: spot,
-                showsScrim: true,
-                isTappableForPreview: false
-            )
-
-            Text(post.spotName)
-                .vfText(.title2)
-                .foregroundStyle(.white)
-                .lineLimit(2)
-                .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
-                .padding(VFSpace.md)
         }
     }
 
@@ -521,9 +548,13 @@ private struct CommunityPostDetailView: View {
 
                     // 280pt 고정이었습니다. 상세는 사진을 가장 크게
                     // 보여주는 자리인데 세로 사진이 잘려 있었습니다.
-                    CommunityPostPhoto(post: post, spot: spot)
+                    CommunityPostPhoto(post: post)
 
-                    placeTitle
+                    CommunityPlaceTag(
+                        spotName: post.spotName,
+                        spot: spot,
+                        onSelect: onSelectSpot
+                    )
 
                     conditionLine
 
@@ -612,39 +643,6 @@ private struct CommunityPostDetailView: View {
                 .accessibilityLabel(isFollowing ? "팔로우 취소" : "팔로우")
             }
         }
-    }
-
-    @ViewBuilder
-    private var placeTitle: some View {
-        if let spot {
-            Button {
-                onSelectSpot(spot)
-            } label: {
-                placeTitleText
-            }
-            .buttonStyle(.plain)
-        } else {
-            placeTitleText
-        }
-    }
-
-    /// 장소로 이동하는 버튼입니다.
-    /// 전에는 24pt 굵은 글자만 있어서 눌릴 수 있다는 신호가 없었습니다.
-    /// 실제로는 탭하면 그 출사지로 가는데 아무 표시가 없었습니다.
-    private var placeTitleText: some View {
-        HStack(spacing: 5) {
-            Text(post.spotName)
-                .vfText(.title2)
-                .foregroundStyle(AppColors.primary)
-
-            if spot != nil {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(AppColors.secondaryText)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 
     /// 피드 카드의 액션 줄과 같은 형태입니다.
