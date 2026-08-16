@@ -393,7 +393,8 @@ struct MyTabView: View {
                     }
                 }
                 .padding(.horizontal, 14)
-                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
+                // 캔버스 위에 놓이는 정보 블록이므로 surface1 입니다.
+                .appCardSurface()
             }
         }
     }
@@ -514,21 +515,20 @@ private struct MyProfileCard: View {
         .padding(VFSpace.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         // ═══════════════════════════════════════════════════════════
-        //  표면을 surface1 -> surface2 로 올렸습니다.
+        //  활동 요약 카드와 같은 표면입니다.
         //
-        //  appCardSurface() 는 surface1(#121214)을 씁니다.
-        //  캔버스가 #000000 이라 두 색의 차이가 거의 없습니다.
-        //  카드가 "있는 듯 없는 듯" 흐릿한 사각형으로 보였고,
-        //  그게 배경이 어색하게 느껴지는 원인이었습니다.
+        //  한때 이 카드만 surface2 로 올렸는데, 바로 아래 활동 요약
+        //  카드가 surface1 이라 같은 화면에 두 가지 어두운 회색이
+        //  나란히 놓였습니다. 둘 다 정보 블록인데 표면이 달랐습니다.
         //
-        //  surface2(#1C1C1F)는 검정 위에서 경계가 읽힙니다.
-        //  사진 카드가 아니라 정보 블록이므로 한 단계 올라와도
-        //  사진과 경쟁하지 않습니다.
+        //  VFDesign 의 3단 규칙을 따릅니다.
+        //    canvas    화면 배경
+        //    surface1  카드 — 정보 블록
+        //    surface2  카드 위에 올라가는 요소. 칩, 아이콘 배경.
+        //
+        //  프로필 카드는 정보 블록이므로 surface1 입니다.
         // ═══════════════════════════════════════════════════════════
-        .background(
-            AppColors.mutedSurface,
-            in: RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
-        )
+        .appCardSurface()
     }
 
     private var identity: some View {
@@ -571,9 +571,10 @@ private struct MyProfileAvatar: View {
         }
         .foregroundStyle(inkColor)
         .frame(width: size, height: size)
-        // 카드가 surface2 이므로 아바타는 캔버스 색으로 내려
-        // 두 면이 구분되게 합니다.
-        .background(AppColors.background, in: Circle())
+        // 카드(surface1) 위에 올라가는 요소이므로 surface2 입니다.
+        // 캔버스 색(#000000)으로 내리면 카드(#121214)와 차이가
+        // 거의 없어서 원이 보이지 않습니다.
+        .background(AppColors.mutedSurface, in: Circle())
         .accessibilityHidden(true)
     }
 
@@ -790,7 +791,7 @@ private struct MyEmptyState: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
+        .appCardSurface()
     }
 }
 
@@ -888,10 +889,7 @@ struct MySubmissionListView: View {
                 }
             }
             .padding(.horizontal, 14)
-            .background(
-                AppColors.mutedSurface,
-                in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
-            )
+            .appCardSurface()
             .vfScreenMargin()
             .padding(.top, VFSpace.md)
             .vfScrollBottomInset()
