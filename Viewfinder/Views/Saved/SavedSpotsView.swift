@@ -59,8 +59,25 @@ struct MyTabView: View {
                     VStack(alignment: .leading, spacing: 26) {
                         screenHeader
 
+                        // ═══════════════════════════════════════════
+                        //  [버그였던 상황]
+                        //  프로필 섹션이 if user != nil 안에 있었습니다.
+                        //  그런데 profileSection 자체가 게스트 분기를
+                        //  이미 갖고 있습니다(MyProfileCard isGuest: true).
+                        //  호출부가 막아서 그 분기에 도달할 수 없었고,
+                        //  로그아웃하면 프로필 자리가 그냥 비었습니다.
+                        //
+                        //  대신 guestSignInSection 이 저장한 장소 아래에
+                        //  같은 내용을 다시 그리고 있었습니다.
+                        //  로그인 유도가 화면 중간에 묻혀 있었던 것입니다.
+                        //
+                        //  로그인 여부와 무관하게 프로필 자리는 항상
+                        //  최상단에 있어야 합니다. 로그인했으면 내 정보,
+                        //  안 했으면 로그인 유도가 같은 자리에 옵니다.
+                        // ═══════════════════════════════════════════
+                        profileSection
+
                         if user != nil {
-                            profileSection
                             activityOverview(using: proxy)
                         }
 
@@ -73,8 +90,6 @@ struct MyTabView: View {
 
                             postSection
                                 .id(MySectionAnchor.posts)
-                        } else {
-                            guestSignInSection
                         }
 
                         usageInfoSection
@@ -238,51 +253,6 @@ struct MyTabView: View {
             onAddComment: onAddComment,
             onSelectSpot: onSelectSpot
         )
-    }
-
-    private var guestBenefitsSection: some View {
-        MyGuestBenefitsCard {
-            requestSignInConfirmation()
-        }
-    }
-
-    private var guestSignInSection: some View {
-        Button(action: requestSignInConfirmation) {
-            HStack(alignment: .center, spacing: 14) {
-                Image(systemName: "person.crop.circle.badge.plus")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(AppColors.primary)
-                    .frame(width: 46, height: 46)
-                    .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("게스트로 둘러보는 중")
-                        .vfText(.headline)
-                        .foregroundStyle(AppColors.primary)
-
-                    Text("글을 쓰거나 장소를 제보할 때 로그인하면 돼요.")
-                        .vfText(.subhead)
-                        .foregroundStyle(AppColors.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 6)
-
-                Image(systemName: "arrow.right")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
-                    .accessibilityHidden(true)
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .appCardSurface()
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("게스트로 둘러보는 중, 로그인")
-        .accessibilityHint("로그인 안내를 엽니다")
     }
 
     private var usageInfoSection: some View {
@@ -654,101 +624,6 @@ private struct MyActivitySummaryCard: View {
         .accessibilityLabel(title)
         .accessibilityValue(isLocked ? "로그인 필요" : "\(value)개")
         .accessibilityHint(isLocked ? "로그인 안내를 엽니다" : "해당 활동 섹션으로 이동합니다")
-    }
-}
-
-private struct MyGuestBenefitsCard: View {
-    let onSignIn: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(AppColors.primary)
-                    .frame(width: 40, height: 40)
-                    .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("로그인하면 더 편해요")
-                        .font(AppTypography.cardTitle)
-                        .foregroundStyle(AppColors.primary)
-
-                    Text("둘러보기와 저장은 그대로 이용하면서 계정 활동을 이어갈 수 있어요.")
-                        .font(AppTypography.metadata)
-                        .foregroundStyle(AppColors.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            VStack(spacing: 12) {
-                MyBenefitRow(
-                    symbolName: "square.and.pencil",
-                    title: "현장 정보 작성",
-                    detail: "직접 확인한 촬영 상황을 공유해요."
-                )
-                MyBenefitRow(
-                    symbolName: "mappin.and.ellipse",
-                    title: "장소 제보 관리",
-                    detail: "제보한 장소의 검토 상태를 확인해요."
-                )
-                MyBenefitRow(
-                    symbolName: "heart",
-                    title: "계정이 필요한 활동",
-                    detail: "글, 댓글, 좋아요는 로그인 후 이용해요."
-                )
-            }
-
-            Button(action: onSignIn) {
-                // 주 동작이므로 앰버입니다.
-                // AppColors.primary 는 다크에서 흰색이라
-                // 카드 안에 흰 판이 들어가 있었습니다.
-                Text("로그인하고 활동 연결하기")
-                    .vfText(.callout)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(AppColors.onAccent)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: AppLayout.touchTarget)
-                    .background(AppColors.accent, in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("로그인 안내를 엽니다")
-        }
-        .padding(18)
-        .appCardSurface()
-    }
-}
-
-private struct MyBenefitRow: View {
-    let symbolName: String
-    let title: String
-    let detail: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 11) {
-            Image(systemName: symbolName)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(AppColors.primary)
-                .frame(width: 30, height: 30)
-                .background(AppColors.mutedSurface, in: Circle())
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .vfText(.callout)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(AppColors.primary)
-
-                Text(detail)
-                    .vfText(.subhead)
-                    .foregroundStyle(AppColors.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .accessibilityElement(children: .combine)
     }
 }
 
