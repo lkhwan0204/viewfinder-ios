@@ -36,7 +36,6 @@ struct MyTabView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var previousScrollOffset: CGFloat?
     @State private var isTabBarHidden = false
-    @State private var isSignInConfirmationPresented = false
 
     // 미리보기 개수.
     //
@@ -117,18 +116,6 @@ struct MyTabView: View {
                 .onAppear {
                     updateTabBarVisibility(0)
                 }
-                .confirmationDialog(
-                    "로그인하시겠어요?",
-                    isPresented: $isSignInConfirmationPresented,
-                    titleVisibility: .visible
-                ) {
-                    Button("로그인") {
-                        onRequestSignIn()
-                    }
-                    Button("취소", role: .cancel) {}
-                } message: {
-                    Text("로그인하면 프로필과 작성 활동을 계정에 연결할 수 있어요.")
-                }
             }
             // Phase 1: 스크롤한 본문이 상태바 시계와 겹쳐 읽히는 문제를 수정합니다.
             .vfTopEdgeFade()
@@ -155,8 +142,12 @@ struct MyTabView: View {
                 isGuest: false
             )
         } else {
+            // 카드 안에 "로그인" 이라고 적힌 앰버 버튼이 이미 있습니다.
+            // 그것을 누른 사람에게 "로그인하시겠어요?" 를 다시 묻는 것은
+            // 같은 질문을 두 번 하는 것입니다.
+            // 확인 다이얼로그는 되돌릴 수 없는 동작에만 씁니다.
             Button {
-                requestSignInConfirmation()
+                onRequestSignIn()
             } label: {
                 MyProfileCard(
                     title: "게스트로 둘러보는 중",
@@ -167,7 +158,6 @@ struct MyTabView: View {
             .buttonStyle(.plain)
             .contentShape(Rectangle())
             .accessibilityLabel("게스트 프로필, 로그인")
-            .accessibilityHint("로그인 안내를 엽니다")
         }
     }
 
@@ -196,11 +186,13 @@ struct MyTabView: View {
 
     @ViewBuilder
     private func activityCards(using proxy: ScrollViewProxy) -> some View {
+        // isLocked 분기를 없앴습니다.
+        // 활동 요약은 로그인한 뒤에만 표시되므로 user 는 항상 존재합니다.
+        // user == nil 조건과 "로그인 필요" 문구는 도달할 수 없는 코드였습니다.
         MyActivitySummaryCard(
             title: "저장",
             value: "\(savedSpots.count)",
             symbolName: "bookmark.fill",
-            isLocked: false,
             action: {
                 scroll(to: .saved, using: proxy)
             }
@@ -208,29 +200,19 @@ struct MyTabView: View {
 
         MyActivitySummaryCard(
             title: "내 글",
-            value: user == nil ? "로그인 필요" : "\(myPosts.count)",
+            value: "\(myPosts.count)",
             symbolName: "bubble.left.and.bubble.right.fill",
-            isLocked: user == nil,
             action: {
-                if user == nil {
-                    requestSignInConfirmation()
-                } else {
-                    scroll(to: .posts, using: proxy)
-                }
+                scroll(to: .posts, using: proxy)
             }
         )
 
         MyActivitySummaryCard(
             title: "장소 제보",
-            value: user == nil ? "로그인 필요" : "\(submissionReceipts.count)",
+            value: "\(submissionReceipts.count)",
             symbolName: "mappin.and.ellipse",
-            isLocked: user == nil,
             action: {
-                if user == nil {
-                    requestSignInConfirmation()
-                } else {
-                    scroll(to: .submissions, using: proxy)
-                }
+                scroll(to: .submissions, using: proxy)
             }
         )
     }
@@ -296,10 +278,6 @@ struct MyTabView: View {
             Capsule()
                 .stroke(AppColors.divider, lineWidth: 1)
         )
-    }
-
-    private func requestSignInConfirmation() {
-        isSignInConfirmationPresented = true
     }
 
     private func scroll(to anchor: MySectionAnchor, using proxy: ScrollViewProxy) {
@@ -579,7 +557,6 @@ private struct MyActivitySummaryCard: View {
     let title: String
     let value: String
     let symbolName: String
-    let isLocked: Bool
     let action: () -> Void
 
     var body: some View {
@@ -594,19 +571,11 @@ private struct MyActivitySummaryCard: View {
                         .accessibilityHidden(true)
 
                     Spacer(minLength: 4)
-
-                    if isLocked {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(AppColors.secondaryText)
-                            .accessibilityHidden(true)
-                    }
                 }
 
                 Text(value)
-                    .font(isLocked ? AppTypography.caption : .title2.weight(.bold))
-                    .fontWeight(isLocked ? .medium : .bold)
-                    .foregroundStyle(isLocked ? AppColors.secondaryText : AppColors.primary)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(AppColors.primary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -622,8 +591,8 @@ private struct MyActivitySummaryCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
-        .accessibilityValue(isLocked ? "로그인 필요" : "\(value)개")
-        .accessibilityHint(isLocked ? "로그인 안내를 엽니다" : "해당 활동 섹션으로 이동합니다")
+        .accessibilityValue("\(value)개")
+        .accessibilityHint("해당 활동 섹션으로 이동합니다")
     }
 }
 
