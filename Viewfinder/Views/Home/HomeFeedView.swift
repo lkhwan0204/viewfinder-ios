@@ -145,46 +145,74 @@ struct HomeFeedView: View {
                     onReportMissingPhoto: onReportMissingPhoto
                 )
             }
-            .fullScreenCover(isPresented: $isSearchResultsPresented) {
-                HomeSearchResultsView(
-                    query: $searchViewModel.searchText,
-                    spotRecommendations: combinedSearchRecommendations,
-                    communityPosts: keywordSearchResults.communityPosts,
-                    spots: searchableSpots,
-                    message: searchViewModel.message,
-                    isLoading: searchViewModel.isLoading,
-                    onSubmitSearch: performSearch,
-                    onDismiss: {
-                        isSearchResultsPresented = false
-                    },
-                    debugTrace: { line in
-                        #if DEBUG
-                        print("[VF-SEARCH] \(line)")
-                        #endif
-                    },
-                    onSelectSpot: { spot in
-                        onAddAISpot(spot)
-                        isSearchResultsPresented = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                            onShowSearchDetail(spot)
-                        }
-                    },
-                    onReportMissingPhoto: onReportMissingPhoto,
-                    onSelectCommunityPost: { post in
-                        guard let spot = spot(for: post) else { return }
-                        isSearchResultsPresented = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                            onShowSearchDetail(spot)
-                        }
-                    },
-                    onQueryChange: performLocalKeywordSearch
-                )
-            }
             .onAppear {
                 tabBarVisibilityState.previousDragTranslation = nil
                 isRefreshArmed = false
                 onTabBarVisibilityChange(false)
             }
+        }
+        // ═══════════════════════════════════════════════════════════
+        //  검색 화면을 NavigationStack 밖으로 옮겼습니다.
+        //
+        //  [증상]
+        //  검색 버튼은 눌립니다. 로그로 확인했습니다.
+        //  isSearchResultsPresented 를 true 로 바꾸는 코드도 실행됩니다.
+        //  그런데 화면이 나타나지 않습니다.
+        //
+        //  [왜 이 자리였는지 의심하는가]
+        //  전에는 이 모디파이어가 NavigationStack 의 내용(homeContent)에
+        //  붙어 있었고, 같은 뷰에 navigationDestination 도 붙어 있었습니다.
+        //  한 뷰가 내비게이션 목적지와 전체 화면 제시를 동시에 들고 있는
+        //  구조입니다.
+        //
+        //  제시(presentation)는 NavigationStack 자체에 붙이는 것이
+        //  안전합니다. 스택 안의 내용은 내비게이션에 따라 밀려나고 다시
+        //  그려지는 자리이고, 제시는 그 위에 떠야 하기 때문입니다.
+        //
+        //  이 변경만으로 고쳐지지 않을 수도 있으므로 상태 변화를 찍는
+        //  로그를 함께 넣었습니다. false -> true 만 찍히고 화면이 안 나오면
+        //  제시 자체의 문제이고, true -> false 가 곧바로 이어지면 무언가
+        //  상태를 되돌리고 있다는 뜻입니다. 원인이 정반대입니다.
+        // ═══════════════════════════════════════════════════════════
+        .onChange(of: isSearchResultsPresented) { oldValue, newValue in
+            #if DEBUG
+            print("[VF-SEARCH] 1b. isSearchResultsPresented \(oldValue) -> \(newValue)")
+            #endif
+        }
+        .fullScreenCover(isPresented: $isSearchResultsPresented) {
+            HomeSearchResultsView(
+                query: $searchViewModel.searchText,
+                spotRecommendations: combinedSearchRecommendations,
+                communityPosts: keywordSearchResults.communityPosts,
+                spots: searchableSpots,
+                message: searchViewModel.message,
+                isLoading: searchViewModel.isLoading,
+                onSubmitSearch: performSearch,
+                onDismiss: {
+                    isSearchResultsPresented = false
+                },
+                debugTrace: { line in
+                    #if DEBUG
+                    print("[VF-SEARCH] \(line)")
+                    #endif
+                },
+                onSelectSpot: { spot in
+                    onAddAISpot(spot)
+                    isSearchResultsPresented = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        onShowSearchDetail(spot)
+                    }
+                },
+                onReportMissingPhoto: onReportMissingPhoto,
+                onSelectCommunityPost: { post in
+                    guard let spot = spot(for: post) else { return }
+                    isSearchResultsPresented = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        onShowSearchDetail(spot)
+                    }
+                },
+                onQueryChange: performLocalKeywordSearch
+            )
         }
     }
 
