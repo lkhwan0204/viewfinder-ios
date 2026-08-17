@@ -299,6 +299,7 @@ struct HomeFeedView: View {
         }
         .overlay(alignment: .top) {
             Image(systemName: "arrow.down")
+                // Dynamic Type 제외: 고정 32pt 당겨서 새로고침 표시.
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(Color.white)
                 .frame(width: 32, height: 32)
@@ -394,17 +395,18 @@ struct HomeFeedView: View {
                     )
 
                 Image(systemName: "viewfinder")
+                    // Dynamic Type 제외: 48pt 로고 판 안의 기호. 판이 안 커지므로 기호도 안 커진다.
                     .font(.system(size: 21, weight: .semibold))
                     .foregroundStyle(AppColors.primary)
             }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("뷰파인더")
-                    .font(.system(size: 27, weight: .bold))
+                    .vfText(.title1.weight(.bold))
                     .foregroundStyle(AppColors.primary)
 
                 Text("오늘의 프레임을 찾는 출사 큐레이션")
-                    .font(.system(size: 12.5, weight: .medium))
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
             }
 
@@ -619,6 +621,7 @@ struct HomeContextPill: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: symbolName)
+                // Dynamic Type 제외: 고정 27pt 타일 안의 기호.
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(tint)
                 .frame(width: 27, height: 27)
@@ -626,12 +629,12 @@ struct HomeContextPill: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(1)
 
                 Text(value)
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(AppColors.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
@@ -641,7 +644,8 @@ struct HomeContextPill: View {
         }
         .padding(.horizontal, 13)
         .frame(maxWidth: .infinity)
-        .frame(height: 56)
+        .padding(.vertical, 10)
+        .frame(minHeight: 56)
         .appCardSurface(cornerRadius: AppLayout.cardCornerRadius)
     }
 }
@@ -700,11 +704,11 @@ struct HomeSearchResultsView: View {
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("출사지 검색")
-                                .font(.system(size: 27, weight: .bold))
+                                .vfText(.title1.weight(.bold))
                                 .foregroundStyle(AppColors.primary)
 
                             Text("장소, 지역, 분위기로 찾아보세요")
-                                .font(.system(size: 14, weight: .semibold))
+                                .vfText(.subhead.weight(.semibold))
                                 .foregroundStyle(AppColors.secondaryText)
                         }
 
@@ -712,6 +716,7 @@ struct HomeSearchResultsView: View {
 
                         Button(action: onDismiss) {
                             Image(systemName: "xmark")
+                                // Dynamic Type 제외: 고정 36pt 닫기 버튼.
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(AppColors.secondaryText)
                                 .frame(width: 36, height: 36)
@@ -722,11 +727,11 @@ struct HomeSearchResultsView: View {
 
                     HStack(spacing: 10) {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 18, weight: .regular))
+                            .vfIcon(18, weight: .regular)
                             .foregroundStyle(AppColors.secondaryText)
 
                         TextField("출사지, 지역, 분위기 검색", text: $query)
-                            .font(.system(size: 16, weight: .medium))
+                            .vfText(.body.weight(.medium))
                             .submitLabel(.search)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
@@ -743,7 +748,7 @@ struct HomeSearchResultsView: View {
                                 onQueryChange()
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 16))
+                                    .vfIcon(16, weight: .regular)
                                     .foregroundStyle(AppColors.secondaryText)
                             }
                             .buttonStyle(.plain)
@@ -751,13 +756,14 @@ struct HomeSearchResultsView: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .frame(height: 54)
+                    .padding(.vertical, 12)
+                    .frame(minHeight: 54)
                     // Phase 1 에서 걷어낸 1pt 테두리가 여기만 남아 있었습니다.
                     .background(AppColors.mutedSurface, in: Capsule())
 
                     if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text("검색어를 입력하면 앱의 출사지와 실제 장소를 함께 찾아드려요.")
-                            .font(.system(size: 14, weight: .medium))
+                            .vfText(.subhead.weight(.medium))
                             .foregroundStyle(AppColors.secondaryText)
                             .padding(.top, 8)
                     } else if isLoading || (placeFinder.isSearching && !hasResults) {
@@ -880,6 +886,7 @@ struct HomeUnknownPlaceRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "mappin.and.ellipse")
+                // Dynamic Type 제외: 고정 32pt 프레임 안의 기호.
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(AppColors.secondaryText)
                 .frame(width: 32, height: 32)
@@ -900,7 +907,7 @@ struct HomeUnknownPlaceRow: View {
             Spacer(minLength: 4)
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .bold))
+                .vfIcon(11, weight: .bold, relativeTo: .caption)
                 .foregroundStyle(AppColors.secondaryText)
                 .accessibilityHidden(true)
         }
@@ -916,14 +923,15 @@ struct SearchResultSectionHeader: View {
     var body: some View {
         HStack(spacing: 7) {
             Text(title)
-                .font(.system(size: 18, weight: .bold))
+                .vfText(.headline.weight(.bold))
                 .foregroundStyle(AppColors.primary)
 
             Text("\(count)")
-                .font(.system(size: 12, weight: .bold))
+                .vfText(.caption.weight(.bold))
                 .foregroundStyle(AppColors.secondaryText)
                 .padding(.horizontal, 7)
-                .frame(height: 22)
+                .padding(.vertical, 3)
+                .frame(minHeight: 22)
                 .background(AppColors.primarySoft, in: Capsule())
 
             Spacer(minLength: 0)
@@ -966,25 +974,25 @@ struct HomeSearchResultCard: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(spot.name)
-                    .font(.system(size: 18, weight: .bold))
+                    .vfText(.headline.weight(.bold))
                     .foregroundStyle(AppColors.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
 
                 Text(spot.region)
-                    .font(.system(size: 12, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(2)
 
                 Text(spot.summary)
-                    .font(.system(size: 12, weight: .medium))
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(2)
 
                 HStack(spacing: 6) {
                     ForEach(spot.hashtags.prefix(3), id: \.self) { tag in
                         Text("#\(tag.replacingOccurrences(of: "#", with: ""))")
-                            .font(.system(size: 10, weight: .bold))
+                            .vfText(.caption.weight(.bold))
                             .foregroundStyle(spot.theme.primary)
                             .lineLimit(1)
                     }
@@ -993,10 +1001,11 @@ struct HomeSearchResultCard: View {
                 if !spot.hasReliableDisplayImage {
                     Button(action: onReportMissingPhoto) {
                         Text("대표 사진 제보")
-                            .font(.system(size: 12, weight: .semibold))
+                            .vfText(.caption.weight(.semibold))
                             .foregroundStyle(AppColors.primary)
                             .padding(.horizontal, 10)
-                            .frame(height: 28)
+                            .padding(.vertical, 5)
+                            .frame(minHeight: 28)
                             .background(AppColors.mutedSurface, in: Capsule())
                             .overlay(Capsule().stroke(AppColors.divider, lineWidth: 1))
                     }
@@ -1026,6 +1035,7 @@ struct CommunityPostSearchResultCard: View {
                 SpotVisualTile(spot: spot, width: 74, height: 74)
             } else {
                 Image(systemName: "bubble.left.and.bubble.right.fill")
+                    // Dynamic Type 제외: 사진 자리를 대신하는 74pt 기호. 사진 크기와 같아야 한다.
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(AppColors.primary)
                     .frame(width: 74, height: 74)
@@ -1035,22 +1045,22 @@ struct CommunityPostSearchResultCard: View {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 6) {
                     Text(post.spotName)
-                        .font(.system(size: 16, weight: .bold))
+                        .vfText(.headline.weight(.bold))
                         .foregroundStyle(AppColors.primary)
                         .lineLimit(1)
 
                     Text("·")
-                        .font(.system(size: 11, weight: .bold))
+                        .vfText(.caption.weight(.bold))
                         .foregroundStyle(AppColors.secondaryText.opacity(0.7))
 
                     Text(communityRelativeTimeText(for: post.createdAt))
-                        .font(.system(size: 11, weight: .bold))
+                        .vfText(.caption.weight(.bold))
                         .foregroundStyle(AppColors.secondaryText)
                         .lineLimit(1)
                 }
 
                 Text(post.message)
-                    .font(.system(size: 13, weight: .semibold))
+                    .vfText(.subhead.weight(.semibold))
                     .foregroundStyle(AppColors.primary.opacity(0.86))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1097,7 +1107,7 @@ struct SearchStatusRow: View {
                     .controlSize(.small)
             } else {
                 Image(systemName: isError ? "exclamationmark.triangle.fill" : "info.circle.fill")
-                    .font(.system(size: 13, weight: .bold))
+                    .vfIcon(13, weight: .bold, relativeTo: .subheadline)
                     .foregroundStyle(isError ? AppColors.crowdCrowded : AppColors.primary)
             }
 
@@ -1396,6 +1406,7 @@ private struct HomeCategoryListRow: View {
                 if spot.hasReliableDisplayImage {
                     Button(action: onToggleSave) {
                         Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                            // Dynamic Type 제외: 사진 위 고정 31pt 저장 버튼.
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white)
                             .frame(width: 31, height: 31)
@@ -1408,17 +1419,17 @@ private struct HomeCategoryListRow: View {
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(spot.name)
-                    .font(.system(size: 17, weight: .semibold))
+                    .vfText(.headline)
                     .foregroundStyle(AppColors.primary)
                     .lineLimit(2)
 
                 Text(HomeSpotDisplayFormatter.region(for: spot))
-                    .font(.system(size: 13, weight: .medium))
+                    .vfText(.subhead.weight(.medium))
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(1)
 
                 Text(recommendation.reason)
-                    .font(.system(size: 13, weight: .regular))
+                    .vfText(.subhead)
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(2)
                     .lineSpacing(2)
@@ -1426,10 +1437,11 @@ private struct HomeCategoryListRow: View {
                 if !spot.hasReliableDisplayImage {
                     Button(action: onReportMissingPhoto) {
                         Text("대표 사진 제보")
-                            .font(.system(size: 12, weight: .semibold))
+                            .vfText(.caption.weight(.semibold))
                             .foregroundStyle(AppColors.primary)
                             .padding(.horizontal, 10)
-                            .frame(height: 28)
+                            .padding(.vertical, 5)
+                            .frame(minHeight: 28)
                             .background(AppColors.mutedSurface, in: Capsule())
                             .overlay(Capsule().stroke(AppColors.divider, lineWidth: 1))
                     }
@@ -1479,6 +1491,7 @@ struct CompactSpotCard: View {
                         onToggleSave()
                     } label: {
                         Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                            // Dynamic Type 제외: 사진 위 고정 34pt 저장 버튼.
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(isSaved ? AppColors.accent : .white)
                             .frame(width: 34, height: 34)
@@ -1494,14 +1507,14 @@ struct CompactSpotCard: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(spot.name)
-                    .font(.system(size: 16, weight: .bold))
+                    .vfText(.headline.weight(.bold))
                     .foregroundStyle(AppColors.primary)
                     .lineLimit(2)
                     .lineSpacing(1.1)
                     .minimumScaleFactor(0.82)
 
                 Text(detailText)
-                    .font(.system(size: 13, weight: .medium))
+                    .vfText(.subhead.weight(.medium))
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(2)
                     .lineSpacing(2)
