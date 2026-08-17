@@ -926,40 +926,52 @@ struct WeatherSunSection: View {
                 }
 
                 // ═══════════════════════════════════════════════════
-                //  일출은 왼쪽 끝, 일몰은 오른쪽 끝.
+                //  두 값을 내용 크기대로 나란히 둡니다.
                 //
-                //  전에는 두 칸을 maxWidth: .infinity + leading 으로
-                //  나눠서, 각 칸의 내용이 칸 왼쪽에 붙고 오른쪽에
-                //  100pt 넘는 빈 공간이 남았습니다. 두 덩어리가 모두
+                //  [처음 만들었을 때]
+                //  두 칸을 maxWidth: .infinity 로 화면 절반씩 늘리고
+                //  각각 leading 정렬했습니다. 그래서 내용이 칸 왼쪽에
+                //  붙고 오른쪽에 100pt 넘는 빈 공간이 남아, 두 덩어리가
                 //  왼쪽으로 쏠려 보였습니다.
                 //
-                //  가운데 0.5pt 구분선은 흰색 9% 라서 검정 카드 위에서
-                //  보이지 않았습니다. 있으나 없으나 같은 선은 지웁니다.
-                //  VFDesign 의 원칙도 "기본 그룹핑 수단은 여백" 입니다.
-                //  양 끝에 붙이면 선 없이도 두 값이 나뉩니다.
+                //  [그다음 시도 — 되돌림]
+                //  일출을 왼쪽 끝, 일몰을 오른쪽 끝으로 벌렸습니다.
+                //  빈 공간은 사라졌지만 세 가지가 나빠졌습니다.
+                //   1. 일출과 일몰은 한 쌍인데, 200pt 로 벌리면
+                //      관련 없는 두 항목처럼 읽힙니다.
+                //   2. 오른쪽 블록이 우측 정렬이 되어, 앱 전체가 좌측
+                //      정렬인데 카드 하나에 두 정렬이 섞였습니다.
+                //   3. 가운데 여백이 아무것도 뜻하지 않습니다.
+                //      여백은 묶거나 나눠야 합니다.
+                //
+                //  [지금]
+                //  칸을 늘리지 않습니다. 원래 문제는 정렬이 아니라
+                //  칸을 화면 절반으로 강제한 것이었습니다.
+                //  내용 크기대로 두고 사이를 32pt 로 띄우면, 한 쌍으로
+                //  읽히면서 각 값 오른쪽의 죽은 공간도 없습니다.
+                //  카드 오른쪽에 남는 여백은 앱의 다른 좌측 정렬 블록과
+                //  같은 성질이라 어색하지 않습니다.
                 // ═══════════════════════════════════════════════════
-                HStack(alignment: .top, spacing: VFSpace.md) {
+                HStack(alignment: .firstTextBaseline, spacing: VFSpace.xl) {
                     if let sunrise = snapshot.sunrise {
                         timeBlock(
                             symbol: "sunrise.fill",
                             title: "일출",
                             date: sunrise,
-                            isNext: nextKind == .sunrise,
-                            alignment: .leading
+                            isNext: nextKind == .sunrise
                         )
                     }
-
-                    Spacer(minLength: VFSpace.sm)
 
                     if let sunset = snapshot.sunset {
                         timeBlock(
                             symbol: "sunset.fill",
                             title: "일몰",
                             date: sunset,
-                            isNext: nextKind == .sunset,
-                            alignment: .trailing
+                            isNext: nextKind == .sunset
                         )
                     }
+
+                    Spacer(minLength: 0)
                 }
             }
             .padding(VFSpace.md)
@@ -980,10 +992,9 @@ struct WeatherSunSection: View {
         symbol: String,
         title: String,
         date: Date,
-        isNext: Bool,
-        alignment: HorizontalAlignment
+        isNext: Bool
     ) -> some View {
-        VStack(alignment: alignment, spacing: 3) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 5) {
                 Image(systemName: symbol)
                     .font(.system(size: 11, weight: .semibold))
