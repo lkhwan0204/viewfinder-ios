@@ -263,6 +263,30 @@ extension View {
 /// 칩 폭이 넓어져 한 화면에 3개밖에 안 들어왔고,
 /// 12pt bold 글자 옆 아이콘이 시각적 소음만 늘렸습니다.
 /// 글자만 남기면 같은 폭에 5개가 들어오고 훨씬 읽기 쉽습니다.
+///
+/// ═══════════════════════════════════════════════════════════════
+///  칩이 줄을 균등하게 나눠 씁니다.
+///
+///  [문제였던 상황]
+///  칩은 글자 폭 + 좌우 13pt 로 자기 크기를 정했습니다.
+///  6개를 더해도 325pt 라서 393pt 화면에 68pt 가 남았습니다.
+///  검색바는 전체 폭을 쓰는데 그 바로 아래 칩 줄만 오른쪽에서
+///  끝나 있어서, 줄이 잘렸거나 칩 하나가 빠진 것처럼 보였습니다.
+///  → 사용자 피드백: "필터 맨 오른쪽이 공백이라 어색하고"
+///
+///  [지금]
+///  각 칩이 `maxWidth: .infinity` 로 남는 폭을 똑같이 나눕니다.
+///  마지막 칩의 오른쪽 끝이 검색바 오른쪽 끝과 맞습니다.
+///
+///  이 방식이 성립하는 이유는 노출하는 6개 라벨이
+///  전체·카페·공원·산책·노을·야경 으로 전부 두 글자라는 데 있습니다.
+///  글자 수가 같으므로 균등 분할이 곧 균등한 시각 무게가 됩니다.
+///  (길이가 다른 "필름감성"·"숨은 명소"는 mapDisplayed 에서 빠져 있습니다.)
+///
+///  좌우 여백을 13 → 6 으로 줄인 것은 최소값의 의미입니다.
+///  실제 여백은 균등 분할이 정하고, 이 값은 접근성 큰 글자에서
+///  글자가 캡슐 테두리에 닿지 않게 하는 하한선입니다.
+/// ═══════════════════════════════════════════════════════════════
 struct MapFilterPill: View {
     let title: String
     let isSelected: Bool
@@ -271,9 +295,12 @@ struct MapFilterPill: View {
         Text(title)
             .font(.system(size: 13, weight: .semibold))
             .lineLimit(1)
-            .fixedSize()
+            // 큰 글자 설정에서 두 글자가 균등 분할 폭을 넘으면
+            // 잘리는 대신 살짝 줄여서 끝까지 읽히게 합니다.
+            .minimumScaleFactor(0.8)
             .foregroundStyle(isSelected ? AppColors.onAccent : MapChrome.ink)
-            .padding(.horizontal, 13)
+            .padding(.horizontal, 6)
+            .frame(maxWidth: .infinity)
             .frame(height: MapChrome.controlHeight)
             .mapChromeSurface(Capsule(), isActive: isSelected)
             // 칩 자체는 38pt 지만 위아래 3pt 를 더해 44pt 터치 타겟을 만듭니다.

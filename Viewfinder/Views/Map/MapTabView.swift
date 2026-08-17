@@ -318,34 +318,51 @@ struct MapTabView: View {
                 //
                 //  검색 중에는 둘 다 숨깁니다. 제안 목록이 지도를 덮고
                 //  있으므로 지도를 조작할 이유가 없습니다.
+                //
+                //  [세로로 쌓지 않고 좌우로 나눈 이유]
+                //  처음에는 우측 하단에 저장 위, 내 위치 아래로 8pt 간격
+                //  세로 스택이었습니다. 44pt 원 두 개가 8pt 간격이면
+                //  손가락이 닿는 영역이 사실상 붙어 있습니다.
+                //  → 사용자 피드백: "내 위치 누르다가 저장버튼 누를 것 같은데"
+                //
+                //  간격을 넓히는 것은 근본 해결이 아닙니다. 오조작 확률만
+                //  줄어들고, 두 컨트롤이 한 묶음으로 읽히는 것도 그대로입니다.
+                //
+                //  그래서 반대쪽 코너로 보냈습니다. 두 버튼이 약 300pt
+                //  떨어지므로 오조작이 구조적으로 불가능합니다.
+                //  지도 앱들이 컨트롤을 서로 다른 코너에 앵커하는 방식이고,
+                //  두 축이 다르다는 것도 자리로 드러납니다.
+                //    왼쪽  무엇을 보여줄까 (저장한 곳만 / 전체)
+                //    오른쪽 어디를 볼까 (내 위치로 이동)
+                //
+                //  내 위치를 오른쪽에 둔 것은 더 자주 쓰는 쪽을 주 손가락이
+                //  닿는 자리에 두기 위함입니다.
                 // ═══════════════════════════════════════════════════
                 if !isSearching {
-                    HStack {
+                    HStack(spacing: VFSpace.sm) {
+                        Button {
+                            if isMapSavedFilterEnabled {
+                                onToggleRecommendations()
+                            } else {
+                                onToggleSavedFilter()
+                                isSavedListPresented = true
+                            }
+                        } label: {
+                            MapCircleButton(
+                                symbolName: isMapSavedFilterEnabled ? "bookmark.fill" : "bookmark",
+                                isActive: isMapSavedFilterEnabled
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isMapSavedFilterEnabled ? "저장 목록 끄기" : "저장한 출사지 보기")
+
                         Spacer(minLength: 0)
 
-                        VStack(spacing: VFSpace.sm) {
-                            Button {
-                                if isMapSavedFilterEnabled {
-                                    onToggleRecommendations()
-                                } else {
-                                    onToggleSavedFilter()
-                                    isSavedListPresented = true
-                                }
-                            } label: {
-                                MapCircleButton(
-                                    symbolName: isMapSavedFilterEnabled ? "bookmark.fill" : "bookmark",
-                                    isActive: isMapSavedFilterEnabled
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(isMapSavedFilterEnabled ? "저장 목록 끄기" : "저장한 출사지 보기")
-
-                            Button(action: onFocusUserLocation) {
-                                MapCircleButton(symbolName: "location.fill", tint: AppColors.accent)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("내 위치로 이동")
+                        Button(action: onFocusUserLocation) {
+                            MapCircleButton(symbolName: "location.fill", tint: AppColors.accent)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("내 위치로 이동")
                     }
                     .padding(.horizontal, 4)
                     .padding(.bottom, 2)
@@ -481,33 +498,44 @@ struct MapTabView: View {
     //  4. 저장 모드에서는 카테고리 필터가 적용되지 않으므로 줄 자체를 숨깁니다.
     //     (저장 목록 시트가 자기 카테고리 탭을 따로 갖고 있습니다.)
     // ═══════════════════════════════════════════════════════════════
-    /// 카테고리 필터 칩 한 줄.
+    /// 카테고리 필터 칩 한 줄. 6개가 줄을 균등하게 나눠 씁니다.
     ///
-    /// 저장 버튼이 검색 줄로 올라가면서 이 줄은 전체 폭을 씁니다.
-    /// 칩 6개가 약 342pt 이고 가용 폭이 369pt 이므로 스크롤이 생기지
-    /// 않습니다. ScrollView 는 남겨둡니다. 접근성 큰 글자에서는 칩이
-    /// 커져 넘칠 수 있고, 그때 잘리는 것보다 스크롤되는 것이 낫습니다.
+    /// ScrollView 를 없앴습니다.
+    ///
+    /// [문제였던 상황]
+    /// 칩이 자기 글자 폭대로 크기를 정해서 6개를 더해도 325pt 였고,
+    /// 오른쪽에 68pt 가 남았습니다. 검색바는 전체 폭을 쓰는데 칩 줄만
+    /// 중간에서 끝나 잘린 것처럼 보였습니다.
+    /// 그리고 ScrollView 가 남아 있어서, 넘치지 않는데도 손가락을 대면
+    /// 줄이 미세하게 밀렸습니다.
+    ///
+    /// [지금]
+    /// 고정 폭 HStack 안에서 각 칩이 남는 폭을 균등하게 나눕니다.
+    /// 스크롤이 구조적으로 불가능하고, 마지막 칩의 오른쪽 끝이
+    /// 검색바 오른쪽 끝과 맞습니다.
+    ///
+    /// 접근성 큰 글자는 MapFilterPill 의 minimumScaleFactor 가 받습니다.
+    /// 스크롤로 넘기게 하는 것보다, 여섯 개가 항상 한눈에 보이면서
+    /// 글자만 살짝 작아지는 편이 낫습니다.
     @ViewBuilder
     private var mapControls: some View {
         if !isMapSavedFilterEnabled {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(MapCategoryFilter.mapDisplayed) { filter in
-                        Button {
-                            onSelectCategory(filter)
-                        } label: {
-                            MapFilterPill(
-                                title: filter.title,
-                                isSelected: filter == mapCategoryFilter
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(filter.title) 카테고리")
-                        .accessibilityValue(filter == mapCategoryFilter ? "선택됨" : "")
+            HStack(spacing: 6) {
+                ForEach(MapCategoryFilter.mapDisplayed) { filter in
+                    Button {
+                        onSelectCategory(filter)
+                    } label: {
+                        MapFilterPill(
+                            title: filter.title,
+                            isSelected: filter == mapCategoryFilter
+                        )
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(filter.title) 카테고리")
+                    .accessibilityValue(filter == mapCategoryFilter ? "선택됨" : "")
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
     }
 }
