@@ -162,7 +162,7 @@ struct CommunityPlaceTag: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "mappin.and.ellipse")
-                    .font(.system(size: 13, weight: .semibold))
+                    .vfIcon(13)
                     .foregroundStyle(AppColors.secondaryText)
 
                 Text(spotName)
@@ -172,7 +172,7 @@ struct CommunityPlaceTag: View {
 
                 if spot != nil {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .bold))
+                        .vfIcon(11, weight: .bold)
                         .foregroundStyle(AppColors.secondaryText)
                 }
             }
@@ -386,6 +386,7 @@ struct CommunityPostCard: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
+                        // Dynamic Type 제외: 고정 32pt 더보기 버튼.
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(AppColors.secondaryText)
                         .frame(width: 32, height: 32)
@@ -469,6 +470,7 @@ private struct CommunityAuthorAvatar: View {
         //  프로필 사진 필드가 아직 모델에 없으므로 이것이 최선입니다.
         // ═══════════════════════════════════════════════════════════
         Text(initial)
+            // Dynamic Type 제외: 아바타 지름에 비례하는 크기다. 원이 안 커지므로 글자도 안 커진다.
             .font(.system(size: size * 0.44, weight: .semibold))
             .foregroundStyle(inkColor)
             .frame(width: size, height: size)
@@ -739,7 +741,8 @@ private struct CommunityPostDetailView: View {
                 .submitLabel(.send)
                 .onSubmit(submit)
                 .padding(.horizontal, 14)
-                .frame(height: 40)
+                .padding(.vertical, 8)
+                .frame(minHeight: 40)
                 .background(AppColors.mutedSurface, in: Capsule())
 
             // 전송 버튼이 AppColors.primary 였습니다.
@@ -748,7 +751,7 @@ private struct CommunityPostDetailView: View {
             // 보낼 내용이 없으면 비활성으로 낮춥니다.
             Button(action: submit) {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 28))
+                    .vfIcon(28, weight: .regular)
                     .foregroundStyle(canSubmitComment ? AppColors.accent : AppColors.secondaryText.opacity(0.45))
             }
             .buttonStyle(.plain)
@@ -802,7 +805,7 @@ struct CommunityInlinePostCard: View {
             CommunityPostMetaHeader(post: post)
 
             Text(post.message)
-                .font(.system(size: 12.5, weight: .regular))
+                .vfText(.subhead)
                 .foregroundStyle(AppColors.primary.opacity(0.82))
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -832,21 +835,21 @@ struct CommunityPostMetaHeader: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .center, spacing: 7) {
                 Text(post.authorName)
-                    .font(.system(size: 12, weight: .bold))
+                    .vfText(.caption.weight(.bold))
                     .foregroundStyle(AppColors.primary.opacity(0.78))
                     .lineLimit(1)
 
                 Text("·")
-                    .font(.system(size: 12, weight: .bold))
+                    .vfText(.caption.weight(.bold))
                     .foregroundStyle(AppColors.secondaryText.opacity(0.65))
 
                 Text(communityRelativeTimeText(for: post.createdAt))
-                    .font(.system(size: 12, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(AppColors.secondaryText)
 
                 if post.updatedAt != nil {
                     Text("수정됨")
-                        .font(.system(size: 11, weight: .bold))
+                        .vfText(.caption.weight(.bold))
                         .foregroundStyle(AppColors.secondaryText.opacity(0.65))
                 }
 
@@ -854,7 +857,7 @@ struct CommunityPostMetaHeader: View {
             }
 
             Text(communityWrittenTimeText(for: post.createdAt))
-                .font(.system(size: 11, weight: .semibold))
+                .vfText(.caption.weight(.semibold))
                 .foregroundStyle(AppColors.secondaryText.opacity(0.86))
         }
         .contextMenu {
@@ -868,10 +871,11 @@ struct CommunityCrowdBadge: View {
 
     var body: some View {
         Text(crowd.displayText)
-            .font(.system(size: 11, weight: .bold))
+            .vfText(.caption.weight(.bold))
             .foregroundStyle(crowd.tint)
             .padding(.horizontal, 9)
-            .frame(height: 24)
+            .padding(.vertical, 4)
+            .frame(minHeight: 24)
             .background(crowd.fill, in: Capsule())
             .overlay(
                 Capsule()
@@ -953,10 +957,11 @@ struct CommunityStatusRow: View {
 
                 ForEach(tags, id: \.self) { tag in
                     Text(tag)
-                        .font(.system(size: 11, weight: .bold))
+                        .vfText(.caption.weight(.bold))
                         .foregroundStyle(AppColors.primary.opacity(0.72))
                         .padding(.horizontal, 8)
-                        .frame(height: 24)
+                        .padding(.vertical, 4)
+                        .frame(minHeight: 24)
                         .background(AppColors.mutedSurface, in: Capsule())
                 }
             }
@@ -977,7 +982,7 @@ struct CommunityPostOwnerActions: View {
                 onEdit(post)
             } label: {
                 Label("수정", systemImage: "pencil")
-                    .font(.system(size: 11, weight: .bold))
+                    .vfText(.caption.weight(.bold))
             }
             .buttonStyle(.plain)
 
@@ -985,7 +990,7 @@ struct CommunityPostOwnerActions: View {
                 onDelete(post)
             } label: {
                 Label("삭제", systemImage: "trash")
-                    .font(.system(size: 11, weight: .bold))
+                    .vfText(.caption.weight(.bold))
             }
             .buttonStyle(.plain)
         }
@@ -1187,6 +1192,7 @@ struct CommunityPhotoPreview: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark")
+                    // Dynamic Type 제외: 고정 38pt 닫기 버튼.
                     .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.white)
                     .frame(width: 38, height: 38)
@@ -1203,15 +1209,15 @@ struct EmptyCommunityView: View {
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: "person.2")
-                .font(.system(size: 24, weight: .regular))
+                .vfIcon(24, weight: .regular)
                 .foregroundStyle(AppColors.secondaryText)
 
             Text("아직 올라온 현장 정보가 없어요")
-                .font(.system(size: 17, weight: .bold))
+                .vfText(.headline.weight(.bold))
                 .foregroundStyle(AppColors.primary)
 
             Text("첫 현장 정보를 남겨보세요.")
-                .font(.system(size: 13, weight: .regular))
+                .vfText(.subhead)
                 .foregroundStyle(AppColors.secondaryText)
         }
         .padding(.vertical, 54)
@@ -1388,7 +1394,7 @@ struct CommunityComposerView: View {
                     } else {
                         HStack(spacing: VFSpace.sm) {
                             Image(systemName: "arrow.up")
-                                .font(.system(size: 12, weight: .semibold))
+                                .vfIcon(12, relativeTo: .subheadline)
                             Text(emptySelectionText)
                                 .vfText(.subhead)
                         }
@@ -1436,7 +1442,8 @@ struct CommunityComposerView: View {
                     .vfText(.headline)
                     .foregroundStyle(canSubmit ? AppColors.onAccent : AppColors.secondaryText.opacity(0.45))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 52)
+                    .padding(.vertical, 12)
+                    .frame(minHeight: 52)
                     .background(
                         canSubmit ? AppColors.accent : AppColors.mutedSurface,
                         in: Capsule()
@@ -1456,6 +1463,7 @@ struct CommunityComposerView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 Image(systemName: "location")
+                    // Dynamic Type 제외: 고정 38pt 원 안의 아이콘.
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(AppColors.primary)
                     .frame(width: 38, height: 38)
@@ -1463,12 +1471,12 @@ struct CommunityComposerView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(spot.name)
-                        .font(.system(size: 16, weight: .bold))
+                        .vfText(.headline.weight(.bold))
                         .foregroundStyle(AppColors.primary)
                         .lineLimit(1)
 
                     Text(spot.region)
-                        .font(.system(size: 13, weight: .regular))
+                        .vfText(.subhead)
                         .foregroundStyle(AppColors.secondaryText)
                         .lineLimit(2)
                 }
@@ -1481,6 +1489,7 @@ struct CommunityComposerView: View {
                 // 요소가 됐습니다.
                 // "선택됨" 은 VFDesign 이 앰버를 허용한 상태입니다.
                 Image(systemName: "checkmark")
+                    // Dynamic Type 제외: 고정 26pt 체크 원.
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(AppColors.onAccent)
                     .frame(width: 26, height: 26)
@@ -1490,13 +1499,13 @@ struct CommunityComposerView: View {
             if purpose == .addSpot, selectedSpotAlreadyRegistered {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: selectedRegisteredSpotNeedsPhoto ? "photo.badge.plus" : "checkmark.seal")
-                        .font(.system(size: 13, weight: .semibold))
+                        .vfIcon(13, relativeTo: .caption)
                     Text(
                         selectedRegisteredSpotNeedsPhoto
                             ? "등록된 장소지만 대표 사진이 비어 있어요. 직접 촬영한 사진을 제보할 수 있어요."
                             : "이미 등록된 장소예요. 중복 등록 대신 커뮤니티에서 현장 정보를 남겨주세요."
                     )
-                        .font(.system(size: 12, weight: .semibold))
+                        .vfText(.caption.weight(.semibold))
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .foregroundStyle(AppColors.secondaryText)
@@ -1534,6 +1543,7 @@ struct CommunityComposerView: View {
                     PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
                         // VFSaveButton(.onPhoto) 과 같은 사진 위 버튼 표면입니다.
                         Image(systemName: "arrow.triangle.2.circlepath")
+                            // Dynamic Type 제외: 고정 36pt 사진 교체 버튼.
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 36, height: 36)
@@ -1548,7 +1558,7 @@ struct CommunityComposerView: View {
                     selectedPhotoItem = nil
                 } label: {
                     Label("사진 제거", systemImage: "trash")
-                        .font(.system(size: 13, weight: .semibold))
+                        .vfText(.subhead.weight(.semibold))
                         .foregroundStyle(AppColors.secondaryText)
                 }
                 .buttonStyle(.plain)
@@ -1567,7 +1577,7 @@ struct CommunityComposerView: View {
                         .overlay {
                             VStack(spacing: VFSpace.sm) {
                                 Image(systemName: "photo.badge.plus")
-                                    .font(.system(size: 26, weight: .regular))
+                                    .vfIcon(26, weight: .regular)
 
                                 Text("사진 선택")
                                     .vfText(.callout)
@@ -1579,7 +1589,7 @@ struct CommunityComposerView: View {
 
             if photoLoadFailed {
                 Text("사진을 불러오지 못했어요. 다른 사진을 선택해주세요.")
-                    .font(.system(size: 12, weight: .medium))
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.primary)
             }
 
@@ -1591,7 +1601,7 @@ struct CommunityComposerView: View {
             Divider()
 
             Text("등록한 장소와 사진은 검토를 마친 뒤 공개됩니다.")
-                .font(.system(size: 12, weight: .medium))
+                .vfText(.caption)
                 .foregroundStyle(AppColors.secondaryText)
 
             Button {
@@ -1599,10 +1609,10 @@ struct CommunityComposerView: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: hasAcknowledgedSubmissionGuidelines ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 19, weight: .semibold))
+                        .vfIcon(19, relativeTo: .subheadline)
 
                     Text("사진 권리와 등록 검토 안내를 확인했어요")
-                        .font(.system(size: 14, weight: .semibold))
+                        .vfText(.subhead.weight(.semibold))
 
                     Spacer(minLength: 0)
                 }
@@ -1786,7 +1796,7 @@ struct CommunityComposerView: View {
             // ═══════════════════════════════════════════════════════
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 15, weight: .medium))
+                    .vfIcon(15, weight: .medium)
                     .foregroundStyle(AppColors.secondaryText)
 
                 TextField("장소명 또는 주소 검색", text: $placeSearchText)
@@ -1816,7 +1826,8 @@ struct CommunityComposerView: View {
                 }
             }
             .padding(.horizontal, 13)
-            .frame(height: 48)
+            .padding(.vertical, 8)
+            .frame(minHeight: 48)
             .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
 
             if let selectedSpot {
@@ -1833,6 +1844,7 @@ struct CommunityComposerView: View {
                             HStack(spacing: 10) {
                                 // 등록된 장소와 실제 장소검색 결과를 구분합니다.
                                 Image(systemName: result.isKnown ? "camera.aperture" : "mappin.and.ellipse")
+                                    // Dynamic Type 제외: 고정 28pt 폭 안의 결과 아이콘. 옆 글자의 세로 정렬 기준이다.
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundStyle(result.isKnown ? AppColors.accent : AppColors.secondaryText)
                                     .frame(width: 28)
@@ -1852,7 +1864,7 @@ struct CommunityComposerView: View {
                                 Spacer(minLength: 0)
 
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 11, weight: .bold))
+                                    .vfIcon(11, weight: .bold)
                                     .foregroundStyle(AppColors.secondaryText)
                             }
                             .padding(.horizontal, 2)
@@ -2029,7 +2041,8 @@ struct CrowdSelector: View {
                         .vfText(.callout)
                         .foregroundStyle(selectedCrowd == item ? AppColors.onAccent : AppColors.primary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: AppLayout.touchTarget)
+                        .padding(.vertical, 10)
+                        .frame(minHeight: AppLayout.touchTarget)
                         .background(
                             selectedCrowd == item ? AppColors.accent : AppColors.mutedSurface,
                             in: Capsule()
@@ -2063,7 +2076,8 @@ struct FlexibleTagGrid: View {
                         .vfText(.caption)
                         .foregroundStyle(selectedTags.contains(tag) ? AppColors.onAccent : AppColors.primary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 38)
+                        .padding(.vertical, 8)
+                        .frame(minHeight: 38)
                         .background(
                             selectedTags.contains(tag) ? AppColors.accent : AppColors.mutedSurface,
                             in: Capsule()
@@ -2086,11 +2100,11 @@ struct CustomTagInputSection: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: "number")
-                    .font(.system(size: 15, weight: .semibold))
+                    .vfIcon(15)
                     .foregroundStyle(AppColors.secondaryText)
 
                 TextField("예: 야경, 한강, 필름감성", text: $text)
-                    .font(.system(size: 15, weight: .regular))
+                    .vfText(.callout.weight(.regular))
                     .submitLabel(.done)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -2102,6 +2116,7 @@ struct CustomTagInputSection: View {
 
                 Button(action: addTagsFromInput) {
                     Image(systemName: "plus")
+                        // Dynamic Type 제외: 고정 32pt 태그 추가 버튼. 프레임이 안 커지므로 기호도 안 커진다.
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(canAddTag ? AppColors.primary : AppColors.secondaryText.opacity(0.45))
                         .frame(width: 32, height: 32)
@@ -2110,12 +2125,13 @@ struct CustomTagInputSection: View {
                 .disabled(!canAddTag)
             }
             .padding(.horizontal, 13)
-            .frame(height: 48)
+            .padding(.vertical, 8)
+            .frame(minHeight: 48)
             .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
 
             if tags.isEmpty {
                 Text("입력한 태그는 검색 키워드로 사용됩니다. 예: 야경 검색 시 #야경 장소가 노출돼요.")
-                    .font(.system(size: 12, weight: .medium))
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 7)], spacing: 7) {
@@ -2128,12 +2144,13 @@ struct CustomTagInputSection: View {
                                     .lineLimit(1)
 
                                 Image(systemName: "xmark")
-                                    .font(.system(size: 9, weight: .bold))
+                                    .vfIcon(9, weight: .bold, relativeTo: .caption)
                             }
                             .vfText(.caption)
                             .foregroundStyle(AppColors.primary)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 38)
+                            .padding(.vertical, 8)
+                            .frame(minHeight: 38)
                             .background(AppColors.mutedSurface, in: Capsule())
                             .contentShape(Capsule())
                         }

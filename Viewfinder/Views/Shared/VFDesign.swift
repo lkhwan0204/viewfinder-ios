@@ -271,10 +271,84 @@ private struct VFTextModifier: ViewModifier {
     }
 }
 
+extension VFTextStyle {
+    /// 크기는 그대로 두고 굵기만 바꾼다.
+    ///
+    /// 배지·타임스탬프처럼 "작지만 또렷해야 하는" 글자가 있다.
+    /// 그런 곳에 크기가 맞는 토큰을 쓰면 굵기가 안 맞고, 굵기를 맞추려고
+    /// 한 단계 큰 토큰을 쓰면 크기가 안 맞는다. 그래서 토큰을 벗어나
+    /// raw font 로 돌아가는 일이 반복됐다.
+    ///
+    /// 굵기는 같은 크기 안의 변주이므로 토큰을 깨지 않는다.
+    /// 크기·tracking·lineSpacing·Dynamic Type 기준은 그대로 유지된다.
+    /// 크기를 바꾸는 변주는 일부러 만들지 않았다. 크기는 9개 중에서
+    /// 골라야 하고, 그것이 이 시스템의 핵심이다.
+    func weight(_ newWeight: Font.Weight) -> VFTextStyle {
+        VFTextStyle(
+            size: size,
+            weight: newWeight,
+            tracking: tracking,
+            lineSpacing: lineSpacing,
+            relativeTo: relativeTo,
+            design: design,
+            usesMonospacedDigit: usesMonospacedDigit
+        )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 아이콘의 Dynamic Type
+//
+//  SF Symbol 은 글자가 아니라 기호다. vfText 를 걸면 안 된다.
+//  tracking / lineSpacing 이 의미가 없고, 토큰의 크기가 아이콘에 맞는
+//  크기라는 보장도 없다.
+//
+//  그런데 아이콘도 커져야 하는 경우가 있다. 규칙은 아이콘이 무엇과
+//  나란히 있는지로 갈린다.
+//
+//  [커져야 하는 아이콘] 글자와 한 줄에 있는 아이콘
+//   글자만 커지고 아이콘이 그대로면 12pt 기호 옆에 28pt 글자가 서게
+//   된다. 둘의 관계가 깨진다. 이런 곳에 vfIcon 을 쓴다.
+//
+//  [커지면 안 되는 아이콘] 고정 크기 프레임 안의 아이콘
+//   .frame(width: 32, height: 32) 같은 터치 타겟 안에 든 아이콘이다.
+//   프레임은 안 커지는데 기호만 커지면 넘쳐서 잘린다.
+//   이런 곳은 고정 크기가 정답이다. 시스템 탭바·툴바 아이콘도 고정이다.
+// ═══════════════════════════════════════════════════════════════════
+
+private struct VFIconModifier: ViewModifier {
+    @ScaledMetric private var scaledSize: CGFloat
+    private let weight: Font.Weight
+
+    init(size: CGFloat, weight: Font.Weight, relativeTo: Font.TextStyle) {
+        self.weight = weight
+        _scaledSize = ScaledMetric(wrappedValue: size, relativeTo: relativeTo)
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: scaledSize, weight: weight))
+    }
+}
+
 extension View {
     /// 폰트 + 한글 tracking + lineSpacing + Dynamic Type 을 한 번에 적용한다.
     func vfText(_ style: VFTextStyle) -> some View {
         modifier(VFTextModifier(style: style))
+    }
+
+    /// SF Symbol 을 Dynamic Type 에 맞춰 키운다.
+    ///
+    /// 글자와 한 줄에 있는 아이콘에만 쓴다. 고정 프레임 안의 아이콘은
+    /// 고정 크기로 둔다. (위 주석 참고)
+    ///
+    /// - Parameter relativeTo: 나란히 있는 글자의 기준 스타일.
+    ///   같은 비율로 커져야 관계가 유지된다.
+    func vfIcon(
+        _ size: CGFloat,
+        weight: Font.Weight = .semibold,
+        relativeTo: Font.TextStyle = .body
+    ) -> some View {
+        modifier(VFIconModifier(size: size, weight: weight, relativeTo: relativeTo))
     }
 }
 
