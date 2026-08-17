@@ -36,47 +36,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         configureImageCache()
 
         configureTabBarAppearance()
-        logBuildStamp()
         return true
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  임시 진단. 원인을 잡으면 이 함수와 호출을 함께 지웁니다.
-    //
-    //  홈 검색을 찾다가 계측 로그가 아예 안 찍힌다는 보고를 받았습니다.
-    //  그러면 원인이 둘 중 하나인데 방향이 정반대입니다.
-    //   1. 실행 중인 앱에 그 코드가 없다 (pull 안 됨, 재빌드 안 됨,
-    //      또는 Release 로 실행 중이라 #if DEBUG 가 컴파일되지 않음)
-    //   2. 코드는 있는데 그 지점까지 실행이 도달하지 않는다
-    //
-    //  버튼을 누르는 등 상호작용에 의존하는 로그로는 이 둘을 구분할 수
-    //  없습니다. 앱을 켜기만 하면 찍히는 한 줄이 필요합니다.
-    //
-    //  print 와 OSLog 를 함께 씁니다. print 는 Xcode 콘솔에,
-    //  AppLog 는 Console.app 에서도 보입니다. 그리고 #if DEBUG 로
-    //  감싸지 않았습니다. Release 로 실행 중인지가 지금 알아야 하는
-    //  것 중 하나이므로, DEBUG 에서만 찍히면 그 경우를 구분할 수 없습니다.
-    //
-    //  isConfigured 를 함께 찍습니다. Release 는 엔드포인트가 비어 있어
-    //  false 가 되므로, 이 값으로 Debug/Release 도 구분됩니다.
-    // ═══════════════════════════════════════════════════════════════
-    private func logBuildStamp() {
-        let configuration: String
-        #if DEBUG
-        configuration = "DEBUG"
-        #else
-        configuration = "RELEASE"
-        #endif
-
-        let backend = AppBackendConfiguration.current
-        let stamp = """
-        [VF-BUILD] 검색 계측 포함 빌드 · \(configuration) \
-        · backendConfigured=\(backend.isConfigured) \
-        · endpoint=\(backend.recommendationURL?.absoluteString ?? "없음")
-        """
-
-        print(stamp)
-        AppLog.network.error("\(stamp, privacy: .public)")
     }
 
     func application(

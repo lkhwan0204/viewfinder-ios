@@ -54,9 +54,6 @@ final class NativeTabBarVisibilityController: NSObject {
         }
 
         self.tabBar = tabBar
-        #if DEBUG
-        dumpBackgroundHierarchyIfNeeded(tabBar)
-        #endif
         tabBar.isHidden = false
         // alpha 는 항상 1 로 고정합니다. 이것이 관통 버그 수정의 핵심입니다.
         tabBar.alpha = 1
@@ -264,63 +261,6 @@ final class NativeTabBarVisibilityController: NSObject {
         return hideProgress
     }
 }
-
-// ─────────────────────────────────────────────────────────────────
-//  탭바 배경 진단 (DEBUG 전용)
-//
-//  탭바 색을 두 번 고쳤는데 두 번 다 실기에서 안 먹었습니다.
-//  UITabBarAppearance 로 configureWithOpaqueBackground +
-//  backgroundEffect = nil + backgroundColor = surface2 를 다 걸었는데도
-//  iOS 26 플로팅 탭바가 밝은 유리로 남았습니다.
-//
-//  세 번째 추측을 하는 대신, 배경을 실제로 그리는 뷰가 무엇인지 찍습니다.
-//  UIVisualEffectView 가 남아 있다면 어떤 effect 인지, backgroundColor 가
-//  어디에 적용됐는지가 로그에 나옵니다. 그것을 보고 정확한 지점을 고칩니다.
-//
-//  DEBUG 에서만 컴파일되고, 앱 실행당 한 번만 찍습니다.
-// ─────────────────────────────────────────────────────────────────
-#if DEBUG
-private var hasDumpedTabBarBackground = false
-
-private extension NativeTabBarVisibilityController {
-    func dumpBackgroundHierarchyIfNeeded(_ tabBar: UITabBar) {
-        guard !hasDumpedTabBarBackground else { return }
-        hasDumpedTabBarBackground = true
-
-        // 레이아웃이 끝난 뒤에 읽어야 실제로 붙은 뷰가 전부 보입니다.
-        // attach 시점에는 유리 뷰가 아직 없을 수 있습니다.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak tabBar] in
-            guard let tabBar else { return }
-
-            var lines = ["[VF-TABBAR] ───────── 탭바 배경 진단 ─────────"]
-            lines.append("[VF-TABBAR] class=\(type(of: tabBar)) bounds=\(tabBar.bounds)")
-
-            let appearance = tabBar.standardAppearance
-            lines.append("[VF-TABBAR] appearance.backgroundColor=\(String(describing: appearance.backgroundColor))")
-            lines.append("[VF-TABBAR] appearance.backgroundEffect=\(String(describing: appearance.backgroundEffect))")
-
-            func walk(_ view: UIView, depth: Int) {
-                guard depth <= 4 else { return }
-                var note = ""
-                if let effectView = view as? UIVisualEffectView {
-                    note += "  EFFECT=\(String(describing: effectView.effect))"
-                }
-                if let background = view.backgroundColor, background != .clear {
-                    note += "  bg=\(background)"
-                }
-                if view.isHidden { note += "  hidden" }
-                let indent = String(repeating: "· ", count: depth)
-                lines.append("[VF-TABBAR] \(indent)\(type(of: view))\(note)")
-                view.subviews.forEach { walk($0, depth: depth + 1) }
-            }
-            tabBar.subviews.forEach { walk($0, depth: 1) }
-
-            lines.append("[VF-TABBAR] ──────────────────────────────────")
-            print(lines.joined(separator: "\n"))
-        }
-    }
-}
-#endif
 
 // ─────────────────────────────────────────────────────────────────
 //  탭바를 불투명 surface2 로 (시도 A)

@@ -112,10 +112,7 @@ struct HomeHeroSection: View {
 
             Spacer(minLength: VFSpace.sm)
 
-            Button {
-                print("[VF-SEARCH] 1. Hero 검색 버튼 액션 실행")
-                onSearch()
-            } label: {
+            Button(action: onSearch) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Color.white)
@@ -124,17 +121,6 @@ struct HomeHeroSection: View {
                     .vfGlass(interactive: true)
             }
             .buttonStyle(.plain)
-            // 임시 진단. 터치가 이 버튼 영역에 도달하는지를 버튼 동작과
-            // 따로 확인합니다. 두 로그의 조합으로 원인이 갈립니다.
-            //   1c 만 찍힌다   터치는 오는데 Button 이 동작을 실행하지 않음
-            //   둘 다 없다     터치가 이 영역에 아예 도달하지 않음
-            //   둘 다 찍힌다   버튼은 정상. 문제는 그 뒤 단계
-            // simultaneousGesture 라서 Button 의 동작을 가로채지 않습니다.
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    print("[VF-SEARCH] 1c. 검색 버튼 영역에 탭 도달")
-                }
-            )
             .accessibilityLabel("출사지 검색")
         }
         .padding(.horizontal, VFSpace.lg - VFSpace.xs)
