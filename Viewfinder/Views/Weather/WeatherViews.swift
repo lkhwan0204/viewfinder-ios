@@ -142,12 +142,13 @@ struct SunEvent: Equatable {
 }
 
 struct WeatherVisualTheme {
-    let gradientColors: [Color]
+    // gradientColors 와 glow 를 제거했습니다.
+    // 배경 그라디언트와 방사 글로우가 사라지면서 아무도 읽지 않는
+    // 필드가 됐습니다.
     let accent: Color
     let warmAccent: Color
     let coolAccent: Color
     let rainAccent: Color
-    let glow: Color
     let cardFill: Color
     let cardStroke: Color
     let separator: Color
@@ -182,12 +183,10 @@ struct WeatherVisualTheme {
     //  색 정의만 바꾸기 위해서입니다.
     // ═══════════════════════════════════════════════════════════════
     static let fallback = WeatherVisualTheme(
-        gradientColors: [AppColors.background, AppColors.background],
         accent: AppColors.primary,
         warmAccent: AppColors.accent,
         coolAccent: AppColors.secondaryText,
         rainAccent: AppColors.secondaryText,
-        glow: .clear,
         cardFill: AppColors.cardBackground,
         cardStroke: .clear,
         separator: AppColors.divider,
@@ -351,7 +350,19 @@ struct WeatherDetailView: View {
 
     var body: some View {
         ZStack {
-            WeatherAtmosphericBackground(theme: theme, symbolName: snapshot?.symbolName ?? "cloud.fill")
+            // 배경 장식을 완전히 없앴습니다.
+            //
+            // 전에는 조건별 3색 그라디언트 + 260pt 블러 심볼 2개
+            // + 흰 구름 밴드 2개 + 방사형 글로우로 하늘을 그려냈습니다.
+            // 그것을 검정 + 조건 심볼 4% 로 줄였는데, 4% 는 검정 위에서
+            // 아예 보이지 않았습니다. 있으나 없으나 같은 요소는
+            // 코드에 남길 이유가 없습니다.
+            //
+            // 불투명도를 올리는 선택도 있었지만, 그러면 시트 위쪽에
+            // 큰 얼룩이 생기고 그 위에 96pt 기온 숫자가 올라갑니다.
+            // 조건은 히어로의 심볼과 문구("구름 조금")가 이미 말합니다.
+            // 배경이 같은 말을 반복할 필요가 없습니다.
+            AppColors.background
                 .ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
@@ -383,40 +394,6 @@ struct WeatherDetailView: View {
                 .padding(.top, 26)
                 .padding(.bottom, 40)
             }
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  배경
-//
-//  [전에 있던 것]
-//  조건별 3색 그라디언트 + 260pt 블러 심볼 2개 + 흰 구름 밴드 2개
-//  + 방사형 글로우. 파란 하늘을 그려내는 구성이었습니다.
-//
-//  [지금]
-//  앱과 같은 검정 캔버스 + 조건 심볼 하나만 아주 흐리게 남깁니다.
-//  심볼이 조건(맑음/비/눈)을 이미 말하고 있으므로 배경색까지
-//  바꿀 필요가 없습니다.
-//  구름 밴드와 글로우는 하늘을 흉내내는 장식이었고, 검정 캔버스
-//  위에서는 흰 얼룩으로만 보입니다.
-// ═══════════════════════════════════════════════════════════════════
-
-struct WeatherAtmosphericBackground: View {
-    let theme: WeatherVisualTheme
-    let symbolName: String
-
-    var body: some View {
-        ZStack {
-            AppColors.background
-
-            // 조건을 알려주는 유일한 배경 요소.
-            // 사진 위가 아니라 독립 시트이므로 이 정도 질감은 허용합니다.
-            Image(systemName: symbolName)
-                .font(.system(size: 240, weight: .black))
-                .foregroundStyle(AppColors.primary.opacity(0.04))
-                .blur(radius: 18)
-                .offset(x: 112, y: -180)
         }
     }
 }
@@ -469,15 +446,36 @@ struct WeatherCurrentHeroCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
 
-            Text("최고:\(snapshot.highTemperature)°  최저:\(snapshot.lowTemperature)°  체감:\(snapshot.apparentTemperature)°")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(theme.primaryText.opacity(0.92))
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
+            // 전에는 "최고:28°  최저:23°  체감:33°" 였습니다.
+            // 콜론이 값에 붙어서 세 덩어리가 답답하게 읽혔습니다.
+            // 라벨과 값을 여백으로 나누고, 라벨은 한 단계 낮춥니다.
+            // 값 세 개가 같은 굵기로 나열되면 무엇이 값인지 알기
+            // 어려우므로 라벨만 회색으로 내립니다.
+            HStack(spacing: VFSpace.md) {
+                heroMetric(title: "최고", value: "\(snapshot.highTemperature)°")
+                heroMetric(title: "최저", value: "\(snapshot.lowTemperature)°")
+                heroMetric(title: "체감", value: "\(snapshot.apparentTemperature)°")
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 286)
         .padding(.horizontal, 18)
+    }
+
+    private func heroMetric(title: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(theme.secondaryText)
+
+            Text(value)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(theme.primaryText)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title) \(value)")
     }
 }
 
@@ -573,26 +571,50 @@ struct WeatherHourlyCard: View {
     let forecast: WeatherHourlyForecast
     let theme: WeatherVisualTheme
 
+    // ═══════════════════════════════════════════════════════════════
+    //  위계를 사진가 기준으로 다시 잡았습니다.
+    //
+    //  [문제였던 상황]
+    //  기온 18pt bold 가 가장 크고, 강수확률은 9.5pt 로 가장 작았습니다.
+    //  물방울 아이콘은 7pt 였습니다.
+    //
+    //  그런데 이 앱 사용자에게 27° 와 28° 의 차이는 아무 의미가 없습니다.
+    //  결정을 바꾸는 정보는 "몇 시에 비가 오는가" 입니다.
+    //  가장 중요한 값이 가장 작게 적혀 있었습니다.
+    //
+    //  [바꾼 것]
+    //  1. 조건 심볼을 21 -> 26pt. 이 칸에서 가장 먼저 읽혀야 하는 것은
+    //     하늘 상태입니다. 구름과 비를 아이콘이 말합니다.
+    //  2. 기온 18pt bold -> 15pt semibold. 부가 정보로 내립니다.
+    //  3. 강수확률 9.5 -> 13pt. 물방울 7 -> 10pt.
+    //  4. 강수확률 60% 이상이면 흰색으로 올립니다.
+    //     그 아래는 회색으로 둡니다. 비가 올 시간대만 눈에 걸리게
+    //     하려는 것이고, 색을 더 쓰지 않고 대비만으로 처리합니다.
+    // ═══════════════════════════════════════════════════════════════
+    private var isRainLikely: Bool {
+        (forecast.precipitationProbability ?? 0) >= 60
+    }
+
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 7) {
             Text(forecast.timeLabel)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(theme.primaryText.opacity(0.86))
+                .foregroundStyle(theme.secondaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
 
             Image(systemName: forecast.symbolName)
-                .font(.system(size: 21, weight: .semibold))
+                .font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(forecast.accentColor)
-                .frame(width: 30, height: 26)
-
-            Text("\(forecast.temperature)°")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(theme.primaryText)
+                .frame(width: 34, height: 30)
 
             precipitationLabel
+
+            Text("\(forecast.temperature)°")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(theme.secondaryText)
         }
-        .frame(width: 54)
+        .frame(width: 56)
     }
 
     @ViewBuilder
@@ -600,17 +622,16 @@ struct WeatherHourlyCard: View {
         if let probability = forecast.precipitationProbability, probability > 0 {
             HStack(spacing: 3) {
                 Image(systemName: "drop.fill")
-                    .font(.system(size: 7, weight: .bold))
-                    .foregroundStyle(theme.rainAccent)
+                    .font(.system(size: 10, weight: .bold))
 
                 Text("\(probability)%")
-                    .font(.system(size: 9.5, weight: .bold))
-                    .foregroundStyle(theme.primaryText)
+                    .font(.system(size: 13, weight: .bold))
             }
+            .foregroundStyle(isRainLikely ? theme.primaryText : theme.secondaryText)
             .lineLimit(1)
         } else {
             Text(" ")
-                .font(.system(size: 9.5, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
                 .lineLimit(1)
         }
     }
