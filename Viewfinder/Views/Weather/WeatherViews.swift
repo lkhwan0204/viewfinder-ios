@@ -99,10 +99,19 @@ struct SunEvent: Equatable {
     /// 3시간 이내는 시간+분,
     /// 그보다 멀면 카운트다운이 의미 없으므로 절대 시각으로 표시합니다.
     var label: String {
+        countdownLabel ?? "\(name) \(Self.timeFormatter.string(from: date))"
+    }
+
+    /// 카운트다운으로 말할 수 있을 때만 값을 돌려줍니다.
+    ///
+    /// 3시간이 넘으면 nil 입니다. 그때는 남은 시간이 행동을 바꾸지 않고,
+    /// label 이 "일몰 19:23" 이라는 절대 시각으로 떨어집니다.
+    /// 그런데 일출·일몰 시각은 카드 아래에 이미 적혀 있습니다.
+    /// 같은 말을 위아래로 두 번 하게 되므로, 그 경우 카운트다운 줄
+    /// 자체를 그리지 않습니다.
+    var countdownLabel: String? {
         let remaining = date.timeIntervalSinceNow
-        guard remaining > 0 else {
-            return "\(name) \(Self.timeFormatter.string(from: date))"
-        }
+        guard remaining > 0 else { return nil }
 
         let minutes = Int(remaining / 60)
 
@@ -118,8 +127,10 @@ struct SunEvent: Equatable {
                 : "\(name)까지 \(hours)시간 \(rest)분"
         }
 
-        return "\(name) \(Self.timeFormatter.string(from: date))"
+        return nil
     }
+
+    var isNext: Bool { date > Date() }
 
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -535,11 +546,11 @@ struct WeatherHourlySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("기상 상태")
+                Text("시간별")
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(theme.primaryText)
 
-                Text("온도 (°C)")
+                Text("기온과 강수확률")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(theme.secondaryText)
             }
@@ -633,8 +644,13 @@ struct WeatherMetricsGrid: View {
 
     private var metrics: [WeatherMetric] {
         [
-            WeatherMetric(symbolName: "thermometer.medium", title: "현재 기온", value: "\(snapshot.temperature)°", subtitle: "최고 \(snapshot.highTemperature)° · 최저 \(snapshot.lowTemperature)°"),
-            WeatherMetric(symbolName: snapshot.symbolName, title: "기상상태", value: snapshot.condition, subtitle: "체감 \(snapshot.apparentTemperature)°"),
+            // "현재 기온" 과 "기상상태" 카드를 없앴습니다.
+            //
+            // 히어로가 이미 28° 를 화면에서 가장 크게 보여주고,
+            // 그 아래에 "구름 조금", "최고 28° 최저 23° 체감 33°" 까지
+            // 다 적혀 있습니다. 같은 값을 같은 화면에서 두 번 말하고
+            // 있었고, 그 두 카드가 아래 격자의 첫 두 자리를 차지해서
+            // 정작 새로운 정보(강수·미세먼지·바람·습도)를 밀어냈습니다.
             WeatherMetric(symbolName: "drop.fill", title: "강수확률", value: "\(precipitationProbability)%", subtitle: "현재 강수 \(Int(snapshot.precipitation.rounded())) mm"),
             WeatherMetric(symbolName: "aqi.medium", title: "미세먼지", value: fineDustValue, subtitle: fineDustDetail),
             WeatherMetric(symbolName: "wind", title: "바람", value: String(format: "%.1f km/h", snapshot.windSpeed), subtitle: "현재 풍속"),
@@ -881,32 +897,68 @@ struct WeatherSunSection: View {
     let snapshot: WeatherSnapshot
     let theme: WeatherVisualTheme
 
-    private var hasAnyEvent: Bool {
-        snapshot.sunrise != nil || snapshot.sunset != nil || snapshot.nextSunEvent != nil
+    private var nextKind: SunEvent.Kind? {
+        snapshot.nextSunEvent?.kind
+    }
+
+    private var hasAnyTime: Bool {
+        snapshot.sunrise != nil || snapshot.sunset != nil
     }
 
     var body: some View {
-        if hasAnyEvent {
+        if hasAnyTime {
             VStack(alignment: .leading, spacing: VFSpace.md) {
-                if let event = snapshot.nextSunEvent {
-                    countdown(event)
+                // 카운트다운은 3시간 이내일 때만 나옵니다.
+                // 그보다 멀면 SunEvent.countdownLabel 이 nil 이고,
+                // 아래 일출·일몰 시각이 같은 정보를 이미 말합니다.
+                if let countdown = snapshot.nextSunEvent?.countdownLabel,
+                   let event = snapshot.nextSunEvent {
+                    HStack(spacing: VFSpace.sm) {
+                        Image(systemName: event.symbolName)
+                            .font(.system(size: 16, weight: .semibold))
+
+                        Text(countdown)
+                            .vfText(.headline)
+
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(AppColors.accent)
                 }
 
-                if snapshot.sunrise != nil || snapshot.sunset != nil {
-                    HStack(spacing: 0) {
-                        if let sunrise = snapshot.sunrise {
-                            timeColumn(symbol: "sunrise.fill", title: "일출", date: sunrise)
-                        }
+                // ═══════════════════════════════════════════════════
+                //  일출은 왼쪽 끝, 일몰은 오른쪽 끝.
+                //
+                //  전에는 두 칸을 maxWidth: .infinity + leading 으로
+                //  나눠서, 각 칸의 내용이 칸 왼쪽에 붙고 오른쪽에
+                //  100pt 넘는 빈 공간이 남았습니다. 두 덩어리가 모두
+                //  왼쪽으로 쏠려 보였습니다.
+                //
+                //  가운데 0.5pt 구분선은 흰색 9% 라서 검정 카드 위에서
+                //  보이지 않았습니다. 있으나 없으나 같은 선은 지웁니다.
+                //  VFDesign 의 원칙도 "기본 그룹핑 수단은 여백" 입니다.
+                //  양 끝에 붙이면 선 없이도 두 값이 나뉩니다.
+                // ═══════════════════════════════════════════════════
+                HStack(alignment: .top, spacing: VFSpace.md) {
+                    if let sunrise = snapshot.sunrise {
+                        timeBlock(
+                            symbol: "sunrise.fill",
+                            title: "일출",
+                            date: sunrise,
+                            isNext: nextKind == .sunrise,
+                            alignment: .leading
+                        )
+                    }
 
-                        if snapshot.sunrise != nil, snapshot.sunset != nil {
-                            Rectangle()
-                                .fill(theme.separator)
-                                .frame(width: 0.5, height: 34)
-                        }
+                    Spacer(minLength: VFSpace.sm)
 
-                        if let sunset = snapshot.sunset {
-                            timeColumn(symbol: "sunset.fill", title: "일몰", date: sunset)
-                        }
+                    if let sunset = snapshot.sunset {
+                        timeBlock(
+                            symbol: "sunset.fill",
+                            title: "일몰",
+                            date: sunset,
+                            isNext: nextKind == .sunset,
+                            alignment: .trailing
+                        )
                     }
                 }
             }
@@ -919,26 +971,19 @@ struct WeatherSunSection: View {
         }
     }
 
-    /// 다음 해 이벤트까지 남은 시간.
+    /// 다음에 올 쪽만 앰버입니다.
     ///
-    /// 이 앱에서 앰버가 의미와 정확히 겹치는 유일한 자리입니다.
-    /// 골든아워는 브랜드 색이 곧 정보인 지점입니다.
-    private func countdown(_ event: SunEvent) -> some View {
-        HStack(spacing: VFSpace.sm) {
-            Image(systemName: event.symbolName)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(AppColors.accent)
-
-            Text(event.label)
-                .vfText(.headline)
-                .foregroundStyle(AppColors.accent)
-
-            Spacer(minLength: 0)
-        }
-    }
-
-    private func timeColumn(symbol: String, title: String, date: Date) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+    /// 카운트다운 줄이 없을 때도 "지금 기준으로 다음은 일몰" 이라는
+    /// 정보가 색으로 남습니다. 두 시각을 나란히 두면 어느 쪽이
+    /// 다가오는 것인지 알 수 없었습니다.
+    private func timeBlock(
+        symbol: String,
+        title: String,
+        date: Date,
+        isNext: Bool,
+        alignment: HorizontalAlignment
+    ) -> some View {
+        VStack(alignment: alignment, spacing: 3) {
             HStack(spacing: 5) {
                 Image(systemName: symbol)
                     .font(.system(size: 11, weight: .semibold))
@@ -946,16 +991,15 @@ struct WeatherSunSection: View {
                 Text(title)
                     .vfText(.caption)
             }
-            .foregroundStyle(theme.secondaryText)
+            .foregroundStyle(isNext ? AppColors.accent : theme.secondaryText)
 
             Text(Self.timeFormatter.string(from: date))
                 .vfText(.title2)
-                .foregroundStyle(theme.primaryText)
+                .foregroundStyle(isNext ? AppColors.primary : theme.secondaryText)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, VFSpace.xs)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title) \(Self.timeFormatter.string(from: date))")
+        .accessibilityValue(isNext ? "다음 이벤트" : "")
     }
 
     private static let timeFormatter: DateFormatter = {
