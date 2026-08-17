@@ -175,9 +175,7 @@ struct HomeFeedView: View {
         //  상태를 되돌리고 있다는 뜻입니다. 원인이 정반대입니다.
         // ═══════════════════════════════════════════════════════════
         .onChange(of: isSearchResultsPresented) { oldValue, newValue in
-            #if DEBUG
             print("[VF-SEARCH] 1b. isSearchResultsPresented \(oldValue) -> \(newValue)")
-            #endif
         }
         .fullScreenCover(isPresented: $isSearchResultsPresented) {
             HomeSearchResultsView(
@@ -192,9 +190,7 @@ struct HomeFeedView: View {
                     isSearchResultsPresented = false
                 },
                 debugTrace: { line in
-                    #if DEBUG
                     print("[VF-SEARCH] \(line)")
-                    #endif
                 },
                 onSelectSpot: { spot in
                     onAddAISpot(spot)
@@ -457,14 +453,12 @@ struct HomeFeedView: View {
             communityPosts: communityPosts
         )
 
-        #if DEBUG
         print("""
         [VF-SEARCH] 4. 로컬 검색 '\(query)' \
         검색대상=\(searchableSpots.count)곳 \
         결과=\(keywordSearchResults.spots.count)곳 \
         글=\(keywordSearchResults.communityPosts.count)개
         """)
-        #endif
     }
 
     private func performSearch() {
