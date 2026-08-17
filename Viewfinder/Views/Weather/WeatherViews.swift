@@ -928,7 +928,7 @@ struct WeatherSunSection: View {
 
     var body: some View {
         if hasAnyTime {
-            VStack(alignment: .leading, spacing: VFSpace.sm) {
+            VStack(spacing: VFSpace.sm) {
                 if let event = snapshot.nextSunEvent,
                    let countdown = event.countdownLabel {
                     HStack(spacing: 6) {
@@ -937,10 +937,9 @@ struct WeatherSunSection: View {
 
                         Text(countdown)
                             .vfText(.headline)
-
-                        Spacer(minLength: 0)
                     }
                     .foregroundStyle(AppColors.accent)
+                    .frame(maxWidth: .infinity)
                 }
 
                 // ═══════════════════════════════════════════════════
@@ -971,7 +970,14 @@ struct WeatherSunSection: View {
                 //  같은 화면에서 이미 잘 읽히는 패턴을 따르는 것이
                 //  새 배치를 발명하는 것보다 안전합니다.
                 // ═══════════════════════════════════════════════════
-                HStack(spacing: VFSpace.lg) {
+                // Spacer 를 뒤에만 두었더니 두 덩어리가 카드 왼쪽에
+                // 붙고 오른쪽에 빈 공간이 남았습니다.
+                // 앞·사이·뒤에 균등하게 넣으면 여백 세 개가 같아지고,
+                // 두 덩어리가 카드 안에서 고르게 놓입니다.
+                //   [여백] 일출 05:50 [여백] 일몰 19:23 [여백]
+                HStack(spacing: 0) {
+                    Spacer(minLength: VFSpace.sm)
+
                     if let sunrise = snapshot.sunrise {
                         sunTime(
                             symbol: "sunrise.fill",
@@ -979,6 +985,8 @@ struct WeatherSunSection: View {
                             date: sunrise,
                             isNext: nextKind == .sunrise
                         )
+
+                        Spacer(minLength: VFSpace.md)
                     }
 
                     if let sunset = snapshot.sunset {
@@ -990,13 +998,13 @@ struct WeatherSunSection: View {
                         )
                     }
 
-                    Spacer(minLength: 0)
+                    Spacer(minLength: VFSpace.sm)
                 }
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
             }
             .padding(VFSpace.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
             .background(
                 theme.cardFill,
                 in: RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
