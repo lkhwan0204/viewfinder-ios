@@ -54,6 +54,24 @@ struct HomeHeroSection: View {
                 .frame(height: cardSize.height)
                 .clipped()
                 .overlay(alignment: .top) { topControls }
+                // 계산이 맞는지 실기에서 확인하기 위한 한 줄.
+                // 컨트롤은 topInset+8 부터 topInset+8+38 까지 있어야 하고,
+                // 카드에서 빼는 높이도 같은 값이어야 합니다.
+                //
+                // #if DEBUG 를 모디파이어 체인 안이 아니라 클로저 안에
+                // 둔 이유는, 체인 중간의 조건부 컴파일이 비교적 최근
+                // 컴파일러 기능이라 빌드 환경에 따라 깨질 수 있기
+                // 때문입니다. 릴리스에서는 클로저 본문이 비어 남습니다.
+                .onAppear {
+                    #if DEBUG
+                    print("""
+                    [VF-HERO] topInset=\(topInset) \
+                    컨트롤높이=\(Self.controlHeight) \
+                    제외높이=\(controlStripHeight) \
+                    카드=\(cardSize.width)x\(cardSize.height)
+                    """)
+                    #endif
+                }
         }
     }
 
@@ -72,7 +90,12 @@ struct HomeHeroSection: View {
                     size: cardSize,
                     controlStripHeight: controlStripHeight,
                     communityPosts: communityPosts,
-                    onSelect: { onSelect(recommendation.spot) }
+                    onSelect: {
+                        #if DEBUG
+                        print("[VF-HERO] 카드 탭 — 상세를 엽니다: \(recommendation.spot.name)")
+                        #endif
+                        onSelect(recommendation.spot)
+                    }
                 )
                 .tag(index)
             }
@@ -112,7 +135,12 @@ struct HomeHeroSection: View {
 
             Spacer(minLength: VFSpace.sm)
 
-            Button(action: onSearch) {
+            Button {
+                #if DEBUG
+                print("[VF-HERO] 검색 버튼 눌림")
+                #endif
+                onSearch()
+            } label: {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Color.white)
@@ -124,12 +152,59 @@ struct HomeHeroSection: View {
         }
         .padding(.horizontal, VFSpace.lg - VFSpace.xs)
         .padding(.top, topInset + VFSpace.sm)
+        // ═══════════════════════════════════════════════════════════
+        //  컨트롤 줄 전체가 터치를 삼킵니다.
+        //
+        //  [1차 시도가 실패했습니다]
+        //  Hero 카드의 contentShape 에서 이 줄 높이만큼을 빼서 탭 영역이
+        //  겹치지 않게 했습니다. 계산은 맞았습니다. 컨트롤은
+        //  topInset+8 부터 topInset+46 까지이고, 카드에서 뺀 높이도
+        //  topInset+46 입니다. 그런데 실기에서 여전히 카드가 눌립니다.
+        //  → 사용자 피드백: "날씨 칩을 눌러도 뒤에 카드가 눌려"
+        //
+        //  즉 contentShape 이 이 카드의 탭 제스처를 제한하지 못합니다.
+        //  카드가 TabView 의 page 스타일(UIPageViewController) 안에 있어서,
+        //  SwiftUI 가 준 히트 테스트 도형이 그 경계에서 지켜지지 않는
+        //  것으로 보입니다.
+        //
+        //  [2차: 도형이 아니라 실제 뷰로 막습니다]
+        //  contentShape 은 "이 도형 안에서만 반응해라" 는 요청이고,
+        //  지켜지지 않으면 방법이 없습니다.
+        //  대신 컨트롤 줄 뒤에 터치를 받는 실제 레이어를 깔았습니다.
+        //  뷰가 있으면 UIKit 히트 테스트 단계에서 터치가 여기서 멈추고
+        //  아래(페이지 뷰 안의 카드)로 내려가지 않습니다. 요청이 아니라
+        //  구조입니다.
+        //
+        //  background 로 넣은 이유는 z 순서입니다. 이 레이어는 버튼보다
+        //  뒤에 있으므로 버튼이 먼저 터치를 받고, 버튼 사이의 빈 자리에
+        //  떨어진 터치만 이 레이어가 삼킵니다.
+        //  줄 전체를 감싸는 방식으로 만들면 부모 탭 제스처가 자식 버튼의
+        //  터치를 가로챌 위험이 있습니다.
+        //
+        //  Color.clear 는 SwiftUI 에서 히트 테스트에 참여합니다.
+        //  (UIKit 의 clearColor 와 다릅니다.)
+        //
+        //  대가: 이 줄에서는 좌우 스와이프로 Hero 페이지를 넘길 수
+        //  없습니다. 컨트롤이 놓인 줄이므로 받아들일 만한 손실입니다.
+        // ═══════════════════════════════════════════════════════════
+        .background {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    #if DEBUG
+                    print("[VF-HERO] 컨트롤 줄 빈 자리 — 터치를 삼켰습니다")
+                    #endif
+                }
+        }
     }
 
     @ViewBuilder
     private var contextPill: some View {
         if let contextText, !contextText.isEmpty {
             Button {
+                #if DEBUG
+                print("[VF-HERO] 날씨 칩 눌림")
+                #endif
                 onShowContext?()
             } label: {
                 HStack(spacing: VFSpace.xs + 2) {
