@@ -43,9 +43,9 @@ struct HomeFeedView: View {
     let searchableSpots: [PhotoSpot]
     let recommendedSpots: [PhotoSpot]
     let communityPosts: [CommunityPost]
-    let preloadedRecommendations: [GPTRecommendedSpot]
-    let sectionRecommendations: [HomeRecommendationKind: [GPTRecommendedSpot]]
-    let expandedSectionRecommendations: [HomeRecommendationKind: [GPTRecommendedSpot]]
+    let preloadedRecommendations: [RecommendedSpot]
+    let sectionRecommendations: [HomeRecommendationKind: [RecommendedSpot]]
+    let expandedSectionRecommendations: [HomeRecommendationKind: [RecommendedSpot]]
     let loadingSectionIDs: Set<String>
     let isPreloadingRecommendations: Bool
     let currentLocationTitle: String
@@ -77,18 +77,16 @@ struct HomeFeedView: View {
     private let refreshTriggerOffset: CGFloat = 210
     private let homeScrollCoordinateSpace = "homeDiscoveryScroll"
 
-    private var recommendations: [GPTRecommendedSpot] {
-        let rawRecommendations: [GPTRecommendedSpot]
+    private var recommendations: [RecommendedSpot] {
+        let rawRecommendations: [RecommendedSpot]
 
         if !preloadedRecommendations.isEmpty {
             rawRecommendations = preloadedRecommendations
         } else {
             rawRecommendations = recommendedSpots.map {
-                GPTRecommendedSpot(
+                RecommendedSpot(
                     spot: $0,
-                    reason: $0.eventPeriod,
-                    scoreLabel: "오늘 추천",
-                    isGeneratedByGPT: true
+                    reason: $0.eventPeriod
                 )
             }
         }
@@ -100,30 +98,26 @@ struct HomeFeedView: View {
         HomeRecommendationKind.allCases
     }
 
-    private var verifiedRecommendations: [GPTRecommendedSpot] {
+    private var verifiedRecommendations: [RecommendedSpot] {
         searchViewModel.verifiedSpots.map { verifiedSpot in
-            GPTRecommendedSpot(
+            RecommendedSpot(
                 spot: verifiedSpot.photoSpot,
-                reason: verifiedSpot.reason,
-                scoreLabel: scoreLabel(for: verifiedSpot.source),
-                isGeneratedByGPT: verifiedSpot.source != "local"
+                reason: verifiedSpot.reason
             )
         }
     }
 
-    private var keywordSpotRecommendations: [GPTRecommendedSpot] {
+    private var keywordSpotRecommendations: [RecommendedSpot] {
         keywordSearchResults.spots.map {
-            GPTRecommendedSpot(
+            RecommendedSpot(
                 spot: $0,
-                reason: $0.eventPeriod,
-                scoreLabel: "앱 데이터",
-                isGeneratedByGPT: false
+                reason: $0.eventPeriod
             )
         }
     }
 
-    private var combinedSearchRecommendations: [GPTRecommendedSpot] {
-        (keywordSpotRecommendations + verifiedRecommendations).reduce(into: [GPTRecommendedSpot]()) { result, recommendation in
+    private var combinedSearchRecommendations: [RecommendedSpot] {
+        (keywordSpotRecommendations + verifiedRecommendations).reduce(into: [RecommendedSpot]()) { result, recommendation in
             guard !result.contains(where: {
                 $0.spot.id == recommendation.spot.id || $0.spot.mapQuery == recommendation.spot.mapQuery
             }) else {
@@ -162,11 +156,6 @@ struct HomeFeedView: View {
                     onSubmitSearch: performSearch,
                     onDismiss: {
                         isSearchResultsPresented = false
-                    },
-                    onRequestAI: {
-                        Task {
-                            await searchViewModel.requestAIRecommendations(userLocation: userLocation)
-                        }
                     },
                     onSelectSpot: { spot in
                         onAddAISpot(spot)
@@ -505,17 +494,17 @@ struct HomeFeedView: View {
             ?? "sun.max"
     }
 
-    private func recommendations(for category: HomeRecommendationKind) -> [GPTRecommendedSpot] {
+    private func recommendations(for category: HomeRecommendationKind) -> [RecommendedSpot] {
         homeRailRecommendations(sectionRecommendations[category] ?? [])
     }
 
-    private func expandedRecommendations(for category: HomeRecommendationKind) -> [GPTRecommendedSpot] {
+    private func expandedRecommendations(for category: HomeRecommendationKind) -> [RecommendedSpot] {
         imagePrioritizedRecommendations(
             expandedSectionRecommendations[category] ?? sectionRecommendations[category] ?? []
         )
     }
 
-    private func imagePrioritizedRecommendations(_ recommendations: [GPTRecommendedSpot]) -> [GPTRecommendedSpot] {
+    private func imagePrioritizedRecommendations(_ recommendations: [RecommendedSpot]) -> [RecommendedSpot] {
         recommendations
             .enumerated()
             .sorted { left, right in
@@ -531,7 +520,7 @@ struct HomeFeedView: View {
             .map(\.element)
     }
 
-    private func homeRailRecommendations(_ recommendations: [GPTRecommendedSpot]) -> [GPTRecommendedSpot] {
+    private func homeRailRecommendations(_ recommendations: [RecommendedSpot]) -> [RecommendedSpot] {
         imagePrioritizedRecommendations(recommendations)
             .filter { hasDisplayImage($0.spot) }
     }
@@ -540,18 +529,6 @@ struct HomeFeedView: View {
         spot.hasReliableDisplayImage
     }
 
-    private func scoreLabel(for source: String) -> String {
-        switch source {
-        case "local":
-            return "기본 데이터"
-        case "kakao":
-            return "카카오 검증"
-        case "naver":
-            return "네이버 검증"
-        default:
-            return "검증 완료"
-        }
-    }
 }
 
 struct NearbyRecommendationEmptyView: View {
@@ -568,14 +545,13 @@ struct NearbyRecommendationEmptyView: View {
 
 struct HomeSearchResultsView: View {
     @Binding var query: String
-    let spotRecommendations: [GPTRecommendedSpot]
+    let spotRecommendations: [RecommendedSpot]
     let communityPosts: [CommunityPost]
     let spots: [PhotoSpot]
     let message: String?
     let isLoading: Bool
     let onSubmitSearch: () -> Void
     let onDismiss: () -> Void
-    let onRequestAI: () -> Void
     let onSelectSpot: (PhotoSpot) -> Void
     let onReportMissingPhoto: (PhotoSpot) -> Void
     let onSelectCommunityPost: (CommunityPost) -> Void
@@ -691,8 +667,7 @@ struct HomeSearchResultsView: View {
                         EmptySearchResultView(
                             message: message
                                 ?? placeFinder.message
-                                ?? "\(query) 출사지 데이터가 아직 부족해요.",
-                            onRequestAI: onRequestAI
+                                ?? "'\(query)' 로 찾을 수 있는 장소가 없어요"
                         )
                     } else {
                         VStack(alignment: .leading, spacing: 18) {
@@ -856,7 +831,7 @@ struct SearchResultSectionHeader: View {
 }
 
 struct HomeSearchResultCard: View {
-    let recommendation: GPTRecommendedSpot
+    let recommendation: RecommendedSpot
     let onSelect: () -> Void
     let onReportMissingPhoto: () -> Void
 
@@ -996,17 +971,29 @@ struct CommunityPostSearchResultCard: View {
     }
 }
 
+/// 검색 결과가 없을 때.
+///
+/// "AI로 추천 받기" 버튼을 없앴습니다.
+/// 그 버튼은 PhotoSpotSearchViewModel.requestAIRecommendations 를 불렀고,
+/// 그 함수 본문은 canRequestAI = false 한 줄이었습니다. 누르면 아무 일도
+/// 일어나지 않았습니다.
+///
+/// 버튼을 되살리는 대신 없앴습니다. AI 로 장소를 만들어내는 방식은
+/// 관광지만 나오는 문제가 있어서 접었습니다. 지금 이 앱에서 장소를
+/// 찾는 방법은 두 가지입니다. 앱에 등록된 출사지(여기)와 네이버 지도
+/// 실제 장소(PlaceFinder). 둘 다 결과가 없으면 그냥 없는 것입니다.
+///
+/// 행동 버튼이 없는 빈 화면인 것은 아직 아쉽습니다. 원래는 여기서
+/// "이 장소 제보하기" 로 이어져야 합니다. 제보 화면을 여는 경로가
+/// ContentView 에 있어서 배선이 필요하고, 이 정리와는 별개의 작업입니다.
 struct EmptySearchResultView: View {
     let message: String
-    let onRequestAI: () -> Void
 
     var body: some View {
         AppStatePanel(
             symbolName: "magnifyingglass",
             title: "검색 결과가 없어요",
-            message: message,
-            actionTitle: "AI로 추천 받기",
-            action: onRequestAI
+            message: message
         )
     }
 }
@@ -1065,7 +1052,7 @@ struct HomeSectionHeader: View {
 }
 
 struct FeaturedSpotCard: View {
-    let recommendation: GPTRecommendedSpot
+    let recommendation: RecommendedSpot
     let isSaved: Bool
     let onToggleSave: () -> Void
 
@@ -1149,7 +1136,7 @@ struct FeaturedSpotCard: View {
 /// 통일이 분화보다 낫다고 판단해 전 섹션 동일 규격으로 돌아갑니다.
 struct HomeCategorySection: View {
     let category: HomeRecommendationKind
-    let recommendations: [GPTRecommendedSpot]
+    let recommendations: [RecommendedSpot]
     let hasMore: Bool
     let isLoading: Bool
     var userLocation: CLLocationCoordinate2D? = nil
@@ -1194,7 +1181,7 @@ struct HomeCategorySection: View {
     }
 
     private func card(
-        for recommendation: GPTRecommendedSpot,
+        for recommendation: RecommendedSpot,
         aspectRatio: CGFloat
     ) -> some View {
         HomePhotoCard(
@@ -1206,7 +1193,7 @@ struct HomeCategorySection: View {
 }
 
 private struct HomeSecondarySpotCard: View {
-    let recommendation: GPTRecommendedSpot
+    let recommendation: RecommendedSpot
     let width: CGFloat
     let isSaved: Bool
     let onToggleSave: () -> Void
@@ -1255,7 +1242,7 @@ private struct HomeSecondarySpotCard: View {
 
 struct HomeCategoryListView: View {
     let category: HomeRecommendationKind
-    let recommendations: [GPTRecommendedSpot]
+    let recommendations: [RecommendedSpot]
     let savedSpotIDs: Set<String>
     let onToggleSave: (PhotoSpot) -> Void
     let onSelect: (PhotoSpot) -> Void
@@ -1291,7 +1278,7 @@ struct HomeCategoryListView: View {
 }
 
 private struct HomeCategoryListRow: View {
-    let recommendation: GPTRecommendedSpot
+    let recommendation: RecommendedSpot
     let isSaved: Bool
     let onToggleSave: () -> Void
     let onSelect: () -> Void

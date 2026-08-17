@@ -23,11 +23,8 @@
 		CD1000000000000000000204 /* SearchBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000104 /* SearchBarView.swift */; };
 		CD1000000000000000000206 /* KoreaMapBackdropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000106 /* KoreaMapBackdropView.swift */; };
 		CD1000000000000000000209 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000132 /* LaunchScreen.storyboard */; };
-		CD100000000000000000020B /* GPTRecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD100000000000000000010B /* GPTRecommendationService.swift */; };
 		CD100000000000000000020C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000133 /* Assets.xcassets */; };
-		CD100000000000000000020D /* AIPhotoSpotResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD100000000000000000010C /* AIPhotoSpotResolver.swift */; };
 		CD100000000000000000020E /* PhotoSpotSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD100000000000000000010D /* PhotoSpotSearchModels.swift */; };
-		CD100000000000000000020F /* GeminiRecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD100000000000000000010E /* GeminiRecommendationService.swift */; };
 		CD1000000000000000000210 /* PlaceVerificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD100000000000000000010F /* PlaceVerificationService.swift */; };
 		CD1000000000000000000211 /* PhotoSpotSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000110 /* PhotoSpotSearchViewModel.swift */; };
 		CD1000000000000000000212 /* LocalSeedDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1000000000000000000111 /* LocalSeedDataService.swift */; };
@@ -71,10 +68,7 @@
 		CD1000000000000000000103 /* PhotoSpotSampleData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSpotSampleData.swift; sourceTree = "<group>"; };
 		CD1000000000000000000104 /* SearchBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchBarView.swift; sourceTree = "<group>"; };
 		CD1000000000000000000106 /* KoreaMapBackdropView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KoreaMapBackdropView.swift; sourceTree = "<group>"; };
-		CD100000000000000000010B /* GPTRecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPTRecommendationService.swift; sourceTree = "<group>"; };
-		CD100000000000000000010C /* AIPhotoSpotResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIPhotoSpotResolver.swift; sourceTree = "<group>"; };
 		CD100000000000000000010D /* PhotoSpotSearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSpotSearchModels.swift; sourceTree = "<group>"; };
-		CD100000000000000000010E /* GeminiRecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiRecommendationService.swift; sourceTree = "<group>"; };
 		CD100000000000000000010F /* PlaceVerificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceVerificationService.swift; sourceTree = "<group>"; };
 		CD1000000000000000000110 /* PhotoSpotSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSpotSearchViewModel.swift; sourceTree = "<group>"; };
 		CD1000000000000000000111 /* LocalSeedDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSeedDataService.swift; sourceTree = "<group>"; };
@@ -222,9 +216,6 @@
 				CD5000000000000000000100 /* AppInfrastructure.swift */,
 				CD5000000000000000000101 /* WeatherService.swift */,
 				CD5000000000000000000104 /* MapRecommendationEngine.swift */,
-				CD100000000000000000010B /* GPTRecommendationService.swift */,
-				CD100000000000000000010C /* AIPhotoSpotResolver.swift */,
-				CD100000000000000000010E /* GeminiRecommendationService.swift */,
 				CD100000000000000000010F /* PlaceVerificationService.swift */,
 				CD1000000000000000000111 /* LocalSeedDataService.swift */,
 				CD1000000000000000000112 /* PhotoSpotCacheService.swift */,
@@ -430,10 +421,7 @@
 				23B62EC1302A2942000E905B /* VFDesign.swift in Sources */,
 				23B62EC5302A2942000E905B /* HomeHeroSection.swift in Sources */,
 				23B62EC3302A2942000E905B /* VFComponents.swift in Sources */,
-				CD100000000000000000020B /* GPTRecommendationService.swift in Sources */,
-				CD100000000000000000020D /* AIPhotoSpotResolver.swift in Sources */,
 				CD100000000000000000020E /* PhotoSpotSearchModels.swift in Sources */,
-				CD100000000000000000020F /* GeminiRecommendationService.swift in Sources */,
 				CD1000000000000000000210 /* PlaceVerificationService.swift in Sources */,
 				CD1000000000000000000212 /* LocalSeedDataService.swift in Sources */,
 				CD1000000000000000000213 /* PhotoSpotCacheService.swift in Sources */,

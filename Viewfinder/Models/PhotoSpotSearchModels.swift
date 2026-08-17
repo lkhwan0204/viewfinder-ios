@@ -145,3 +145,32 @@ struct VerifiedPhotoSpot: Identifiable, Codable, Equatable {
         return ["rain"]
     }
 }
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 추천 장소
+//
+//  원래 이름은 GPTRecommendedSpot 이었고 GPTRecommendationService.swift
+//  안에 있었습니다. 그 서비스가 지워지면서 이곳으로 옮겼습니다.
+//  GPT 가 만드는 것이 아니므로 이름에서 GPT 를 뺐습니다.
+//  지금 추천을 만드는 것은 HomeRecommendationService 입니다.
+//  131곳 시드와 커뮤니티 제보를 거리·시간대·날씨·혼잡도로 고르는
+//  로컬 규칙 코드입니다.
+//
+//  필드가 둘 줄었습니다.
+//   scoreLabel        "카카오 검증", "기본 데이터" 같은 내부 사정 문자열
+//   isGeneratedByGPT  AI 생성 여부
+//  둘 다 값만 넣고 읽는 곳이 없었습니다. 화면에 그려지지 않았습니다.
+//  특히 scoreLabel 은 남겨두면 언젠가 화면에 나올 위험이 있었습니다.
+//  사용자는 카카오가 검증했는지 네이버가 검증했는지 알 필요가 없습니다.
+// ═══════════════════════════════════════════════════════════════════
+
+struct RecommendedSpot: Identifiable, Equatable, Sendable {
+    let spot: PhotoSpot
+    /// 왜 이 장소를 지금 추천하는지 한 줄.
+    let reason: String
+
+    var id: String {
+        spot.id
+    }
+}

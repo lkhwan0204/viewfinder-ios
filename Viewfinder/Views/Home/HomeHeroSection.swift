@@ -16,7 +16,7 @@ import CoreLocation
 import SwiftUI
 
 struct HomeHeroSection: View {
-    let recommendations: [GPTRecommendedSpot]
+    let recommendations: [RecommendedSpot]
     let userLocation: CLLocationCoordinate2D?
     /// 혼잡도를 커뮤니티 제보로 계산하기 위해 필요합니다.
     /// 이전에는 spot.crowdLevel(시드 고정값)만 써서 상세 화면과 값이 어긋났습니다.
@@ -40,7 +40,7 @@ struct HomeHeroSection: View {
 
     private let maxCount = 5
 
-    private var visible: [GPTRecommendedSpot] {
+    private var visible: [RecommendedSpot] {
         Array(recommendations.prefix(maxCount))
     }
 
@@ -224,7 +224,7 @@ private struct HeroCardTapArea: Shape {
 }
 
 private struct HomeHeroCard: View {
-    let recommendation: GPTRecommendedSpot
+    let recommendation: RecommendedSpot
     let distanceText: String?
     /// 카드의 정확한 크기.
     ///
@@ -353,7 +353,7 @@ private struct HomeHeroCard: View {
 // ═══════════════════════════════════════════════════════════════════
 
 struct HomePhotoCard: View {
-    let recommendation: GPTRecommendedSpot
+    let recommendation: RecommendedSpot
     let aspectRatio: CGFloat
     var showsMeta: Bool = true
     let onSelect: () -> Void
@@ -415,18 +415,16 @@ struct HomePhotoCard: View {
 
 #if DEBUG
 enum HomePreviewData {
-    static var samples: [GPTRecommendedSpot] {
+    static var samples: [RecommendedSpot] {
         PhotoSpotSampleData.spots.prefix(5).map { spot in
-            GPTRecommendedSpot(
+            RecommendedSpot(
                 spot: spot,
-                reason: spot.summary,
-                scoreLabel: "오늘 추천",
-                isGeneratedByGPT: false
+                reason: spot.summary
             )
         }
     }
 
-    static var first: GPTRecommendedSpot? { samples.first }
+    static var first: RecommendedSpot? { samples.first }
 }
 
 /// Preview 에서 @Namespace 를 쓰려면 뷰 안에 있어야 하므로 래퍼를 둡니다.

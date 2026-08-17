@@ -598,9 +598,9 @@ struct RecommendationTimeContext: Equatable, Sendable {
 }
 
 struct HomeRecommendationSnapshot: Sendable {
-    let todayRecommendations: [GPTRecommendedSpot]
-    let sections: [HomeRecommendationKind: [GPTRecommendedSpot]]
-    let expandedSections: [HomeRecommendationKind: [GPTRecommendedSpot]]
+    let todayRecommendations: [RecommendedSpot]
+    let sections: [HomeRecommendationKind: [RecommendedSpot]]
+    let expandedSections: [HomeRecommendationKind: [RecommendedSpot]]
 
     var visibleSpots: [PhotoSpot] {
         let sectionSpots = sections.values.flatMap { $0.map(\.spot) }
@@ -652,7 +652,7 @@ struct HomeRecommendationService: Sendable {
         let candidates = scopedCandidates.spots
 
         var usedSpotIDs = Set<String>()
-        var sections: [HomeRecommendationKind: [GPTRecommendedSpot]] = [:]
+        var sections: [HomeRecommendationKind: [RecommendedSpot]] = [:]
         let assignmentOrder: [HomeRecommendationKind] = [.cafe, .night, .sunset, .film, .walk, .hidden, .rainy, .seasonal]
 
         let todayCandidatePool = imagePreferredTodayCandidates(
@@ -750,7 +750,7 @@ struct HomeRecommendationService: Sendable {
             sections[kind] = recommendations
         }
 
-        var expandedSections: [HomeRecommendationKind: [GPTRecommendedSpot]] = [:]
+        var expandedSections: [HomeRecommendationKind: [RecommendedSpot]] = [:]
 
         for kind in assignmentOrder {
             let featuredRecommendations = sections[kind] ?? []
@@ -1171,7 +1171,7 @@ struct HomeRecommendationService: Sendable {
         communitySignal: HomeCommunitySignal,
         weatherContext: RecommendationWeatherContext?,
         timeContext: RecommendationTimeContext
-    ) -> GPTRecommendedSpot {
+    ) -> RecommendedSpot {
         let contextualReason = contextualReason(
             for: spot,
             label: label,
@@ -1185,11 +1185,9 @@ struct HomeRecommendationService: Sendable {
             timeContext: timeContext
         )
 
-        return GPTRecommendedSpot(
+        return RecommendedSpot(
             spot: spot,
-            reason: communitySignal.highlightReason(for: spot) ?? contextualReason ?? spot.eventPeriod,
-            scoreLabel: communitySignal.highlightLabel(for: spot) ?? contextualLabel,
-            isGeneratedByGPT: false
+            reason: communitySignal.highlightReason(for: spot) ?? contextualReason ?? spot.eventPeriod
         )
     }
 
