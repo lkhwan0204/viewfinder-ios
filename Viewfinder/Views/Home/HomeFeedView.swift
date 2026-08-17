@@ -43,9 +43,9 @@ struct HomeFeedView: View {
     let searchableSpots: [PhotoSpot]
     let recommendedSpots: [PhotoSpot]
     let communityPosts: [CommunityPost]
-    let preloadedRecommendations: [GPTRecommendedSpot]
-    let sectionRecommendations: [HomeRecommendationKind: [GPTRecommendedSpot]]
-    let expandedSectionRecommendations: [HomeRecommendationKind: [GPTRecommendedSpot]]
+    let preloadedRecommendations: [RecommendedSpot]
+    let sectionRecommendations: [HomeRecommendationKind: [RecommendedSpot]]
+    let expandedSectionRecommendations: [HomeRecommendationKind: [RecommendedSpot]]
     let loadingSectionIDs: Set<String>
     let isPreloadingRecommendations: Bool
     let currentLocationTitle: String
@@ -74,21 +74,19 @@ struct HomeFeedView: View {
     @State private var isRefreshArmed = false
     @State private var isRefreshingRecommendations = false
 
-    private let refreshTriggerOffset: CGFloat = 110
+    private let refreshTriggerOffset: CGFloat = 210
     private let homeScrollCoordinateSpace = "homeDiscoveryScroll"
 
-    private var recommendations: [GPTRecommendedSpot] {
-        let rawRecommendations: [GPTRecommendedSpot]
+    private var recommendations: [RecommendedSpot] {
+        let rawRecommendations: [RecommendedSpot]
 
         if !preloadedRecommendations.isEmpty {
             rawRecommendations = preloadedRecommendations
         } else {
             rawRecommendations = recommendedSpots.map {
-                GPTRecommendedSpot(
+                RecommendedSpot(
                     spot: $0,
-                    reason: $0.eventPeriod,
-                    scoreLabel: "오늘 추천",
-                    isGeneratedByGPT: true
+                    reason: $0.eventPeriod
                 )
             }
         }
@@ -100,30 +98,26 @@ struct HomeFeedView: View {
         HomeRecommendationKind.allCases
     }
 
-    private var verifiedRecommendations: [GPTRecommendedSpot] {
+    private var verifiedRecommendations: [RecommendedSpot] {
         searchViewModel.verifiedSpots.map { verifiedSpot in
-            GPTRecommendedSpot(
+            RecommendedSpot(
                 spot: verifiedSpot.photoSpot,
-                reason: verifiedSpot.reason,
-                scoreLabel: scoreLabel(for: verifiedSpot.source),
-                isGeneratedByGPT: verifiedSpot.source != "local"
+                reason: verifiedSpot.reason
             )
         }
     }
 
-    private var keywordSpotRecommendations: [GPTRecommendedSpot] {
+    private var keywordSpotRecommendations: [RecommendedSpot] {
         keywordSearchResults.spots.map {
-            GPTRecommendedSpot(
+            RecommendedSpot(
                 spot: $0,
-                reason: $0.eventPeriod,
-                scoreLabel: "앱 데이터",
-                isGeneratedByGPT: false
+                reason: $0.eventPeriod
             )
         }
     }
 
-    private var combinedSearchRecommendations: [GPTRecommendedSpot] {
-        (keywordSpotRecommendations + verifiedRecommendations).reduce(into: [GPTRecommendedSpot]()) { result, recommendation in
+    private var combinedSearchRecommendations: [RecommendedSpot] {
+        (keywordSpotRecommendations + verifiedRecommendations).reduce(into: [RecommendedSpot]()) { result, recommendation in
             guard !result.contains(where: {
                 $0.spot.id == recommendation.spot.id || $0.spot.mapQuery == recommendation.spot.mapQuery
             }) else {
@@ -138,18 +132,9 @@ struct HomeFeedView: View {
         NavigationStack {
             homeContent
             .background(AppColors.background.ignoresSafeArea())
-            .navigationTitle("뷰파인더")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        isSearchResultsPresented = true
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                    }
-                    .accessibilityLabel("출사지 검색")
-                }
-            }
+            // nav bar 를 완전히 제거합니다. 사진이 상태바까지 올라가야 하고,
+            // 검색 버튼은 사진 위에 떠 있는 유리 컨트롤이어야 합니다.
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $selectedCategory) { category in
                 HomeCategoryListView(
                     category: category,
@@ -160,58 +145,97 @@ struct HomeFeedView: View {
                     onReportMissingPhoto: onReportMissingPhoto
                 )
             }
-            .fullScreenCover(isPresented: $isSearchResultsPresented) {
-                HomeSearchResultsView(
-                    query: $searchViewModel.searchText,
-                    spotRecommendations: combinedSearchRecommendations,
-                    communityPosts: keywordSearchResults.communityPosts,
-                    spots: searchableSpots,
-                    message: searchViewModel.message,
-                    isLoading: searchViewModel.isLoading,
-                    onSubmitSearch: performSearch,
-                    onDismiss: {
-                        isSearchResultsPresented = false
-                    },
-                    onRequestAI: {
-                        Task {
-                            await searchViewModel.requestAIRecommendations(userLocation: userLocation)
-                        }
-                    },
-                    onSelectSpot: { spot in
-                        onAddAISpot(spot)
-                        isSearchResultsPresented = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                            onShowSearchDetail(spot)
-                        }
-                    },
-                    onReportMissingPhoto: onReportMissingPhoto,
-                    onSelectCommunityPost: { post in
-                        guard let spot = spot(for: post) else { return }
-                        isSearchResultsPresented = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                            onShowSearchDetail(spot)
-                        }
-                    }
-                )
-            }
             .onAppear {
                 tabBarVisibilityState.previousDragTranslation = nil
                 isRefreshArmed = false
                 onTabBarVisibilityChange(false)
             }
         }
+        // ═══════════════════════════════════════════════════════════
+        //  검색 화면을 NavigationStack 밖으로 옮겼습니다.
+        //
+        //  [증상]
+        //  검색 버튼은 눌립니다. 로그로 확인했습니다.
+        //  isSearchResultsPresented 를 true 로 바꾸는 코드도 실행됩니다.
+        //  그런데 화면이 나타나지 않습니다.
+        //
+        //  [왜 이 자리였는지 의심하는가]
+        //  전에는 이 모디파이어가 NavigationStack 의 내용(homeContent)에
+        //  붙어 있었고, 같은 뷰에 navigationDestination 도 붙어 있었습니다.
+        //  한 뷰가 내비게이션 목적지와 전체 화면 제시를 동시에 들고 있는
+        //  구조입니다.
+        //
+        //  제시(presentation)는 NavigationStack 자체에 붙이는 것이
+        //  안전합니다. 스택 안의 내용은 내비게이션에 따라 밀려나고 다시
+        //  그려지는 자리이고, 제시는 그 위에 떠야 하기 때문입니다.
+        //
+        //  이 변경만으로 고쳐지지 않을 수도 있으므로 상태 변화를 찍는
+        //  로그를 함께 넣었습니다. false -> true 만 찍히고 화면이 안 나오면
+        //  제시 자체의 문제이고, true -> false 가 곧바로 이어지면 무언가
+        //  상태를 되돌리고 있다는 뜻입니다. 원인이 정반대입니다.
+        // ═══════════════════════════════════════════════════════════
+        .fullScreenCover(isPresented: $isSearchResultsPresented) {
+            HomeSearchResultsView(
+                query: $searchViewModel.searchText,
+                spotRecommendations: combinedSearchRecommendations,
+                communityPosts: keywordSearchResults.communityPosts,
+                spots: searchableSpots,
+                message: searchViewModel.message,
+                isLoading: searchViewModel.isLoading,
+                onSubmitSearch: performSearch,
+                onDismiss: {
+                    isSearchResultsPresented = false
+                },
+                onSelectSpot: { spot in
+                    onAddAISpot(spot)
+                    isSearchResultsPresented = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        onShowSearchDetail(spot)
+                    }
+                },
+                onReportMissingPhoto: onReportMissingPhoto,
+                onSelectCommunityPost: { post in
+                    guard let spot = spot(for: post) else { return }
+                    isSearchResultsPresented = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        onShowSearchDetail(spot)
+                    }
+                },
+                onQueryChange: performLocalKeywordSearch
+            )
+        }
     }
 
     private var homeContent: some View {
-        discoveryPage
-            .background(AppColors.background)
+        // Hero 크기를 추측하지 않고 측정합니다.
+        // containerRelativeFrame 이 기대와 다르게 해석되어 카드가 화면 절반 폭으로
+        // 렌더되었고, Hero 에 사진 두 장이 반쪽씩 보이는 문제가 있었습니다.
+        GeometryReader { proxy in
+            let topInset = proxy.safeAreaInsets.top
+            let heroHeight = (proxy.size.height + topInset) * VFPhoto.heroHeightRatio
+
+            discoveryPage(
+                heroSize: CGSize(width: proxy.size.width, height: heroHeight),
+                topInset: topInset
+            )
+        }
+        .background(AppColors.background)
     }
 
-    private var discoveryPage: some View {
+    private func discoveryPage(heroSize: CGSize, topInset: CGFloat) -> some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: AppLayout.sectionSpacing) {
-                todaySection
-                contextRow
+            // Phase 2A
+            // - 화면 전체에 걸던 horizontal padding 을 제거했습니다.
+            //   Hero 가 화면 경계를 넘어가야 하므로 마진은 섹션별로 적용합니다.
+            // - 날씨/위치 칩(contextRow)을 제거했습니다.
+            //   사진 앱의 첫 픽셀이 날씨 위젯이면 안 됩니다.
+            //   온도는 행동을 유발하지 않는 정보였습니다. (Phase 2B 에서 골든아워로 대체)
+            // - 섹션마다 레이아웃을 다르게 해서 스크롤에 리듬을 만듭니다.
+            //   기존에는 4개 섹션이 전부 같은 2열 균일 레일이라 스크롤이 단조로웠습니다.
+            // 섹션 간 간격은 32(xl)입니다. 48(xxl)은 "챕터 분리" 값이라
+            // 섹션 사이에 쓰면 첫 카드가 탭바 아래로 밀려 캡션이 가려집니다.
+            LazyVStack(alignment: .leading, spacing: VFSpace.xl) {
+                todaySection(heroSize: heroSize, topInset: topInset)
 
                 ForEach(categories.prefix(4)) { category in
                     let categoryRecommendations = recommendations(for: category)
@@ -221,8 +245,7 @@ struct HomeFeedView: View {
                             recommendations: categoryRecommendations,
                             hasMore: category == .cafe || expandedRecommendations(for: category).count > categoryRecommendations.count,
                             isLoading: loadingSectionIDs.contains(category.id),
-                            savedSpotIDs: savedSpotIDs,
-                            onToggleSave: onToggleSave,
+                            userLocation: userLocation,
                             onSelect: onShowDetail,
                             onShowMore: {
                                 selectedCategory = category
@@ -256,13 +279,18 @@ struct HomeFeedView: View {
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .appCardSurface()
+                    // 카드 전체를 누를 수 있게 합니다.
+                    // 없으면 글자와 아이콘만 눌리고 14pt 패딩과 아이콘
+                    // 사이 여백은 눌리지 않습니다.
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("지도 탭으로 이동합니다")
+                .vfScreenMargin()
             }
-            .padding(.horizontal, AppLayout.pageHorizontalPadding)
-            .padding(.top, AppLayout.pageTopPadding)
-            .padding(.bottom, 38)
+            // Phase 2A: 기존 38pt 로는 floating 탭바를 덮지 못해
+            // 마지막 카드의 캡션이 탭바 아래로 삐져나와 읽혔습니다.
+            .padding(.bottom, 120)
             .background(alignment: .top) {
                 GeometryReader { proxy in
                     Color.clear.preference(
@@ -286,19 +314,13 @@ struct HomeFeedView: View {
             handleRefreshThresholdChange(offset >= refreshTriggerOffset)
         }
         .overlay(alignment: .top) {
-            ZStack {
-                Circle()
-                    .fill(AppColors.cardBackground)
-                    .overlay(Circle().stroke(AppColors.divider, lineWidth: 1))
-
-                Image(systemName: "arrow.down")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(AppColors.primary)
-                    .scaleEffect(isRefreshArmed ? 1 : 0.72)
-                    .opacity(isRefreshArmed ? 1 : 0)
-            }
-            .frame(width: 32, height: 32)
-            .padding(.top, 8)
+            Image(systemName: "arrow.down")
+                // Dynamic Type 제외: 고정 32pt 당겨서 새로고침 표시.
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color.white)
+                .frame(width: 32, height: 32)
+                .vfGlass()
+                .padding(.top, topInset + VFSpace.sm)
             .offset(y: isRefreshArmed ? 0 : -12)
             .opacity(isRefreshArmed ? 1 : 0)
             .allowsHitTesting(false)
@@ -310,6 +332,10 @@ struct HomeFeedView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.97)))
             }
         }
+        // 사진이 상태바까지 올라갑니다.
+        .ignoresSafeArea(edges: .top)
+        // 스크롤한 본문이 상태바와 겹쳐 읽히는 것을 시스템 재료로 막습니다.
+        .modifier(VFTopScrollEdgeEffect())
         .background(AppColors.background)
     }
 
@@ -385,17 +411,18 @@ struct HomeFeedView: View {
                     )
 
                 Image(systemName: "viewfinder")
+                    // Dynamic Type 제외: 48pt 로고 판 안의 기호. 판이 안 커지므로 기호도 안 커진다.
                     .font(.system(size: 21, weight: .semibold))
                     .foregroundStyle(AppColors.primary)
             }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("뷰파인더")
-                    .font(.system(size: 27, weight: .bold))
+                    .vfText(.title1.weight(.bold))
                     .foregroundStyle(AppColors.primary)
 
                 Text("오늘의 프레임을 찾는 출사 큐레이션")
-                    .font(.system(size: 12.5, weight: .medium))
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
             }
 
@@ -404,50 +431,26 @@ struct HomeFeedView: View {
         .padding(.top, 4)
     }
 
-    private var contextRow: some View {
-        HStack(spacing: 10) {
-            Button(action: onShowWeather) {
-                HomeContextPill(
-                    symbolName: weatherSnapshot?.symbolName ?? "cloud.sun.fill",
-                    title: weatherPillTitle,
-                    value: weatherSnapshot?.displayText ?? (weatherLoadFailed ? "날씨 정보를 불러올 수 없음" : "날씨 확인 중"),
-                    tint: AppColors.primary
-                )
-            }
-            .buttonStyle(.plain)
+    /// 로컬 키워드 검색만 실행합니다.
+    ///
+    /// performSearch 는 로컬 검색 뒤에 AI 검색까지 이어서 돌립니다.
+    /// AI 는 돈과 시간이 드니 키 입력마다 부를 수 없습니다.
+    /// 입력 중에는 이 함수만 돌리고, AI 는 결과가 없을 때 사용자가
+    /// 명시적으로 요청하도록 남겨둡니다.
+    private func performLocalKeywordSearch() {
+        let query = searchViewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            Button(action: onShowCurrentLocation) {
-                HomeContextPill(
-                    symbolName: "location.fill",
-                    title: "현재 위치",
-                    value: currentLocationTitle,
-                    tint: AppColors.primary
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var weatherPillTitle: String {
-        let trimmed = currentLocationTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != "현재 위치 기반" else {
-            return "오늘 날씨"
+        guard !query.isEmpty else {
+            keywordSearchResults = .empty
+            return
         }
 
-        let parts = trimmed.split(separator: " ").map(String.init)
-        let neighborhood = parts.last { part in
-            ["동", "읍", "면", "리"].contains { part.hasSuffix($0) }
-        }
+        keywordSearchResults = searchProvider.search(
+            query: query,
+            spots: searchableSpots,
+            communityPosts: communityPosts
+        )
 
-        if let neighborhood {
-            return "\(neighborhood) 날씨"
-        }
-
-        if let last = parts.last {
-            return "\(last) 날씨"
-        }
-
-        return "오늘 날씨"
     }
 
     private func performSearch() {
@@ -477,54 +480,59 @@ struct HomeFeedView: View {
         searchableSpots.first { $0.id == post.spotID }
     }
 
-    private var todaySection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HomeSectionHeader(title: "오늘의 프레임", symbolName: "camera.aperture", tint: AppColors.primary.opacity(0.78))
-
-            if recommendations.isEmpty {
-                NearbyRecommendationEmptyView(message: "주변 출사지 데이터가 부족해요")
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 14) {
-                        ForEach(recommendations.prefix(8)) { recommendation in
-                            FeaturedSpotCard(
-                                recommendation: recommendation,
-                                isSaved: savedSpotIDs.contains(recommendation.spot.id),
-                                onToggleSave: {
-                                    onToggleSave(recommendation.spot)
-                                }
-                            )
-                            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            .onTapGesture {
-                                onShowDetail(recommendation.spot)
-                            }
-                            .accessibilityAddTraits(.isButton)
-                            .accessibilityAction {
-                                onShowDetail(recommendation.spot)
-                            }
-                        }
-                    }
-                    .scrollTargetLayout()
-                    .padding(.horizontal, 20)
-                }
-                .scrollTargetBehavior(.viewAligned)
-                .contentMargins(.horizontal, 0, for: .scrollContent)
-                .padding(.horizontal, -20)
-            }
-        }
+    // Phase 2A: 272x352 고정 카드 카로셀을 full-bleed Hero 로 교체했습니다.
+    // 섹션 헤더("오늘의 프레임")는 제거했습니다 — 사진이 헤더 역할을 합니다.
+    private func todaySection(heroSize: CGSize, topInset: CGFloat) -> some View {
+        HomeHeroSection(
+            recommendations: recommendations,
+            userLocation: userLocation,
+            communityPosts: communityPosts,
+            cardSize: heroSize,
+            topInset: topInset,
+            contextText: heroContextText,
+            contextSymbolName: heroContextSymbol,
+            onShowContext: onShowWeather,
+            onSelect: onShowDetail,
+            onSearch: { isSearchResultsPresented = true }
+        )
     }
 
-    private func recommendations(for category: HomeRecommendationKind) -> [GPTRecommendedSpot] {
+    /// Hero 좌상단 pill 문자열.
+    ///
+    /// 이전에는 "구로동 25°" 였습니다. 온도는 사진가의 행동을 유발하지 않습니다.
+    /// 정말 필요한 정보는 "지금 나가면 빛이 좋은가" 이므로
+    /// 다음 해 이벤트를 앞에 두고 온도를 뒤에 붙입니다.
+    /// 예) "일몰까지 2시간 10분 · 24°"
+    private var heroContextText: String? {
+        guard let snapshot = weatherSnapshot else { return nil }
+
+        let temperature = snapshot.displayText
+
+        guard let event = snapshot.nextSunEvent else {
+            return temperature
+        }
+
+        return "\(event.label)  ·  \(temperature)"
+    }
+
+    /// 일몰 전이면 sunset, 일몰 후면 sunrise 아이콘.
+    private var heroContextSymbol: String {
+        weatherSnapshot?.nextSunEvent?.symbolName
+            ?? weatherSnapshot?.symbolName
+            ?? "sun.max"
+    }
+
+    private func recommendations(for category: HomeRecommendationKind) -> [RecommendedSpot] {
         homeRailRecommendations(sectionRecommendations[category] ?? [])
     }
 
-    private func expandedRecommendations(for category: HomeRecommendationKind) -> [GPTRecommendedSpot] {
+    private func expandedRecommendations(for category: HomeRecommendationKind) -> [RecommendedSpot] {
         imagePrioritizedRecommendations(
             expandedSectionRecommendations[category] ?? sectionRecommendations[category] ?? []
         )
     }
 
-    private func imagePrioritizedRecommendations(_ recommendations: [GPTRecommendedSpot]) -> [GPTRecommendedSpot] {
+    private func imagePrioritizedRecommendations(_ recommendations: [RecommendedSpot]) -> [RecommendedSpot] {
         recommendations
             .enumerated()
             .sorted { left, right in
@@ -540,7 +548,7 @@ struct HomeFeedView: View {
             .map(\.element)
     }
 
-    private func homeRailRecommendations(_ recommendations: [GPTRecommendedSpot]) -> [GPTRecommendedSpot] {
+    private func homeRailRecommendations(_ recommendations: [RecommendedSpot]) -> [RecommendedSpot] {
         imagePrioritizedRecommendations(recommendations)
             .filter { hasDisplayImage($0.spot) }
     }
@@ -549,21 +557,9 @@ struct HomeFeedView: View {
         spot.hasReliableDisplayImage
     }
 
-    private func scoreLabel(for source: String) -> String {
-        switch source {
-        case "local":
-            return "기본 데이터"
-        case "kakao":
-            return "카카오 검증"
-        case "naver":
-            return "네이버 검증"
-        default:
-            return "검증 완료"
-        }
-    }
 }
 
-private struct NearbyRecommendationEmptyView: View {
+struct NearbyRecommendationEmptyView: View {
     let message: String
 
     var body: some View {
@@ -575,59 +571,50 @@ private struct NearbyRecommendationEmptyView: View {
     }
 }
 
-struct HomeContextPill: View {
-    let symbolName: String
-    let title: String
-    let value: String
-    let tint: Color
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: symbolName)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 27, height: 27)
-                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineLimit(1)
-
-                Text(value)
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(AppColors.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 13)
-        .frame(maxWidth: .infinity)
-        .frame(height: 56)
-        .appCardSurface(cornerRadius: AppLayout.cardCornerRadius)
-    }
-}
-
 struct HomeSearchResultsView: View {
     @Binding var query: String
-    let spotRecommendations: [GPTRecommendedSpot]
+    let spotRecommendations: [RecommendedSpot]
     let communityPosts: [CommunityPost]
     let spots: [PhotoSpot]
     let message: String?
     let isLoading: Bool
     let onSubmitSearch: () -> Void
     let onDismiss: () -> Void
-    let onRequestAI: () -> Void
     let onSelectSpot: (PhotoSpot) -> Void
     let onReportMissingPhoto: (PhotoSpot) -> Void
     let onSelectCommunityPost: (CommunityPost) -> Void
+    /// 입력하는 즉시 실행되는 로컬 키워드 검색.
+    /// AI 검색(onSubmitSearch)과 분리했습니다.
+    let onQueryChange: () -> Void
     @FocusState private var isSearchFocused: Bool
 
+    // ═══════════════════════════════════════════════════════════════
+    //  홈 검색이 세 갈래로 나뉩니다.
+    //
+    //  [문제였던 상황]
+    //  안내 문구가 "앱의 출사지와 실제 장소를 함께 찾아드려요" 라고
+    //  약속하는데, 실제 장소는 찾지 않았습니다.
+    //  지도와 제보 화면은 네이버 실제 장소검색을 쓰는데 홈만 안 썼습니다.
+    //
+    //  그리고 검색이 화살표 버튼을 눌러야 실행됐습니다.
+    //  performSearch 가 로컬 검색과 AI 검색을 한 번에 하기 때문입니다.
+    //  AI 는 돈과 시간이 드니 키 입력마다 부를 수 없었습니다.
+    //
+    //  [나눈 기준]
+    //    로컬 키워드   즉시. 동기 함수이고 비용이 없습니다.
+    //    실제 장소     입력이 멈춘 뒤 350ms. PlaceFinder 가 담당합니다.
+    //    AI 추천       명시적으로 요청할 때만. 결과가 없을 때 권합니다.
+    // ═══════════════════════════════════════════════════════════════
+    @StateObject private var placeFinder = PlaceFinder(resultLimit: 6)
+
+    /// 앱에 없는 장소만 남깁니다.
+    /// 등록된 장소는 위쪽 "출사지 결과" 에 이미 나옵니다.
+    private var unknownPlaces: [PlaceSearchResult] {
+        placeFinder.results.filter { !$0.isKnown }
+    }
+
     private var hasResults: Bool {
-        !spotRecommendations.isEmpty || !communityPosts.isEmpty
+        !spotRecommendations.isEmpty || !communityPosts.isEmpty || !unknownPlaces.isEmpty
     }
 
     var body: some View {
@@ -637,11 +624,11 @@ struct HomeSearchResultsView: View {
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("출사지 검색")
-                                .font(.system(size: 27, weight: .bold))
+                                .vfText(.title1.weight(.bold))
                                 .foregroundStyle(AppColors.primary)
 
                             Text("장소, 지역, 분위기로 찾아보세요")
-                                .font(.system(size: 14, weight: .semibold))
+                                .vfText(.subhead.weight(.semibold))
                                 .foregroundStyle(AppColors.secondaryText)
                         }
 
@@ -649,9 +636,11 @@ struct HomeSearchResultsView: View {
 
                         Button(action: onDismiss) {
                             Image(systemName: "xmark")
+                                // Dynamic Type 제외: 고정 36pt 닫기 버튼.
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(AppColors.secondaryText)
                                 .frame(width: 36, height: 36)
+                                .contentShape(Rectangle())
                                 .background(AppColors.primarySoft, in: Circle())
                         }
                         .buttonStyle(.plain)
@@ -659,49 +648,55 @@ struct HomeSearchResultsView: View {
 
                     HStack(spacing: 10) {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 18, weight: .regular))
+                            .vfIcon(18, weight: .regular)
                             .foregroundStyle(AppColors.secondaryText)
 
                         TextField("출사지, 지역, 분위기 검색", text: $query)
-                            .font(.system(size: 16, weight: .medium))
+                            .vfText(.body.weight(.medium))
                             .submitLabel(.search)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .focused($isSearchFocused)
                             .onSubmit(onSubmitSearch)
 
-                        if isLoading {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else if !query.isEmpty {
-                            Button(action: onSubmitSearch) {
-                                Image(systemName: "arrow.right")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(AppColors.primary)
-                                    .frame(width: 30, height: 30)
+                        // 화살표 버튼을 없앴습니다.
+                        // 이제 입력하는 즉시 로컬 검색과 실제 장소 검색이
+                        // 돌아가므로 누를 것이 없습니다.
+                        if !query.isEmpty {
+                            Button {
+                                query = ""
+                                placeFinder.clear()
+                                onQueryChange()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .vfIcon(16, weight: .regular)
+                                    .foregroundStyle(AppColors.secondaryText)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("검색어 지우기")
                         }
                     }
                     .padding(.horizontal, 16)
-                    .frame(height: 54)
-                    .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(AppColors.divider, lineWidth: 1)
-                    }
+                    .padding(.vertical, 12)
+                    .frame(minHeight: 54)
+                    // Phase 1 에서 걷어낸 1pt 테두리가 여기만 남아 있었습니다.
+                    .background(AppColors.mutedSurface, in: Capsule())
 
                     if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text("검색어를 입력하면 앱의 출사지와 실제 장소를 함께 찾아드려요.")
-                            .font(.system(size: 14, weight: .medium))
+                            .vfText(.subhead.weight(.medium))
                             .foregroundStyle(AppColors.secondaryText)
                             .padding(.top, 8)
-                    } else if isLoading {
+                    } else if isLoading || (placeFinder.isSearching && !hasResults) {
                         SearchStatusRow(message: "검색 중이에요", isLoading: true, isError: false)
                     } else if !hasResults {
+                        // 실제 장소 검색이 실패했으면 그 사실을 먼저 말합니다.
+                        // "데이터가 부족해요" 로만 끝내면 앱이 아는 범위가
+                        // 좁은 것인지 서버에 못 닿은 것인지 알 수 없습니다.
                         EmptySearchResultView(
-                            message: message ?? "\(query) 출사지 데이터가 아직 부족해요.",
-                            onRequestAI: onRequestAI
+                            message: message
+                                ?? placeFinder.message
+                                ?? "'\(query)' 로 찾을 수 있는 장소가 없어요"
                         )
                     } else {
                         VStack(alignment: .leading, spacing: 18) {
@@ -715,6 +710,33 @@ struct HomeSearchResultsView: View {
                                             onSelect: { onSelectSpot(recommendation.spot) },
                                             onReportMissingPhoto: { onReportMissingPhoto(recommendation.spot) }
                                         )
+                                    }
+                                }
+                            }
+
+                            if !unknownPlaces.isEmpty {
+                                SearchResultSectionHeader(
+                                    title: "등록되지 않은 장소",
+                                    count: unknownPlaces.count
+                                )
+
+                                // 우리 데이터에 없는 실제 장소입니다.
+                                // 출사지 결과보다 아래에 둡니다.
+                                // 큐레이션된 출사지가 먼저 와야 합니다.
+                                LazyVStack(spacing: 0) {
+                                    ForEach(unknownPlaces) { result in
+                                        Button {
+                                            onSelectSpot(result.spot)
+                                        } label: {
+                                            HomeUnknownPlaceRow(result: result)
+                                        }
+                                        .buttonStyle(.plain)
+
+                                        if result.id != unknownPlaces.last?.id {
+                                            Divider()
+                                                .overlay(AppColors.divider)
+                                                .padding(.leading, 44)
+                                        }
                                     }
                                 }
                             }
@@ -741,6 +763,19 @@ struct HomeSearchResultsView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 18)
+                .onChange(of: query) { _, newValue in
+                    // 로컬 키워드 검색은 즉시. 동기 함수라 비용이 없습니다.
+                    onQueryChange()
+
+                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else {
+                        placeFinder.clear()
+                        return
+                    }
+
+                    // 실제 장소 검색은 디바운스됩니다.
+                    placeFinder.search(trimmed, near: nil, knownSpots: spots)
+                }
                 .padding(.bottom, 28)
             }
             .background(AppColors.background.ignoresSafeArea())
@@ -760,6 +795,47 @@ struct HomeSearchResultsView: View {
     }
 }
 
+/// 앱에 등록되지 않은 실제 장소 한 줄.
+///
+/// 출사지 카드와 다르게 생겨야 합니다. 사진도 큐레이션 정보도 없고,
+/// "여기 이런 곳이 있다" 는 사실만 있습니다.
+/// 카드처럼 그리면 같은 무게로 읽혀서 등록된 출사지와 구별되지 않습니다.
+struct HomeUnknownPlaceRow: View {
+    let result: PlaceSearchResult
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "mappin.and.ellipse")
+                // Dynamic Type 제외: 고정 32pt 프레임 안의 기호.
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(AppColors.secondaryText)
+                .frame(width: 32, height: 32)
+                .background(AppColors.mutedSurface, in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(result.name)
+                    .vfText(.callout)
+                    .foregroundStyle(AppColors.primary)
+                    .lineLimit(1)
+
+                Text(result.address)
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 4)
+
+            Image(systemName: "chevron.right")
+                .vfIcon(11, weight: .bold, relativeTo: .caption)
+                .foregroundStyle(AppColors.secondaryText)
+                .accessibilityHidden(true)
+        }
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+    }
+}
+
 struct SearchResultSectionHeader: View {
     let title: String
     let count: Int
@@ -767,14 +843,15 @@ struct SearchResultSectionHeader: View {
     var body: some View {
         HStack(spacing: 7) {
             Text(title)
-                .font(.system(size: 18, weight: .bold))
+                .vfText(.headline.weight(.bold))
                 .foregroundStyle(AppColors.primary)
 
             Text("\(count)")
-                .font(.system(size: 12, weight: .bold))
+                .vfText(.caption.weight(.bold))
                 .foregroundStyle(AppColors.secondaryText)
                 .padding(.horizontal, 7)
-                .frame(height: 22)
+                .padding(.vertical, 3)
+                .frame(minHeight: 22)
                 .background(AppColors.primarySoft, in: Capsule())
 
             Spacer(minLength: 0)
@@ -783,7 +860,7 @@ struct SearchResultSectionHeader: View {
 }
 
 struct HomeSearchResultCard: View {
-    let recommendation: GPTRecommendedSpot
+    let recommendation: RecommendedSpot
     let onSelect: () -> Void
     let onReportMissingPhoto: () -> Void
 
@@ -817,25 +894,25 @@ struct HomeSearchResultCard: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(spot.name)
-                    .font(.system(size: 18, weight: .bold))
+                    .vfText(.headline.weight(.bold))
                     .foregroundStyle(AppColors.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
 
                 Text(spot.region)
-                    .font(.system(size: 12, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(2)
 
                 Text(spot.summary)
-                    .font(.system(size: 12, weight: .medium))
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(2)
 
                 HStack(spacing: 6) {
                     ForEach(spot.hashtags.prefix(3), id: \.self) { tag in
                         Text("#\(tag.replacingOccurrences(of: "#", with: ""))")
-                            .font(.system(size: 10, weight: .bold))
+                            .vfText(.caption.weight(.bold))
                             .foregroundStyle(spot.theme.primary)
                             .lineLimit(1)
                     }
@@ -844,10 +921,11 @@ struct HomeSearchResultCard: View {
                 if !spot.hasReliableDisplayImage {
                     Button(action: onReportMissingPhoto) {
                         Text("대표 사진 제보")
-                            .font(.system(size: 12, weight: .semibold))
+                            .vfText(.caption.weight(.semibold))
                             .foregroundStyle(AppColors.primary)
                             .padding(.horizontal, 10)
-                            .frame(height: 28)
+                            .padding(.vertical, 5)
+                            .frame(minHeight: 28)
                             .background(AppColors.mutedSurface, in: Capsule())
                             .overlay(Capsule().stroke(AppColors.divider, lineWidth: 1))
                     }
@@ -877,6 +955,7 @@ struct CommunityPostSearchResultCard: View {
                 SpotVisualTile(spot: spot, width: 74, height: 74)
             } else {
                 Image(systemName: "bubble.left.and.bubble.right.fill")
+                    // Dynamic Type 제외: 사진 자리를 대신하는 74pt 기호. 사진 크기와 같아야 한다.
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(AppColors.primary)
                     .frame(width: 74, height: 74)
@@ -886,22 +965,22 @@ struct CommunityPostSearchResultCard: View {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 6) {
                     Text(post.spotName)
-                        .font(.system(size: 16, weight: .bold))
+                        .vfText(.headline.weight(.bold))
                         .foregroundStyle(AppColors.primary)
                         .lineLimit(1)
 
                     Text("·")
-                        .font(.system(size: 11, weight: .bold))
+                        .vfText(.caption.weight(.bold))
                         .foregroundStyle(AppColors.secondaryText.opacity(0.7))
 
                     Text(communityRelativeTimeText(for: post.createdAt))
-                        .font(.system(size: 11, weight: .bold))
+                        .vfText(.caption.weight(.bold))
                         .foregroundStyle(AppColors.secondaryText)
                         .lineLimit(1)
                 }
 
                 Text(post.message)
-                    .font(.system(size: 13, weight: .semibold))
+                    .vfText(.subhead.weight(.semibold))
                     .foregroundStyle(AppColors.primary.opacity(0.86))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -921,17 +1000,29 @@ struct CommunityPostSearchResultCard: View {
     }
 }
 
+/// 검색 결과가 없을 때.
+///
+/// "AI로 추천 받기" 버튼을 없앴습니다.
+/// 그 버튼은 PhotoSpotSearchViewModel.requestAIRecommendations 를 불렀고,
+/// 그 함수 본문은 canRequestAI = false 한 줄이었습니다. 누르면 아무 일도
+/// 일어나지 않았습니다.
+///
+/// 버튼을 되살리는 대신 없앴습니다. AI 로 장소를 만들어내는 방식은
+/// 관광지만 나오는 문제가 있어서 접었습니다. 지금 이 앱에서 장소를
+/// 찾는 방법은 두 가지입니다. 앱에 등록된 출사지(여기)와 네이버 지도
+/// 실제 장소(PlaceFinder). 둘 다 결과가 없으면 그냥 없는 것입니다.
+///
+/// 행동 버튼이 없는 빈 화면인 것은 아직 아쉽습니다. 원래는 여기서
+/// "이 장소 제보하기" 로 이어져야 합니다. 제보 화면을 여는 경로가
+/// ContentView 에 있어서 배선이 필요하고, 이 정리와는 별개의 작업입니다.
 struct EmptySearchResultView: View {
     let message: String
-    let onRequestAI: () -> Void
 
     var body: some View {
         AppStatePanel(
             symbolName: "magnifyingglass",
             title: "검색 결과가 없어요",
-            message: message,
-            actionTitle: "AI로 추천 받기",
-            action: onRequestAI
+            message: message
         )
     }
 }
@@ -948,7 +1039,7 @@ struct SearchStatusRow: View {
                     .controlSize(.small)
             } else {
                 Image(systemName: isError ? "exclamationmark.triangle.fill" : "info.circle.fill")
-                    .font(.system(size: 13, weight: .bold))
+                    .vfIcon(13, weight: .bold, relativeTo: .subheadline)
                     .foregroundStyle(isError ? AppColors.crowdCrowded : AppColors.primary)
             }
 
@@ -970,45 +1061,27 @@ struct SearchStatusRow: View {
 
 struct HomeSectionHeader: View {
     let title: String
+    /// Phase 2A 부터 렌더링하지 않습니다.
+    /// 섹션마다 아이콘을 붙이면 모든 섹션이 같은 무게가 되어 강조가 사라집니다.
+    /// 또한 섹션 아이콘이 브랜드 앰버를 쓰고 있어서 한 화면에 앰버가 4종류로
+    /// 늘어났습니다. (탭 + 검색 버튼 + 섹션 아이콘 + 북마크)
     let symbolName: String
+    /// Phase 2A 부터 렌더링하지 않습니다.
     let tint: Color
     var showsMore: Bool = false
     var onMore: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: symbolName)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 24, alignment: .leading)
-
-            Text(title)
-                .font(AppTypography.sectionTitle)
-                .foregroundStyle(AppColors.primary)
-
-            Spacer(minLength: 0)
-
-            if showsMore {
-                Button {
-                    onMore?()
-                } label: {
-                    HStack(spacing: 4) {
-                        Text("더보기")
-                        Image(systemName: "chevron.right")
-                    }
-                    .font(AppTypography.metadata)
-                    .foregroundStyle(AppColors.secondaryText)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(title) 전체 보기")
-            }
-        }
+        VFSectionTitle(
+            title: title,
+            showsMore: showsMore && onMore != nil,
+            onMore: onMore
+        )
     }
 }
 
 struct FeaturedSpotCard: View {
-    let recommendation: GPTRecommendedSpot
+    let recommendation: RecommendedSpot
     let isSaved: Bool
     let onToggleSave: () -> Void
 
@@ -1065,50 +1138,42 @@ struct FeaturedSpotCard: View {
             VStack {
                 HStack {
                     Spacer(minLength: 0)
-
-                    Button {
-                        onToggleSave()
-                    } label: {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(isSaved ? AppColors.accent : .white)
-                            .frame(width: 36, height: 36)
-                            .background(.black.opacity(0.20), in: Circle())
-                            .overlay(
-                                Circle()
-                                    .stroke(.white.opacity(0.30), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
+                    VFSaveButton(isSaved: isSaved, action: onToggleSave)
                 }
 
                 Spacer(minLength: 0)
             }
-            .padding(14)
+            .padding(VFSpace.sm)
         }
         .frame(width: 272, height: 352)
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: AppLayout.cardCornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cardCornerRadius, style: .continuous)
-                .stroke(.black.opacity(0.04), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 5)
+        // 검정 4% 테두리와 검정 5% 그림자를 제거했습니다.
+        //
+        // 라이트 배경 시절에 카드를 띄우기 위해 넣은 값입니다.
+        // 검정 캔버스에서는 둘 다 보이지 않습니다. 검정 위의 검정입니다.
+        // Phase 1 에서 카드 테두리·그림자를 걷어냈는데 이 카드만
+        // 남아 있었습니다. 보이지 않는 코드는 지웁니다.
     }
 }
 
+/// 섹션 카드 규격.
+///
+/// 이전에는 섹션마다 레이아웃을 번갈아(3:2 카로셀 / 2:1+1:1 모자이크) 배치해서
+/// 리듬을 만들려 했습니다. 그런데 실제 화면에서는 리듬이 아니라
+/// "규격이 안 맞는 것"으로 읽혔고, 캡션 없는 정사각 타일은 어디인지 알 수 없었습니다.
+/// 통일이 분화보다 낫다고 판단해 전 섹션 동일 규격으로 돌아갑니다.
 struct HomeCategorySection: View {
     let category: HomeRecommendationKind
-    let recommendations: [GPTRecommendedSpot]
+    let recommendations: [RecommendedSpot]
     let hasMore: Bool
     let isLoading: Bool
-    let savedSpotIDs: Set<String>
-    let onToggleSave: (PhotoSpot) -> Void
+    var userLocation: CLLocationCoordinate2D? = nil
     let onSelect: (PhotoSpot) -> Void
     let onShowMore: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: VFSpace.lg) {
             HomeSectionHeader(
                 title: category.title,
                 symbolName: category.symbolName,
@@ -1116,47 +1181,48 @@ struct HomeCategorySection: View {
                 showsMore: hasMore,
                 onMore: onShowMore
             )
+            .vfScreenMargin()
 
             if recommendations.isEmpty || isLoading {
                 SkeletonRail()
+                    .vfScreenMargin()
             } else {
-                GeometryReader { proxy in
-                    let cardWidth = max(0, (proxy.size.width - 14) / 2)
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 14) {
-                            ForEach(recommendations.prefix(5)) { recommendation in
-                                HomeSecondarySpotCard(
-                                    recommendation: recommendation,
-                                    width: cardWidth,
-                                    isSaved: savedSpotIDs.contains(recommendation.spot.id),
-                                    onToggleSave: {
-                                        onToggleSave(recommendation.spot)
-                                    }
-                                )
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        onSelect(recommendation.spot)
-                                    }
-                                    .accessibilityAddTraits(.isButton)
-                                    .accessibilityAction {
-                                        onSelect(recommendation.spot)
-                                    }
-                                }
-                        }
-                    }
-                    .scrollTargetBehavior(.viewAligned)
-                    .scrollTargetLayout()
-                }
-                .frame(height: 194)
+                showcaseRail
             }
         }
-        .padding(.horizontal, -8)
+    }
+
+    private var showcaseRail: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: VFSpace.md) {
+                ForEach(recommendations.prefix(5)) { recommendation in
+                    card(for: recommendation, aspectRatio: VFPhoto.carouselAspect)
+                        .containerRelativeFrame(.horizontal) { length, _ in
+                            max(0, length * VFPhoto.railWidthRatio)
+                        }
+                }
+            }
+            .scrollTargetLayout()
+            .padding(.horizontal, VFSpace.lg)
+        }
+        .scrollTargetBehavior(.viewAligned)
+        .scrollClipDisabled()
+    }
+
+    private func card(
+        for recommendation: RecommendedSpot,
+        aspectRatio: CGFloat
+    ) -> some View {
+        HomePhotoCard(
+            recommendation: recommendation,
+            aspectRatio: aspectRatio,
+            onSelect: { onSelect(recommendation.spot) }
+        )
     }
 }
 
 private struct HomeSecondarySpotCard: View {
-    let recommendation: GPTRecommendedSpot
+    let recommendation: RecommendedSpot
     let width: CGFloat
     let isSaved: Bool
     let onToggleSave: () -> Void
@@ -1179,17 +1245,8 @@ private struct HomeSecondarySpotCard: View {
         VStack(alignment: .leading, spacing: 8) {
             SpotVisualTile(spot: spot, width: width, height: 132, cornerRadius: AppLayout.mediaCornerRadius)
                 .overlay(alignment: .topTrailing) {
-                    Button(action: onToggleSave) {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(isSaved ? AppColors.accent : .white)
-                            .frame(width: 34, height: 34)
-                            .background(.black.opacity(0.22), in: Circle())
-                            .overlay(Circle().stroke(.white.opacity(0.28), lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(8)
-                    .accessibilityLabel(isSaved ? "저장 취소" : "장소 저장")
+                    VFSaveButton(isSaved: isSaved, action: onToggleSave, diameter: 32)
+                        .padding(VFSpace.xs)
                 }
 
             VStack(alignment: .leading, spacing: 3) {
@@ -1214,7 +1271,7 @@ private struct HomeSecondarySpotCard: View {
 
 struct HomeCategoryListView: View {
     let category: HomeRecommendationKind
-    let recommendations: [GPTRecommendedSpot]
+    let recommendations: [RecommendedSpot]
     let savedSpotIDs: Set<String>
     let onToggleSave: (PhotoSpot) -> Void
     let onSelect: (PhotoSpot) -> Void
@@ -1250,7 +1307,7 @@ struct HomeCategoryListView: View {
 }
 
 private struct HomeCategoryListRow: View {
-    let recommendation: GPTRecommendedSpot
+    let recommendation: RecommendedSpot
     let isSaved: Bool
     let onToggleSave: () -> Void
     let onSelect: () -> Void
@@ -1281,9 +1338,11 @@ private struct HomeCategoryListRow: View {
                 if spot.hasReliableDisplayImage {
                     Button(action: onToggleSave) {
                         Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                            // Dynamic Type 제외: 사진 위 고정 31pt 저장 버튼.
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white)
                             .frame(width: 31, height: 31)
+                            .contentShape(Rectangle())
                             .background(.black.opacity(0.26), in: Circle())
                     }
                     .buttonStyle(.plain)
@@ -1292,37 +1351,58 @@ private struct HomeCategoryListRow: View {
             }
 
             VStack(alignment: .leading, spacing: 7) {
-                Text(spot.name)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(AppColors.primary)
-                    .lineLimit(2)
+                // ═══════════════════════════════════════════════════
+                //  탭 제스처를 글자 블록에만 걸었습니다.
+                //
+                //  [문제였던 상황]
+                //  contentShape + onTapGesture 가 바깥 VStack 에 걸려
+                //  있었고, 그 안에 "대표 사진 제보" 버튼이 들어 있었습니다.
+                //  제보 버튼을 누르면 제보 화면과 장소 상세가 같이
+                //  열렸습니다.
+                //
+                //  홈 Hero 에서 날씨·검색 버튼이 카드 탭과 겹쳤던 것과
+                //  같은 문제입니다. 여기는 사진이 없는 장소에서만
+                //  버튼이 나타나기 때문에 눈에 덜 띄었습니다.
+                //
+                //  [해결]
+                //  탭 영역을 글자 세 줄로 좁혔습니다. 버튼은 바깥에
+                //  남으므로 겹치지 않습니다.
+                // ═══════════════════════════════════════════════════
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(spot.name)
+                        .vfText(.headline)
+                        .foregroundStyle(AppColors.primary)
+                        .lineLimit(2)
 
-                Text(HomeSpotDisplayFormatter.region(for: spot))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineLimit(1)
+                    Text(HomeSpotDisplayFormatter.region(for: spot))
+                        .vfText(.subhead.weight(.medium))
+                        .foregroundStyle(AppColors.secondaryText)
+                        .lineLimit(1)
 
-                Text(recommendation.reason)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineLimit(2)
-                    .lineSpacing(2)
+                    Text(recommendation.reason)
+                        .vfText(.subhead)
+                        .foregroundStyle(AppColors.secondaryText)
+                        .lineLimit(2)
+                        .lineSpacing(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onSelect)
 
                 if !spot.hasReliableDisplayImage {
                     Button(action: onReportMissingPhoto) {
                         Text("대표 사진 제보")
-                            .font(.system(size: 12, weight: .semibold))
+                            .vfText(.caption.weight(.semibold))
                             .foregroundStyle(AppColors.primary)
                             .padding(.horizontal, 10)
-                            .frame(height: 28)
+                            .padding(.vertical, 5)
+                            .frame(minHeight: 28)
                             .background(AppColors.mutedSurface, in: Capsule())
                             .overlay(Capsule().stroke(AppColors.divider, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onSelect)
 
             Spacer(minLength: 0)
         }
@@ -1332,69 +1412,6 @@ private struct HomeCategoryListRow: View {
                 .fill(AppColors.divider)
                 .frame(height: 0.5)
         }
-    }
-}
-
-struct CompactSpotCard: View {
-    let recommendation: GPTRecommendedSpot
-    let isSaved: Bool
-    let onToggleSave: () -> Void
-
-    private var spot: PhotoSpot {
-        recommendation.spot
-    }
-
-    private var detailText: String {
-        let region = HomeSpotDisplayFormatter.region(for: spot)
-        let reason = recommendation.reason
-            .replacingOccurrences(of: "커뮤니티에서 ", with: "")
-            .replacingOccurrences(of: " 이야기가 자주 올라오는 출사지예요", with: "")
-            .replacingOccurrences(of: " 이야기가 자주 올라오는", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !reason.isEmpty else { return region }
-        return "\(region) · \(reason)"
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SpotVisualTile(spot: spot, width: 172, height: 146, cornerRadius: 18)
-                .overlay(alignment: .topTrailing) {
-                    Button {
-                        onToggleSave()
-                    } label: {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(isSaved ? AppColors.accent : .white)
-                            .frame(width: 34, height: 34)
-                            .background(.black.opacity(0.20), in: Circle())
-                            .overlay(
-                                Circle()
-                                    .stroke(.white.opacity(0.30), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .padding(9)
-                }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(spot.name)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(AppColors.primary)
-                    .lineLimit(2)
-                    .lineSpacing(1.1)
-                    .minimumScaleFactor(0.82)
-
-                Text(detailText)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineLimit(2)
-                    .lineSpacing(2)
-            }
-            .frame(minHeight: 62, alignment: .top)
-        }
-        .frame(width: 172, alignment: .top)
-        .contentShape(Rectangle())
     }
 }
 
@@ -1507,7 +1524,12 @@ struct SpotVisualTile: View {
         ZStack(alignment: .bottomLeading) {
             PhotoSpotImageView(
                 spot: spot,
-                symbolSize: height > 80 ? 32 : 23
+                symbolSize: height > 80 ? 32 : 23,
+                // 타일 높이에 맞춰 요청 해상도를 고릅니다.
+                // 작은 리스트 썸네일이 900px 이미지를 디코딩하지 않게 합니다.
+                targetPixelWidth: height > 160
+                    ? VFPhotoDetail.card.pixelWidth
+                    : VFPhotoDetail.thumbnail.pixelWidth
             )
 
             if showsReadabilityGradient {

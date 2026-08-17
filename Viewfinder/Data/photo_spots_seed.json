@@ -1128,51 +1128,6 @@
     "nearbyParkingInfo": "문래역 인근 공영주차장 확인"
   },
   {
-    "id": "seed-euljiro-local-cafe-alley",
-    "name": "을지로 카페골목",
-    "region": "을지로",
-    "regions": [
-      "서울",
-      "중구",
-      "을지로",
-      "을지로3가"
-    ],
-    "address": "서울특별시 중구 을지로12길 일대",
-    "description": "인쇄소와 작은 로컬 카페가 섞인 골목 야경과 실내 스냅 출사지",
-    "bestTime": "해질녘 이후, 비 오는 날",
-    "reason": "네온과 오래된 간판, 작은 카페 조명이 겹쳐 필름 감성 야경을 찍기 좋아요",
-    "tags": [
-      "을지로",
-      "로컬카페",
-      "야경",
-      "필름감성",
-      "빈티지"
-    ],
-    "category": "cafe",
-    "season": [],
-    "weather": [
-      "rain"
-    ],
-    "mood": [
-      "로컬카페",
-      "필름감성",
-      "빈티지",
-      "night"
-    ],
-    "crowdLevel": "crowded",
-    "isHiddenSpot": false,
-    "latitude": 37.5664,
-    "longitude": 126.9916,
-    "source": "local",
-    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/LED%20shop%20in%20Euljiro%20Seoul.jpg?width=960",
-    "imageName": null,
-    "theme": "indoor",
-    "openingHours": "카페별 운영시간 확인 필요",
-    "feeInfo": "매장 이용 시 비용 발생",
-    "parkingInfo": "전용 주차 제한",
-    "nearbyParkingInfo": "을지로3가역 인근 공영주차장 확인"
-  },
-  {
     "id": "seed-yeonnam-local-cafe-street",
     "name": "연남동 경의선 숲길",
     "region": "연남",
@@ -1304,47 +1259,6 @@
     "nearbyParkingInfo": "대릉원 인근 공영주차장 확인"
   },
   {
-    "id": "seed-london-bagel-jamsil",
-    "name": "런던베이글뮤지엄 잠실점",
-    "region": "서울",
-    "regions": [
-      "서울",
-      "송파",
-      "송파구",
-      "잠실"
-    ],
-    "address": "서울특별시 송파구 올림픽로 300",
-    "description": "베이커리 진열과 실내 소품을 담기 좋은 밝은 카페 스팟",
-    "bestTime": "오전 오픈 직후",
-    "reason": "사람이 몰리기 전 테이블과 베이커리 디테일을 깔끔하게 담기 좋아요",
-    "tags": [
-      "카페",
-      "베이커리",
-      "실내",
-      "잠실"
-    ],
-    "category": "cafe",
-    "season": [],
-    "weather": [
-      "rain"
-    ],
-    "mood": [
-      "cafe",
-      "bright"
-    ],
-    "crowdLevel": "crowded",
-    "latitude": 37.5137,
-    "longitude": 127.1044,
-    "source": "local",
-    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/%EB%9F%B0%EB%8D%98%EB%B2%A0%EC%9D%B4%EA%B8%80%EB%AE%A4%EC%A7%80%EC%97%84_%EC%9E%A0%EC%8B%A4%EC%A0%90_%EA%B0%88%EB%A6%AD_%EB%B2%A0%EC%9D%B4%EA%B8%80.jpg?width=960",
-    "imageName": null,
-    "theme": "indoor",
-    "openingHours": "매장 운영시간 확인 필요",
-    "feeInfo": "매장 이용 시 비용 발생",
-    "parkingInfo": "몰 주차장 이용",
-    "nearbyParkingInfo": "롯데월드몰 주차장 확인"
-  },
-  {
     "id": "seed-guro-hangdong-railroad",
     "name": "항동철길",
     "region": "구로",
@@ -1438,96 +1352,6 @@
     "feeInfo": "무료",
     "parkingInfo": "주차 가능",
     "nearbyParkingInfo": "푸른수목원 주차장"
-  },
-  {
-    "id": "seed-guro-oryudong-alley",
-    "name": "오류동역 주변 골목",
-    "region": "구로",
-    "regions": [
-      "서울",
-      "구로",
-      "구로구",
-      "오류동"
-    ],
-    "address": "서울특별시 구로구 오류동역 일대",
-    "description": "생활감 있는 간판과 낮은 골목이 남아 있는 필름 감성 동네 스냅 포인트",
-    "bestTime": "오후 늦은 빛, 비 온 뒤",
-    "reason": "오래된 골목 질감과 역 주변 일상 분위기가 자연스러운 사진을 만들어줘요",
-    "tags": [
-      "구로구",
-      "오류동",
-      "골목",
-      "필름감성",
-      "빈티지"
-    ],
-    "category": "walk",
-    "season": [],
-    "weather": [
-      "rain"
-    ],
-    "mood": [
-      "골목",
-      "필름감성",
-      "빈티지"
-    ],
-    "crowdLevel": "normal",
-    "isHiddenSpot": false,
-    "latitude": 37.4945,
-    "longitude": 126.8448,
-    "source": "local",
-    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/d/db/%EC%98%A4%EB%A5%98%EB%8F%99%EC%97%AD_%EC%97%AD%EC%82%AC.JPG",
-    "imageName": null,
-    "theme": "city",
-    "openingHours": "상시 접근 가능",
-    "feeInfo": "무료",
-    "parkingInfo": "골목 주차 제한",
-    "nearbyParkingInfo": "오류동역 인근 공영주차장 확인",
-    "imageCredit": "Wikimedia Commons",
-    "imageSourceURL": "https://commons.wikimedia.org/wiki/File:%EC%98%A4%EB%A5%98%EB%8F%99%EC%97%AD%20%EC%97%AD%EC%82%AC.JPG"
-  },
-  {
-    "id": "seed-guro-gocheok-sky-dome",
-    "name": "고척스카이돔 외부",
-    "region": "구로",
-    "regions": [
-      "서울",
-      "구로",
-      "구로구",
-      "고척"
-    ],
-    "address": "서울특별시 구로구 경인로 430",
-    "description": "곡선형 대형 건축 외관과 광장 동선을 담기 좋은 도시 건축 출사지",
-    "bestTime": "해질녘, 야간 조명 시간",
-    "reason": "돔 외관의 반복되는 선과 야간 조명이 도시적인 컷을 만들기 좋아요",
-    "tags": [
-      "구로구",
-      "고척",
-      "건축",
-      "야경",
-      "도시"
-    ],
-    "category": "spot",
-    "season": [],
-    "weather": [],
-    "mood": [
-      "city",
-      "architecture",
-      "night"
-    ],
-    "crowdLevel": "crowded",
-    "isHiddenSpot": false,
-    "latitude": 37.4982,
-    "longitude": 126.8671,
-    "source": "local",
-    "imageURL": "https://upload.wikimedia.org/wikipedia/commons/d/d2/Gocheok_Sky_Dome_%2836530170325%29.jpg",
-    "imageName": null,
-    "theme": "night",
-    "openingHours": "외부 광장 상시 접근 가능, 행사일 혼잡",
-    "feeInfo": "외부 촬영 무료",
-    "parkingInfo": "행사일 주차 혼잡",
-    "nearbyParkingInfo": "고척스카이돔 주차장 또는 구일역 인근 주차장 확인",
-    "imageCredit": "Wikimedia Commons",
-    "imageSourceURL": "https://commons.wikimedia.org/wiki/File:Gocheok%20Sky%20Dome%20(36530170325).jpg"
   },
   {
     "id": "seed-guro-anyangcheon",

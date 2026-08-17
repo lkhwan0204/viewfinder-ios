@@ -191,7 +191,7 @@ struct PlaceSubmissionService {
         submitter: AuthUser
     ) async throws -> PlaceSubmissionReceipt {
         guard let endpointURL else {
-            throw PhotoSpotSearchError.configuration("장소 등록 서버 주소가 설정되지 않았어요")
+            throw PhotoSpotSearchError.notConfigured
         }
 
         var request = URLRequest(url: endpointURL)
@@ -219,13 +219,11 @@ struct PlaceSubmissionService {
 
         let (data, response) = try await BackendClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw PhotoSpotSearchError.server("장소 등록 서버 응답을 읽지 못했어요")
+            throw PhotoSpotSearchError.malformedResponse
         }
 
         guard 200..<300 ~= httpResponse.statusCode else {
-            let message = (try? JSONDecoder().decode(ErrorBody.self, from: data).error)
-                ?? "장소 등록 중 오류가 발생했어요"
-            throw PhotoSpotSearchError.server(message)
+            throw PlaceVerificationService.serverError(from: data, statusCode: httpResponse.statusCode)
         }
 
         let submission = try JSONDecoder().decode(SubmissionResponse.self, from: data)
@@ -243,7 +241,7 @@ struct PlaceSubmissionService {
 
     func fetchSubmittedSpots() async throws -> [PhotoSpot] {
         guard let endpointURL else {
-            throw PhotoSpotSearchError.configuration("장소 등록 서버 주소가 설정되지 않았어요")
+            throw PhotoSpotSearchError.notConfigured
         }
 
         var request = URLRequest(url: endpointURL)
@@ -252,13 +250,11 @@ struct PlaceSubmissionService {
 
         let (data, response) = try await BackendClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw PhotoSpotSearchError.server("장소 등록 서버 응답을 읽지 못했어요")
+            throw PhotoSpotSearchError.malformedResponse
         }
 
         guard 200..<300 ~= httpResponse.statusCode else {
-            let message = (try? JSONDecoder().decode(ErrorBody.self, from: data).error)
-                ?? "등록된 장소를 불러오지 못했어요"
-            throw PhotoSpotSearchError.server(message)
+            throw PlaceVerificationService.serverError(from: data, statusCode: httpResponse.statusCode)
         }
 
         return try JSONDecoder()

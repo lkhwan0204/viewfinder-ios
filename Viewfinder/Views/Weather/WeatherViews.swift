@@ -14,8 +14,37 @@ struct WeatherSnapshot: Equatable {
     let fineDust: FineDustSnapshot?
     let hourlyForecasts: [WeatherHourlyForecast]
 
+    // 골든아워 표시용. 기본값을 둬서 기존 생성 호출부가 그대로 컴파일됩니다.
+    var sunrise: Date? = nil
+    var sunset: Date? = nil
+    /// forecast_days=2 로 받은 내일 일출. 일몰 이후에도 다음 이벤트를 보여주기 위함입니다.
+    var tomorrowSunrise: Date? = nil
+
     var displayText: String {
         "\(temperature)°"
+    }
+
+    /// 다음에 올 해 이벤트. 지금이 일몰 전이면 일몰, 일몰 후면 내일 일출입니다.
+    ///
+    /// 이 앱에서 시간은 장소만큼 중요합니다. 같은 장소가 시각에 따라 완전히
+    /// 다른 사진이 되기 때문에, "지금 나가면 빛이 좋은가" 가 핵심 정보입니다.
+    var nextSunEvent: SunEvent? {
+        let now = Date()
+        var candidates: [SunEvent] = []
+
+        if let sunrise {
+            candidates.append(SunEvent(kind: .sunrise, date: sunrise))
+        }
+        if let sunset {
+            candidates.append(SunEvent(kind: .sunset, date: sunset))
+        }
+        if let tomorrowSunrise {
+            candidates.append(SunEvent(kind: .sunrise, date: tomorrowSunrise))
+        }
+
+        return candidates
+            .filter { $0.date > now }
+            .min { $0.date < $1.date }
     }
 
     var accentColor: Color {
@@ -46,114 +75,130 @@ struct WeatherSnapshot: Equatable {
     }
 }
 
+/// 일출 / 일몰 이벤트와 그 표시 문자열.
+struct SunEvent: Equatable {
+    enum Kind {
+        case sunrise
+        case sunset
+    }
+
+    let kind: Kind
+    let date: Date
+
+    var symbolName: String {
+        kind == .sunset ? "sunset.fill" : "sunrise.fill"
+    }
+
+    private var name: String {
+        kind == .sunset ? "일몰" : "일출"
+    }
+
+    /// 남은 시간이 짧을수록 구체적으로 보여줍니다.
+    ///
+    /// 90분 이내는 분 단위로 (지금 움직여야 하는 구간),
+    /// 3시간 이내는 시간+분,
+    /// 그보다 멀면 카운트다운이 의미 없으므로 절대 시각으로 표시합니다.
+    var label: String {
+        countdownLabel ?? "\(name) \(Self.timeFormatter.string(from: date))"
+    }
+
+    /// 카운트다운으로 말할 수 있을 때만 값을 돌려줍니다.
+    ///
+    /// 3시간이 넘으면 nil 입니다. 그때는 남은 시간이 행동을 바꾸지 않고,
+    /// label 이 "일몰 19:23" 이라는 절대 시각으로 떨어집니다.
+    /// 그런데 일출·일몰 시각은 카드 아래에 이미 적혀 있습니다.
+    /// 같은 말을 위아래로 두 번 하게 되므로, 그 경우 카운트다운 줄
+    /// 자체를 그리지 않습니다.
+    var countdownLabel: String? {
+        let remaining = date.timeIntervalSinceNow
+        guard remaining > 0 else { return nil }
+
+        let minutes = Int(remaining / 60)
+
+        if minutes <= 90 {
+            return "\(name)까지 \(minutes)분"
+        }
+
+        if minutes <= 180 {
+            let hours = minutes / 60
+            let rest = minutes % 60
+            return rest == 0
+                ? "\(name)까지 \(hours)시간"
+                : "\(name)까지 \(hours)시간 \(rest)분"
+        }
+
+        return nil
+    }
+
+    var isNext: Bool { date > Date() }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.timeZone = TimeZone(identifier: "Asia/Seoul")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+}
+
 struct WeatherVisualTheme {
-    let gradientColors: [Color]
+    // gradientColors 와 glow 를 제거했습니다.
+    // 배경 그라디언트와 방사 글로우가 사라지면서 아무도 읽지 않는
+    // 필드가 됐습니다.
     let accent: Color
     let warmAccent: Color
     let coolAccent: Color
     let rainAccent: Color
-    let glow: Color
     let cardFill: Color
     let cardStroke: Color
     let separator: Color
     let primaryText: Color
     let secondaryText: Color
 
+    // ═══════════════════════════════════════════════════════════════
+    //  조건별 컬러 테마를 걷어냈습니다.
+    //
+    //  [문제였던 상황]
+    //  이 파일이 앱 41개 파일 중 유일하게 토큰을 쓰지 않았습니다.
+    //  하드코딩된 색이 41개, 날씨 조건 5종마다 전체 화면 그라디언트가
+    //  바뀌고, 카드는 white.opacity(0.13), 글자는 순백이었습니다.
+    //  앱은 검정 캔버스 + surface1/surface2 + 앰버인데, 날씨 시트만
+    //  파란 하늘색 세계였습니다. 탭을 옮기면 다른 앱처럼 보였습니다.
+    //
+    //  [남긴 색]
+    //  색을 다 없애지는 않았습니다. 날씨에서 색은 정보입니다.
+    //  다만 새 색을 만들지 않고 이미 있는 토큰만 씁니다.
+    //
+    //    앰버        골든아워와 기온.
+    //                골든아워는 브랜드 색과 의미가 정확히 겹치는
+    //                유일한 지점입니다. 이 앱의 존재 이유가
+    //                "언제 가면 빛이 좋은가" 이고 그 색이 앰버입니다.
+    //                전에는 이걸 노란색(#FFD129)으로 칠하고 있었습니다.
+    //    혼잡도 3색  미세먼지 등급. 좋음/보통/나쁨은 여유/보통/붐빔과
+    //                같은 의미 구조라 같은 색을 재사용합니다.
+    //                전에는 미세먼지에만 하드코딩 초록이 있었습니다.
+    //    무채색      그 외 전부.
+    //
+    //  구조체 모양은 그대로 둡니다. 18곳의 사용부를 건드리지 않고
+    //  색 정의만 바꾸기 위해서입니다.
+    // ═══════════════════════════════════════════════════════════════
     static let fallback = WeatherVisualTheme(
-        gradientColors: [
-            Color(red: 0.10, green: 0.15, blue: 0.23),
-            Color(red: 0.18, green: 0.25, blue: 0.36),
-            Color(red: 0.07, green: 0.10, blue: 0.16)
-        ],
-        accent: Color(red: 0.92, green: 0.94, blue: 0.98),
-        warmAccent: Color(red: 1.00, green: 0.82, blue: 0.24),
-        coolAccent: Color(red: 0.65, green: 0.86, blue: 1.00),
-        rainAccent: Color(red: 0.43, green: 0.74, blue: 1.00),
-        glow: Color(red: 0.55, green: 0.65, blue: 0.78),
-        cardFill: Color.white.opacity(0.13),
-        cardStroke: Color.white.opacity(0.18),
-        separator: Color.white.opacity(0.15),
-        primaryText: .white,
-        secondaryText: .white.opacity(0.72)
+        accent: AppColors.primary,
+        warmAccent: AppColors.accent,
+        coolAccent: AppColors.secondaryText,
+        rainAccent: AppColors.secondaryText,
+        cardFill: AppColors.cardBackground,
+        cardStroke: .clear,
+        separator: AppColors.divider,
+        primaryText: AppColors.primary,
+        secondaryText: AppColors.secondaryText
     )
 
+    /// 조건에 따라 색을 바꾸지 않습니다.
+    /// 날씨 조건은 심볼(sun.max.fill / cloud.rain.fill …)이 말합니다.
+    /// 배경색까지 바꾸면 같은 화면이 조건마다 다른 화면처럼 보입니다.
     static func theme(for condition: String) -> WeatherVisualTheme {
-        switch condition {
-        case "맑음":
-            return WeatherVisualTheme(
-                gradientColors: [
-                    Color(red: 0.15, green: 0.47, blue: 0.84),
-                    Color(red: 0.29, green: 0.65, blue: 0.92),
-                    Color(red: 0.89, green: 0.58, blue: 0.20)
-                ],
-                accent: Color(red: 1.00, green: 0.84, blue: 0.16),
-                warmAccent: Color(red: 1.00, green: 0.76, blue: 0.10),
-                coolAccent: Color(red: 0.56, green: 0.86, blue: 1.00),
-                rainAccent: Color(red: 0.36, green: 0.72, blue: 1.00),
-                glow: Color(red: 1.00, green: 0.74, blue: 0.20),
-                cardFill: Color.white.opacity(0.16),
-                cardStroke: Color.white.opacity(0.24),
-                separator: Color.white.opacity(0.18),
-                primaryText: .white,
-                secondaryText: .white.opacity(0.78)
-            )
-        case "비", "천둥":
-            return WeatherVisualTheme(
-                gradientColors: [
-                    Color(red: 0.05, green: 0.10, blue: 0.18),
-                    Color(red: 0.12, green: 0.20, blue: 0.31),
-                    Color(red: 0.03, green: 0.06, blue: 0.11)
-                ],
-                accent: Color(red: 0.45, green: 0.76, blue: 1.00),
-                warmAccent: Color(red: 1.00, green: 0.68, blue: 0.22),
-                coolAccent: Color(red: 0.55, green: 0.82, blue: 1.00),
-                rainAccent: Color(red: 0.39, green: 0.72, blue: 1.00),
-                glow: Color(red: 0.30, green: 0.55, blue: 0.82),
-                cardFill: Color.white.opacity(0.12),
-                cardStroke: Color.white.opacity(0.17),
-                separator: Color.white.opacity(0.14),
-                primaryText: .white,
-                secondaryText: .white.opacity(0.70)
-            )
-        case "눈":
-            return WeatherVisualTheme(
-                gradientColors: [
-                    Color(red: 0.28, green: 0.46, blue: 0.66),
-                    Color(red: 0.49, green: 0.63, blue: 0.77),
-                    Color(red: 0.18, green: 0.28, blue: 0.42)
-                ],
-                accent: Color(red: 0.88, green: 0.96, blue: 1.00),
-                warmAccent: Color(red: 1.00, green: 0.78, blue: 0.30),
-                coolAccent: Color(red: 0.78, green: 0.94, blue: 1.00),
-                rainAccent: Color(red: 0.60, green: 0.84, blue: 1.00),
-                glow: Color(red: 0.78, green: 0.90, blue: 1.00),
-                cardFill: Color.white.opacity(0.15),
-                cardStroke: Color.white.opacity(0.22),
-                separator: Color.white.opacity(0.17),
-                primaryText: .white,
-                secondaryText: .white.opacity(0.76)
-            )
-        case "안개":
-            return WeatherVisualTheme(
-                gradientColors: [
-                    Color(red: 0.22, green: 0.28, blue: 0.36),
-                    Color(red: 0.35, green: 0.42, blue: 0.50),
-                    Color(red: 0.14, green: 0.18, blue: 0.25)
-                ],
-                accent: Color(red: 0.88, green: 0.90, blue: 0.92),
-                warmAccent: Color(red: 1.00, green: 0.74, blue: 0.28),
-                coolAccent: Color(red: 0.76, green: 0.86, blue: 0.94),
-                rainAccent: Color(red: 0.56, green: 0.74, blue: 0.92),
-                glow: Color(red: 0.72, green: 0.76, blue: 0.80),
-                cardFill: Color.white.opacity(0.13),
-                cardStroke: Color.white.opacity(0.18),
-                separator: Color.white.opacity(0.15),
-                primaryText: .white,
-                secondaryText: .white.opacity(0.72)
-            )
-        default:
-            return fallback
-        }
+        fallback
     }
 }
 
@@ -267,11 +312,16 @@ struct OpenMeteoResponse: Decodable {
         let temperature2MMax: [Double]
         let temperature2MMin: [Double]
         let weatherCode: [Int]
+        /// 골든아워 계산용. 기존 응답에는 없던 필드라 optional 로 둡니다.
+        let sunrise: [String]?
+        let sunset: [String]?
 
         enum CodingKeys: String, CodingKey {
             case temperature2MMax = "temperature_2m_max"
             case temperature2MMin = "temperature_2m_min"
             case weatherCode = "weather_code"
+            case sunrise
+            case sunset
         }
     }
 }
@@ -300,7 +350,19 @@ struct WeatherDetailView: View {
 
     var body: some View {
         ZStack {
-            WeatherAtmosphericBackground(theme: theme, symbolName: snapshot?.symbolName ?? "cloud.fill")
+            // 배경 장식을 완전히 없앴습니다.
+            //
+            // 전에는 조건별 3색 그라디언트 + 260pt 블러 심볼 2개
+            // + 흰 구름 밴드 2개 + 방사형 글로우로 하늘을 그려냈습니다.
+            // 그것을 검정 + 조건 심볼 4% 로 줄였는데, 4% 는 검정 위에서
+            // 아예 보이지 않았습니다. 있으나 없으나 같은 요소는
+            // 코드에 남길 이유가 없습니다.
+            //
+            // 불투명도를 올리는 선택도 있었지만, 그러면 시트 위쪽에
+            // 큰 얼룩이 생기고 그 위에 96pt 기온 숫자가 올라갑니다.
+            // 조건은 히어로의 심볼과 문구("구름 조금")가 이미 말합니다.
+            // 배경이 같은 말을 반복할 필요가 없습니다.
+            AppColors.background
                 .ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
@@ -311,6 +373,10 @@ struct WeatherDetailView: View {
                             locationTitle: locationTitle,
                             theme: theme
                         )
+
+                        // 사진가가 날씨를 여는 이유는 "지금 가면 빛이 어떤가"
+                        // 입니다. 그 답을 기온 다음 자리에 둡니다.
+                        WeatherSunSection(snapshot: snapshot, theme: theme)
 
                         if !snapshot.hourlyForecasts.isEmpty {
                             WeatherHourlySection(
@@ -332,77 +398,6 @@ struct WeatherDetailView: View {
     }
 }
 
-struct WeatherAtmosphericBackground: View {
-    let theme: WeatherVisualTheme
-    let symbolName: String
-
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: theme.gradientColors,
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .blur(radius: 8)
-            .scaleEffect(1.06)
-
-            Image(systemName: symbolName)
-                .font(.system(size: 260, weight: .black))
-                .foregroundStyle(theme.accent.opacity(0.18))
-                .blur(radius: 24)
-                .offset(x: 118, y: -160)
-
-            Image(systemName: symbolName)
-                .font(.system(size: 170, weight: .bold))
-                .foregroundStyle(Color.white.opacity(0.08))
-                .blur(radius: 18)
-                .offset(x: -128, y: 68)
-
-            VStack(spacing: -34) {
-                WeatherCloudBand(opacity: 0.18)
-                    .offset(x: -64)
-
-                WeatherCloudBand(opacity: 0.10)
-                    .scaleEffect(1.25)
-                    .offset(x: 72, y: -18)
-
-                Spacer()
-            }
-            .padding(.top, 44)
-
-            RadialGradient(
-                colors: [
-                    theme.glow.opacity(0.34),
-                    theme.glow.opacity(0.10),
-                    Color.clear
-                ],
-                center: .topTrailing,
-                startRadius: 18,
-                endRadius: 360
-            )
-        }
-    }
-}
-
-struct WeatherCloudBand: View {
-    let opacity: Double
-
-    var body: some View {
-        ZStack {
-            Capsule()
-                .fill(Color.white.opacity(opacity))
-                .frame(width: 360, height: 78)
-                .blur(radius: 30)
-
-            Capsule()
-                .fill(Color.white.opacity(opacity * 0.72))
-                .frame(width: 260, height: 52)
-                .offset(x: 84, y: 18)
-                .blur(radius: 24)
-        }
-    }
-}
-
 struct WeatherCurrentHeroCard: View {
     let snapshot: WeatherSnapshot
     let locationTitle: String
@@ -412,27 +407,29 @@ struct WeatherCurrentHeroCard: View {
         VStack(spacing: 8) {
             HStack(spacing: 5) {
                 Image(systemName: "location.north.fill")
-                    .font(.system(size: 12, weight: .bold))
+                    .vfIcon(12, weight: .bold, relativeTo: .subheadline)
 
                 Text("현재 위치")
-                    .font(.system(size: 13, weight: .semibold))
+                    .vfText(.subhead.weight(.semibold))
             }
             .foregroundStyle(theme.primaryText.opacity(0.92))
 
             Text(locationTitle)
-                .font(.system(size: 29, weight: .medium))
+                .vfText(.title1.weight(.medium))
                 .foregroundStyle(theme.primaryText)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.72)
 
             Text("\(snapshot.temperature)")
+                // Dynamic Type 제외: 기온 숫자 96pt. 읽기 편함이 아니라 레이아웃이 정한 크기다. 접근성 최대에서 2배가 되면 화면을 넘긴다. minimumScaleFactor 0.68 과 lineLimit 1 로 이미 방어하고 있다.
                 .font(.system(size: 96, weight: .thin))
                 .foregroundStyle(theme.primaryText)
                 .minimumScaleFactor(0.68)
                 .lineLimit(1)
                 .overlay(alignment: .topTrailing) {
                     Text("°")
+                        // Dynamic Type 제외: 위 기온의 도 기호 58pt. offset 으로 숫자에 붙여 놓았으므로 숫자와 같이 고정이어야 위치가 유지된다.
                         .font(.system(size: 58, weight: .thin))
                         .foregroundStyle(theme.primaryText)
                         .offset(x: 30, y: 10)
@@ -442,24 +439,45 @@ struct WeatherCurrentHeroCard: View {
 
             HStack(spacing: 8) {
                 Image(systemName: snapshot.symbolName)
-                    .font(.system(size: 20, weight: .semibold))
+                    .vfIcon(20, relativeTo: .title2)
                     .foregroundStyle(snapshot.accentColor)
 
                 Text(snapshot.condition)
-                    .font(.system(size: 19, weight: .semibold))
+                    .vfText(.title2)
                     .foregroundStyle(theme.primaryText)
             }
             .frame(maxWidth: .infinity, alignment: .center)
 
-            Text("최고:\(snapshot.highTemperature)°  최저:\(snapshot.lowTemperature)°  체감:\(snapshot.apparentTemperature)°")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(theme.primaryText.opacity(0.92))
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
+            // 전에는 "최고:28°  최저:23°  체감:33°" 였습니다.
+            // 콜론이 값에 붙어서 세 덩어리가 답답하게 읽혔습니다.
+            // 라벨과 값을 여백으로 나누고, 라벨은 한 단계 낮춥니다.
+            // 값 세 개가 같은 굵기로 나열되면 무엇이 값인지 알기
+            // 어려우므로 라벨만 회색으로 내립니다.
+            HStack(spacing: VFSpace.md) {
+                heroMetric(title: "최고", value: "\(snapshot.highTemperature)°")
+                heroMetric(title: "최저", value: "\(snapshot.lowTemperature)°")
+                heroMetric(title: "체감", value: "\(snapshot.apparentTemperature)°")
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 286)
         .padding(.horizontal, 18)
+    }
+
+    private func heroMetric(title: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .vfText(.subhead.weight(.medium))
+                .foregroundStyle(theme.secondaryText)
+
+            Text(value)
+                .vfText(.callout.weight(.semibold))
+                .foregroundStyle(theme.primaryText)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title) \(value)")
     }
 }
 
@@ -472,16 +490,16 @@ struct WeatherHeroMiniMetric: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: symbolName)
-                .font(.system(size: 11.5, weight: .semibold))
+                .vfIcon(11.5, relativeTo: .caption)
                 .foregroundStyle(tint)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 10, weight: .medium))
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
 
                 Text(value)
-                    .font(.system(size: 11.5, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(AppColors.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
@@ -489,7 +507,13 @@ struct WeatherHeroMiniMetric: View {
         }
         .padding(.horizontal, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 38)
+        // 세로 패딩 3pt.
+        // 두 줄(제목 12pt + 값 12pt + 간격 1)이 약 30pt 이므로
+        // 3pt 를 더해도 36pt 로 최소 높이 38 아래입니다. 기본 크기에서는
+        // 지금과 똑같이 38pt 로 보이고, 글자가 커질 때만 늘어납니다.
+        // 6pt 를 주면 42pt 가 되어 기본 크기에서 칩이 커집니다.
+        .padding(.vertical, 3)
+        .frame(minHeight: 38)
         .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
@@ -506,11 +530,11 @@ struct WeatherLoadingCard: View {
             }
 
             Text("오늘 날씨를 불러오는 중이에요")
-                .font(.system(size: 20, weight: .bold))
+                .vfText(.title2.weight(.bold))
                 .foregroundStyle(theme.primaryText)
 
             Text("현재 위치 기준으로 시간대별 날씨와 촬영에 필요한 정보를 정리하고 있어요.")
-                .font(.system(size: 14, weight: .semibold))
+                .vfText(.subhead.weight(.semibold))
                 .foregroundStyle(theme.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -528,12 +552,12 @@ struct WeatherHourlySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("기상 상태")
-                    .font(.system(size: 22, weight: .bold))
+                Text("시간별")
+                    .vfText(.title2.weight(.bold))
                     .foregroundStyle(theme.primaryText)
 
-                Text("온도 (°C)")
-                    .font(.system(size: 13, weight: .semibold))
+                Text("기온과 강수확률")
+                    .vfText(.subhead.weight(.semibold))
                     .foregroundStyle(theme.secondaryText)
             }
 
@@ -555,26 +579,51 @@ struct WeatherHourlyCard: View {
     let forecast: WeatherHourlyForecast
     let theme: WeatherVisualTheme
 
+    // ═══════════════════════════════════════════════════════════════
+    //  위계를 사진가 기준으로 다시 잡았습니다.
+    //
+    //  [문제였던 상황]
+    //  기온 18pt bold 가 가장 크고, 강수확률은 9.5pt 로 가장 작았습니다.
+    //  물방울 아이콘은 7pt 였습니다.
+    //
+    //  그런데 이 앱 사용자에게 27° 와 28° 의 차이는 아무 의미가 없습니다.
+    //  결정을 바꾸는 정보는 "몇 시에 비가 오는가" 입니다.
+    //  가장 중요한 값이 가장 작게 적혀 있었습니다.
+    //
+    //  [바꾼 것]
+    //  1. 조건 심볼을 21 -> 26pt. 이 칸에서 가장 먼저 읽혀야 하는 것은
+    //     하늘 상태입니다. 구름과 비를 아이콘이 말합니다.
+    //  2. 기온 18pt bold -> 15pt semibold. 부가 정보로 내립니다.
+    //  3. 강수확률 9.5 -> 13pt. 물방울 7 -> 10pt.
+    //  4. 강수확률 60% 이상이면 흰색으로 올립니다.
+    //     그 아래는 회색으로 둡니다. 비가 올 시간대만 눈에 걸리게
+    //     하려는 것이고, 색을 더 쓰지 않고 대비만으로 처리합니다.
+    // ═══════════════════════════════════════════════════════════════
+    private var isRainLikely: Bool {
+        (forecast.precipitationProbability ?? 0) >= 60
+    }
+
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 7) {
             Text(forecast.timeLabel)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(theme.primaryText.opacity(0.86))
+                .vfText(.caption.weight(.semibold))
+                .foregroundStyle(theme.secondaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
 
             Image(systemName: forecast.symbolName)
-                .font(.system(size: 21, weight: .semibold))
+                // Dynamic Type 제외: 고정 34x30 프레임 안의 날씨 기호.
+                .font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(forecast.accentColor)
-                .frame(width: 30, height: 26)
-
-            Text("\(forecast.temperature)°")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(theme.primaryText)
+                .frame(width: 34, height: 30)
 
             precipitationLabel
+
+            Text("\(forecast.temperature)°")
+                .vfText(.callout.weight(.semibold))
+                .foregroundStyle(theme.secondaryText)
         }
-        .frame(width: 54)
+        .frame(minWidth: 56)
     }
 
     @ViewBuilder
@@ -582,17 +631,16 @@ struct WeatherHourlyCard: View {
         if let probability = forecast.precipitationProbability, probability > 0 {
             HStack(spacing: 3) {
                 Image(systemName: "drop.fill")
-                    .font(.system(size: 7, weight: .bold))
-                    .foregroundStyle(theme.rainAccent)
+                    .vfIcon(10, weight: .bold, relativeTo: .caption)
 
                 Text("\(probability)%")
-                    .font(.system(size: 9.5, weight: .bold))
-                    .foregroundStyle(theme.primaryText)
+                    .vfText(.subhead.weight(.bold))
             }
+            .foregroundStyle(isRainLikely ? theme.primaryText : theme.secondaryText)
             .lineLimit(1)
         } else {
             Text(" ")
-                .font(.system(size: 9.5, weight: .bold))
+                .vfText(.subhead.weight(.bold))
                 .lineLimit(1)
         }
     }
@@ -626,8 +674,13 @@ struct WeatherMetricsGrid: View {
 
     private var metrics: [WeatherMetric] {
         [
-            WeatherMetric(symbolName: "thermometer.medium", title: "현재 기온", value: "\(snapshot.temperature)°", subtitle: "최고 \(snapshot.highTemperature)° · 최저 \(snapshot.lowTemperature)°"),
-            WeatherMetric(symbolName: snapshot.symbolName, title: "기상상태", value: snapshot.condition, subtitle: "체감 \(snapshot.apparentTemperature)°"),
+            // "현재 기온" 과 "기상상태" 카드를 없앴습니다.
+            //
+            // 히어로가 이미 28° 를 화면에서 가장 크게 보여주고,
+            // 그 아래에 "구름 조금", "최고 28° 최저 23° 체감 33°" 까지
+            // 다 적혀 있습니다. 같은 값을 같은 화면에서 두 번 말하고
+            // 있었고, 그 두 카드가 아래 격자의 첫 두 자리를 차지해서
+            // 정작 새로운 정보(강수·미세먼지·바람·습도)를 밀어냈습니다.
             WeatherMetric(symbolName: "drop.fill", title: "강수확률", value: "\(precipitationProbability)%", subtitle: "현재 강수 \(Int(snapshot.precipitation.rounded())) mm"),
             WeatherMetric(symbolName: "aqi.medium", title: "미세먼지", value: fineDustValue, subtitle: fineDustDetail),
             WeatherMetric(symbolName: "wind", title: "바람", value: String(format: "%.1f km/h", snapshot.windSpeed), subtitle: "현재 풍속"),
@@ -638,7 +691,7 @@ struct WeatherMetricsGrid: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("오늘 정보")
-                .font(.system(size: 19, weight: .bold))
+                .vfText(.title2.weight(.bold))
                 .foregroundStyle(theme.primaryText)
 
             LazyVGrid(columns: columns, spacing: 12) {
@@ -666,6 +719,20 @@ struct WeatherMetricCard: View {
     let tint: Color
     let theme: WeatherVisualTheme
 
+    /// 미세먼지 등급을 혼잡도 색 체계로 옮깁니다.
+    static func airQualityTint(for value: String) -> Color {
+        if value.contains("좋음") {
+            return AppColors.crowdRelaxed
+        }
+        if value.contains("나쁨") {
+            return AppColors.crowdCrowded
+        }
+        if value.contains("보통") {
+            return AppColors.crowdNormal
+        }
+        return AppColors.secondaryText
+    }
+
     private var iconTint: Color {
         switch metric.title {
         case "현재 기온":
@@ -675,7 +742,10 @@ struct WeatherMetricCard: View {
         case "강수확률", "습도":
             return theme.rainAccent
         case "미세먼지":
-            return Color(red: 0.68, green: 0.93, blue: 0.66)
+            // 좋음/보통/나쁨은 여유/보통/붐빔과 같은 의미 구조입니다.
+            // 새 색을 만들지 않고 혼잡도 토큰을 재사용합니다.
+            // 전에는 여기만 하드코딩 초록이었습니다.
+            return WeatherMetricCard.airQualityTint(for: metric.value)
         case "바람":
             return theme.coolAccent
         default:
@@ -686,25 +756,26 @@ struct WeatherMetricCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: metric.symbolName)
+                // Dynamic Type 제외: 고정 24pt 프레임 안의 지표 기호.
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(iconTint)
                 .frame(width: 24, height: 24)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(metric.title)
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(theme.secondaryText)
                     .lineLimit(1)
 
                 Text(metric.value)
-                    .font(.system(size: 15.5, weight: .bold))
+                    .vfText(.callout.weight(.bold))
                     .foregroundStyle(theme.primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
                 if let subtitle = metric.subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.system(size: 10, weight: .medium))
+                        .vfText(.caption)
                         .foregroundStyle(theme.secondaryText)
                         .lineLimit(2)
                         .minimumScaleFactor(0.78)
@@ -739,23 +810,29 @@ struct WeatherDetailRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: symbolName)
+                // Dynamic Type 제외: 고정 34pt 타일 안의 기호.
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(tint)
                 .frame(width: 34, height: 34)
                 .background(tint.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             Text(title)
-                .font(.system(size: 14, weight: .bold))
+                .vfText(.subhead.weight(.bold))
                 .foregroundStyle(AppColors.primary)
 
             Spacer(minLength: 0)
 
             Text(value)
-                .font(.system(size: 14, weight: .semibold))
+                .vfText(.subhead.weight(.semibold))
                 .foregroundStyle(AppColors.secondaryText)
         }
         .padding(.horizontal, 12)
-        .frame(height: 52)
+        // 세로 패딩 8pt.
+        // 이 줄의 높이는 34pt 아이콘 타일이 정합니다. 34 + 16 = 50 으로
+        // 최소 높이 52 아래입니다. 10pt 를 주면 54pt 가 되어 기본
+        // 크기에서 줄이 2pt 커집니다.
+        .padding(.vertical, 8)
+        .frame(minHeight: 52)
         .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -771,11 +848,12 @@ struct WeatherHourlyRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(forecast.timeLabel)
-                .font(.system(size: 13, weight: .bold))
+                .vfText(.subhead.weight(.bold))
                 .foregroundStyle(AppColors.primary)
-                .frame(width: 42, alignment: .leading)
+                .frame(minWidth: 42, alignment: .leading)
 
             Image(systemName: forecast.symbolName)
+                // Dynamic Type 제외: 고정 30pt 타일 안의 기호.
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(tint)
                 .frame(width: 30, height: 30)
@@ -783,11 +861,11 @@ struct WeatherHourlyRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(forecast.condition)
-                    .font(.system(size: 13, weight: .bold))
+                    .vfText(.subhead.weight(.bold))
                     .foregroundStyle(AppColors.primary)
 
                 Text("구름 \(forecast.cloudCover)%")
-                    .font(.system(size: 11, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(AppColors.secondaryText)
             }
 
@@ -795,16 +873,17 @@ struct WeatherHourlyRow: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(forecast.temperature)°")
-                    .font(.system(size: 14, weight: .bold))
+                    .vfText(.subhead.weight(.bold))
                     .foregroundStyle(AppColors.primary)
 
                 Text("강수 \(forecast.precipitationProbability ?? 0)%")
-                    .font(.system(size: 11, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(AppColors.secondaryText)
             }
         }
         .padding(.horizontal, 12)
-        .frame(height: 58)
+        .padding(.vertical, 10)
+        .frame(minHeight: 58)
         .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -821,4 +900,167 @@ extension Array {
 
 #Preview {
     ContentView()
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 해 시간
+//
+//  [문제였던 상황]
+//  날씨 상세 시트에 일출·일몰이 없었습니다.
+//
+//  시트 구성이 이랬습니다.
+//    현재 기온 -> 시간별 예보 -> 오늘 정보(기온·기상상태·강수확률·미세먼지)
+//
+//  미세먼지는 카드를 하나 받는데 일몰 시각은 어디에도 없었습니다.
+//  사진가가 날씨를 여는 이유는 기온이 아니라 빛입니다.
+//  같은 장소가 시각에 따라 완전히 다른 사진이 되기 때문에
+//  "지금 나가면 빛이 좋은가" 가 이 화면의 존재 이유입니다.
+//
+//  데이터는 이미 있었습니다.
+//  Phase 2B 에서 Open-Meteo 의 sunrise/sunset 을 받아
+//  WeatherSnapshot.nextSunEvent 까지 만들어 뒀는데,
+//  홈 화면에서만 쓰고 상세 시트에서는 표시하지 않았습니다.
+//
+//  [표시 원칙]
+//  아는 값만 보여줍니다.
+//  "골든아워 18:47부터" 같은 문구는 넣지 않았습니다.
+//  골든아워 시작 시각을 서버에서 받지 않기 때문입니다.
+//  일몰에서 60분을 빼서 만들어낼 수도 있지만, 그것은 근거 없는 값을
+//  정확한 시각처럼 보여주는 일입니다. "추천 렌즈" 를 걷어낸 것과
+//  같은 이유로 하지 않습니다.
+//  대신 남은 시간 카운트다운으로 행동 가능한 정보를 줍니다.
+// ═══════════════════════════════════════════════════════════════════
+
+struct WeatherSunSection: View {
+    let snapshot: WeatherSnapshot
+    let theme: WeatherVisualTheme
+
+    private var nextKind: SunEvent.Kind? {
+        snapshot.nextSunEvent?.kind
+    }
+
+    private var hasAnyTime: Bool {
+        snapshot.sunrise != nil || snapshot.sunset != nil
+    }
+
+    var body: some View {
+        if hasAnyTime {
+            VStack(spacing: VFSpace.sm) {
+                if let event = snapshot.nextSunEvent,
+                   let countdown = event.countdownLabel {
+                    HStack(spacing: 6) {
+                        Image(systemName: event.symbolName)
+                            .vfIcon(15, relativeTo: .subheadline)
+
+                        Text(countdown)
+                            .vfText(.headline)
+                    }
+                    .foregroundStyle(AppColors.accent)
+                    .frame(maxWidth: .infinity)
+                }
+
+                // ═══════════════════════════════════════════════════
+                //  라벨과 시각을 한 줄에 둡니다.
+                //
+                //  [세 번 고친 기록]
+                //  1차: 두 칸을 maxWidth .infinity 로 화면 절반씩 늘리고
+                //       각각 leading 정렬 -> 내용이 칸 왼쪽에 붙고
+                //       오른쪽에 빈 공간이 남아 왼쪽으로 쏠려 보임.
+                //  2차: 일출은 왼쪽 끝, 일몰은 오른쪽 끝 -> 한 쌍인데
+                //       200pt 로 벌어져 관련 없는 두 항목처럼 읽히고,
+                //       오른쪽 블록만 우측 정렬이 되어 정렬이 섞임.
+                //  3차: 내용 크기대로 나란히 + 세로 스택 -> 각 덩어리가
+                //       좁고 길어져 카드 왼쪽에 뭉쳤음.
+                //
+                //  [원인]
+                //  계속 "넓은 카드 안의 두 칸" 으로 접근했습니다.
+                //  카드는 약 330pt 인데 내용은 130pt 뿐이어서, 두 칸으로
+                //  나누는 어떤 배치도 뭉치거나 벌어집니다.
+                //  진짜 원인은 칸 나누기가 아니라 세로로 쌓은 것입니다.
+                //
+                //  [지금]
+                //  바로 위 히어로의 "최고 28°  최저 23°  체감 34°" 줄과
+                //  같은 구조를 씁니다. 라벨과 값을 한 줄에 두면
+                //   - "일출 05:50" 이 하나의 구절로 읽히고
+                //   - 각 덩어리가 가로로 넓어져 카드를 채우고
+                //   - 세로 정렬이 하나뿐이라 뭉칠 곳이 없습니다.
+                //  같은 화면에서 이미 잘 읽히는 패턴을 따르는 것이
+                //  새 배치를 발명하는 것보다 안전합니다.
+                // ═══════════════════════════════════════════════════
+                // Spacer 를 뒤에만 두었더니 두 덩어리가 카드 왼쪽에
+                // 붙고 오른쪽에 빈 공간이 남았습니다.
+                // 앞·사이·뒤에 균등하게 넣으면 여백 세 개가 같아지고,
+                // 두 덩어리가 카드 안에서 고르게 놓입니다.
+                //   [여백] 일출 05:50 [여백] 일몰 19:23 [여백]
+                HStack(spacing: 0) {
+                    Spacer(minLength: VFSpace.sm)
+
+                    if let sunrise = snapshot.sunrise {
+                        sunTime(
+                            symbol: "sunrise.fill",
+                            title: "일출",
+                            date: sunrise,
+                            isNext: nextKind == .sunrise
+                        )
+
+                        Spacer(minLength: VFSpace.md)
+                    }
+
+                    if let sunset = snapshot.sunset {
+                        sunTime(
+                            symbol: "sunset.fill",
+                            title: "일몰",
+                            date: sunset,
+                            isNext: nextKind == .sunset
+                        )
+                    }
+
+                    Spacer(minLength: VFSpace.sm)
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+            }
+            .padding(VFSpace.md)
+            .frame(maxWidth: .infinity)
+            .background(
+                theme.cardFill,
+                in: RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
+            )
+        }
+    }
+
+    /// 다음에 올 쪽은 아이콘·라벨·시각을 통째로 앰버로 칠합니다.
+    ///
+    /// 전에는 라벨만 앰버였습니다. 작은 글자 하나만 주황색이면
+    /// 강조가 아니라 오류처럼 보입니다.
+    private func sunTime(
+        symbol: String,
+        title: String,
+        date: Date,
+        isNext: Bool
+    ) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .vfIcon(13, relativeTo: .subheadline)
+
+            Text(title)
+                .vfText(.subhead.weight(.medium))
+                .foregroundStyle(isNext ? AppColors.accent : theme.secondaryText)
+
+            Text(Self.timeFormatter.string(from: date))
+                .vfText(.headline)
+        }
+        .foregroundStyle(isNext ? AppColors.accent : theme.primaryText)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title) \(Self.timeFormatter.string(from: date))")
+        .accessibilityValue(isNext ? "다음 이벤트" : "")
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
 }

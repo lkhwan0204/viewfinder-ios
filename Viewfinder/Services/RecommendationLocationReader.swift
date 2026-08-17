@@ -2,14 +2,22 @@ import CoreLocation
 import Foundation
 import OSLog
 
-struct AIPhotoSpotResolver {
-    func resolvedRecommendations(
-        from discoveries: [GPTDiscoveredSpot],
-        near coordinate: CLLocationCoordinate2D?
-    ) async -> [GPTRecommendedSpot] {
-        []
-    }
-}
+// ═══════════════════════════════════════════════════════════════════
+//  현재 위치를 읽는 객체. ContentView 가 @StateObject 로 들고 씁니다.
+//  홈 추천의 거리 표시와 지도 "내 위치" 가 이 값을 씁니다.
+//
+//  [이 파일이 따로 생긴 이유]
+//  이 클래스는 AIPhotoSpotResolver.swift 안에 있었습니다.
+//  AI 코드를 정리하면서 그 파일을 이름만 보고 지웠고, 그 안에 살아
+//  있던 이 클래스가 함께 사라졌습니다. ContentView 가 쓰고 있으므로
+//  빌드가 깨졌습니다.
+//
+//  파일 이름이 그 안에 든 것을 전부 설명하지 않는다는 것을 놓쳤습니다.
+//  같은 실수를 막기 위해 파일 이름을 타입 이름과 맞췄습니다.
+//
+//  함께 있던 AIPhotoSpotResolver 는 본문이 [] 를 돌려주는 빈 구조체였고
+//  참조도 없어서 되살리지 않았습니다.
+// ═══════════════════════════════════════════════════════════════════
 
 @MainActor
 final class RecommendationLocationReader: NSObject, ObservableObject, CLLocationManagerDelegate {

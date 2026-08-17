@@ -3,9 +3,9 @@ import Foundation
 
 @MainActor
 final class HomeRecommendationsViewModel: ObservableObject {
-    @Published private(set) var todayRecommendations: [GPTRecommendedSpot] = []
-    @Published private(set) var sectionRecommendations: [HomeRecommendationKind: [GPTRecommendedSpot]] = [:]
-    @Published private(set) var expandedSectionRecommendations: [HomeRecommendationKind: [GPTRecommendedSpot]] = [:]
+    @Published private(set) var todayRecommendations: [RecommendedSpot] = []
+    @Published private(set) var sectionRecommendations: [HomeRecommendationKind: [RecommendedSpot]] = [:]
+    @Published private(set) var expandedSectionRecommendations: [HomeRecommendationKind: [RecommendedSpot]] = [:]
     @Published private(set) var refreshState: AsyncLoadState = .idle
 
     private let service: HomeRecommendationService

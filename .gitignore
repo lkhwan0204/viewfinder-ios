@@ -10,3 +10,7 @@ xcuserdata/
 *.log
 .env
 .env.*
+# .env.example 은 값이 비어 있는 서식이므로 커밋합니다.
+# 이 예외가 없으면 위의 .env.* 가 서식까지 무시해서, README 가
+# 존재하지 않는 파일을 복사하라고 안내하는 상태가 됩니다.
+!.env.example

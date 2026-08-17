@@ -19,7 +19,30 @@ struct ContentView: View {
             case .map:
                 return "지도"
             case .add:
-                return "장소제보"
+                // "장소제보"(4글자) -> "제보"(2글자)
+                //
+                // 한동안 라벨을 완전히 비워봤지만 되살렸습니다.
+                // 중앙 + 는 학습된 패턴이지만, 그 패턴이 통하는 앱들(TikTok, Instagram)의
+                // + 는 "사진 올리기" 라서 추측이 쉽습니다.
+                // 이 앱의 기여는 "출사지 제보" 라서 훨씬 덜 자명합니다.
+                //
+                // 또 나머지 4개에는 라벨이 있는데 중앙만 없으면
+                // "특별하다" 가 아니라 "빠졌다" 로 읽힐 위험이 있습니다.
+                //
+                // 원래 문제는 라벨의 존재가 아니라 길이였습니다.
+                // 4글자가 다른 라벨을 눌러 타이포가 답답했습니다.
+                //
+                // "제보"(2글자)로 줄였다가 "새 장소"(3글자)로 다시 고쳤습니다.
+                // 커뮤니티 화면 우상단에도 작성 버튼이 있어서, 둘 다 "제보" 로
+                // 읽히면 무엇이 다른지 알 수 없었습니다.
+                // 이 앱에서는 현장 정보도 제보고 새 장소도 제보입니다.
+                //
+                // 대상 객체를 라벨에 넣어 구분합니다.
+                //   탭 바      [+ 새 장소]          장소를 등록
+                //   커뮤니티   [펜] 현장 정보 작성   정보를 작성
+                // 객체(장소 / 정보), 동사(등록 / 작성), 아이콘(+ / 펜)
+                // 세 층위에서 구분됩니다.
+                return "새 장소"
             case .community:
                 return "커뮤니티"
             case .my:
@@ -156,6 +179,24 @@ struct ContentView: View {
                 playTabSelectionHaptic()
 
                 guard newTab != .add else {
+                    // 탭 바 중앙은 "새 출사지 제보" 전용입니다.
+                    //
+                    // 한동안 2택 시트(현장 정보 / 새 장소)를 띄웠지만 되돌렸습니다.
+                    // 두 동작의 전제 조건이 다르기 때문입니다.
+                    //
+                    //   현장 정보 공유  장소가 이미 있어야 하는 동작입니다.
+                    //                  탭 바는 앱 어디서든 누르는 버튼이라 장소 맥락이
+                    //                  없어서, 여기서 시작하면 "어느 장소요?" 를
+                    //                  먼저 골라야 하는 단계가 붙습니다.
+                    //                  정작 이 기능은 내가 그 장소에 있을 때 쓰는 것입니다.
+                    //   새 장소 제보    정의상 맥락이 없는 동작입니다.
+                    //                  전역 버튼이 정확한 자리입니다.
+                    //
+                    // 현장 정보가 묻혀 있다는 진단은 맞았지만 처방이 틀렸습니다.
+                    // 처방은 탭 바가 아니라 컨텍스트 노출입니다.
+                    //   현재: 장소 상세의 현장 정보 섹션 (SpotDetailCommunitySection.onWrite)
+                    //   추후: GPS 가 저장된 장소와 일치할 때 프롬프트,
+                    //         검색 결과 0건일 때 제보 유도
                     let returnTab = lastContentTab
                     selectedTab = .add
                     DispatchQueue.main.async {
@@ -200,49 +241,23 @@ struct ContentView: View {
         nativeTabContent
         .background(AppColors.background.ignoresSafeArea())
         .tint(AppColors.accent)
+        // 상세는 모든 진입 경로에서 시트로 띄웁니다.
+        //
+        // 한동안 사진 진입을 fullScreenCover + zoom transition 으로 시도했지만
+        // 되돌렸습니다. 이유는 세 가지입니다.
+        //  1. 전환 중 대표 사진(1600px) 디코딩이 겹쳐 애니메이션이 끊겼습니다.
+        //  2. 전체 화면은 드래그로 닫을 수 없어 닫기 버튼이 필요한데,
+        //     이 화면은 하단 액션 바와 내부 시트를 이미 갖고 있어 컨트롤이 과해집니다.
+        //  3. zoom transition 은 push 네비게이션과 궁합이 맞습니다.
+        //     모달 위에 얹으면 계층이 모호해집니다.
+        // 잘 만든 시트 하나가 끊기는 zoom 보다 낫다고 판단했습니다.
+        // 상세를 push 구조로 바꾸거나 이미지 디코딩을 최적화한 뒤 재검토할 여지는 남깁니다.
         .sheet(item: $detailPresentation) { presentation in
-            SpotDetailView(
-                authViewModel: authViewModel,
-                spot: presentation.spot,
-                source: presentation.source,
-                isSaved: savedSpotStore.contains(presentation.spot),
-                communityPosts: communityViewModel.posts(for: presentation.spot),
-                currentUserID: authViewModel.currentUser?.id ?? "",
-                spots: selectableSpots,
-                onToggleSave: {
-                    savedSpotStore.toggle(presentation.spot)
-                },
-                onOpenMap: {
-                    detailPresentation = nil
-                    openMap(presentation.spot)
-                },
-                onReportPhoto: {
-                    performAuthenticatedAction { _ in
-                        detailPresentation = nil
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
-                            presentComposer(.addSpot, spot: presentation.spot)
-                        }
-                    }
-                },
-                onSubmitCommunity: { draft in
-                    performAuthenticatedAction { user in
-                        communityViewModel.addPost(draft, author: user)
-                    }
-                },
-                onUpdateCommunity: { post, draft in
-                    performAuthenticatedAction { _ in
-                        communityViewModel.updatePost(post, draft: draft)
-                    }
-                },
-                onDeleteCommunity: { post in
-                    performAuthenticatedAction { _ in
-                        communityViewModel.deletePost(post)
-                    }
-                }
-            )
-            .presentationDetents(presentation.source.detents)
-            .presentationDragIndicator(.visible)
+            detailView(for: presentation)
+                .presentationDetents(presentation.source.detents)
+                .presentationDragIndicator(.visible)
         }
+
         .sheet(isPresented: $communityViewModel.isComposerPresented) {
             CommunityComposerView(
                 spots: selectableSpots,
@@ -416,18 +431,21 @@ struct ContentView: View {
             .tabItem {
                 tabItemLabel(for: .home)
             }
+            .vfOpaqueTabBar()
 
             mapLayer
                 .tag(AppTab.map)
                 .tabItem {
                     tabItemLabel(for: .map)
                 }
+                .vfOpaqueTabBar()
 
             Color.clear
                 .tag(AppTab.add)
                 .tabItem {
                     tabItemLabel(for: .add)
                 }
+                .vfOpaqueTabBar()
 
             CommunityTabView(
                 posts: communityViewModel.posts,
@@ -476,6 +494,7 @@ struct ContentView: View {
             .tabItem {
                 tabItemLabel(for: .community)
             }
+            .vfOpaqueTabBar()
 
             MyTabView(
                 user: authViewModel.currentUser,
@@ -532,7 +551,42 @@ struct ContentView: View {
             .tabItem {
                 tabItemLabel(for: .my)
             }
+            .vfOpaqueTabBar()
         }
+        // ═══════════════════════════════════════════════════════════
+        //  탭바 배경을 SwiftUI 쪽에서 지정합니다. (시도 A)
+        //
+        //  [문제였던 상황]
+        //  AppDelegate 에서 UITabBarAppearance 로
+        //    configureWithOpaqueBackground()
+        //    backgroundEffect = nil
+        //    backgroundColor  = surface2
+        //  까지 다 걸었는데, 실기 iOS 26 에서 탭바가 여전히 밝은 유리였고
+        //  뒤의 지도 글자가 비쳤습니다. 검색바·칩은 #1C1C1F 불투명인데
+        //  탭바만 밝아서 같은 화면에 두 가지 크롬이 있었습니다.
+        //
+        //  iOS 26 플로팅 탭바는 UITabBarAppearance 의 배경 설정을
+        //  적용하지 않는 것으로 보입니다.
+        //
+        //  [시도]
+        //  toolbarBackground 는 UIKit appearance 프록시가 아니라 SwiftUI 가
+        //  자기 툴바 렌더링에 직접 거는 경로입니다. appearance 를 무시하는
+        //  구현이라도 이쪽은 볼 가능성이 있습니다.
+        //  AppDelegate 설정은 지우지 않고 둡니다. 둘은 배타적이지 않고,
+        //  이전 OS 에서는 그쪽이 실제로 동작합니다.
+        //
+        //  이것도 실패하면 유리 성질을 이용하는 방향으로 갑니다.
+        //  (탭바 뒤 콘텐츠를 어둡게 해서 유리가 따라 어두워지게)
+        //  실패 여부를 추측하지 않도록 NativeTabBarSupport 에 배경을
+        //  실제로 그리는 레이어가 무엇인지 찍는 진단을 넣었습니다.
+        //
+        //  TabView 자신과 각 탭 루트에 모두 걸었습니다.
+        //  툴바 배경은 내비게이션 바와 마찬가지로 "지금 선택된 탭의
+        //  콘텐츠" 기준으로 해석되기 때문에, 컨테이너에만 걸면 무시되고
+        //  자식에 걸어야 반영되는 경우가 있습니다. 한 번의 빌드로
+        //  판정하기 위해 양쪽 다 겁니다. 중복은 무해합니다.
+        // ═══════════════════════════════════════════════════════════
+        .vfOpaqueTabBar()
         .background {
             NativeTabBarAnimator()
             .allowsHitTesting(false)
@@ -541,12 +595,48 @@ struct ContentView: View {
     }
 
     private func tabItemLabel(for tab: AppTab) -> some View {
-        Label {
-            Text(tab.title)
-        } icon: {
-            Image(tab.assetName)
-                .renderingMode(.template)
+        Group {
+            if tab == .add {
+                Label {
+                    Text(tab.title)
+                } icon: {
+                    contributeTabIcon
+                }
+                .accessibilityHint("새 출사지를 제보합니다")
+            } else {
+                Label {
+                    Text(tab.title)
+                } icon: {
+                    Image(tab.assetName)
+                        .renderingMode(.template)
+                }
+            }
         }
+    }
+
+    /// 중앙 액션 버튼 아이콘.
+    ///
+    /// 한동안 plus.circle.fill(꽉 찬 원반)을 27pt 로 키워 썼는데 되돌렸습니다.
+    /// 나머지 4개는 얇은 선 아이콘인데 중앙만 꽉 찬 원반이라
+    /// 아이콘 패밀리가 깨지고 스티커를 붙인 것처럼 보였습니다.
+    /// 반투명 유리 pill 안에 불투명한 원이 들어가 재료도 싸웠습니다.
+    ///
+    /// 원래 에셋(다른 탭과 같은 선 스타일, 같은 크기)을 그대로 쓰고
+    /// 색만 브랜드 오렌지로 입힙니다.
+    /// 형태로는 패밀리에 속하고, 색으로만 "동작" 임을 구분합니다.
+    ///
+    /// withTintColor + alwaysOriginal 이라 선택 여부와 무관하게 오렌지를 유지합니다.
+    /// (탭 바 아이콘은 기본적으로 tint 색으로 템플릿 렌더됩니다)
+    private var contributeTabIcon: Image {
+        guard let asset = UIImage(named: AppTab.add.assetName) else {
+            return Image(systemName: "plus")
+        }
+
+        let tinted = asset
+            .withRenderingMode(.alwaysTemplate)
+            .withTintColor(AppColors.uiAccent, renderingMode: .alwaysOriginal)
+
+        return Image(uiImage: tinted)
     }
 
     private var mapLayer: some View {
@@ -577,7 +667,12 @@ struct ContentView: View {
             onToggleSavedFilter: toggleSavedMapFilter,
             onSelectCategory: selectMapCategory,
             onSelectSavedCategory: selectSavedMapListFilter,
-            onSelectSavedSpot: focusSavedSpotFromList
+            onSelectSavedSpot: focusSavedSpotFromList,
+            searchableSpots: selectableSpots,
+            // 검색 결과 선택은 상세의 "지도에서 보기" 와 같은 경로입니다.
+            // 그 장소를 지도에 명시적으로 올리고 카메라를 옮깁니다.
+            onSelectSearchResult: openMap,
+            onFocusUserLocation: focusUserLocationOnMap
         )
         .onAppear {
             guard selectedTab == .map, mapState.shouldFocusUserOnSelection else { return }
@@ -585,10 +680,59 @@ struct ContentView: View {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  할 수 없는 일을 제안하지 않습니다.
+    //
+    //  [문제였던 상황]
+    //  장소 제보는 서버에 저장됩니다. 릴리스 빌드에서
+    //  VIEWFINDER_RECOMMENDATION_ENDPOINT 가 비어 있으면(지금 상태입니다)
+    //  이 기능은 동작하지 않습니다.
+    //
+    //  그런데 앱은 제보 양식을 그대로 열어줬습니다. 사용자는 장소를
+    //  검색하고, 사진을 고르고, 태그를 넣고, 제출을 누른 뒤에야
+    //  실패했습니다. 그리고 받는 문구가
+    //  "장소 등록 서버 주소가 설정되지 않았어요" 였습니다.
+    //
+    //  문구를 다듬는 것으로는 부족합니다. 문구가 아무리 좋아도 작업을
+    //  다 시킨 뒤에 버리는 것은 같습니다.
+    //
+    //  [지금]
+    //  서버를 부를 수 없으면 양식을 열지 않고 먼저 말합니다.
+    //  현장 정보(fieldReport)는 서버가 필요 없으므로 막지 않습니다.
+    //  커뮤니티 글은 기기 안에서 관리됩니다.
+    // ═══════════════════════════════════════════════════════════════
     private func presentComposer(_ purpose: CommunityComposerPurpose, spot: PhotoSpot? = nil) {
+        if purpose == .addSpot, !AppBackendConfiguration.current.isConfigured {
+            appErrorMessage = "장소 등록은 아직 준비 중이에요. 조금만 기다려주세요."
+            return
+        }
+
         setHomeTabBarHidden(false)
         composerPurpose = purpose
         communityViewModel.beginComposing(spot: spot)
+    }
+
+    /// 장소 제보가 실패했을 때 사용자에게 할 말.
+    ///
+    /// 전에는 error.localizedDescription 을 그대로 띄웠습니다.
+    /// PhotoSpotSearchError 가 문자열을 들고 있었고 그 문자열이 서버
+    /// 응답이었기 때문에, 서버가 보낸 영문 메시지가 그대로 보일 수
+    /// 있었습니다. 이제 그 타입은 문자열을 들고 있지 않지만, 남은 문제가
+    /// 하나 있습니다. 그 타입은 자기가 검색에서 났는지 제보에서 났는지
+    /// 모르므로 문구에 기능 이름을 넣을 수 없습니다.
+    /// 그래서 기능 이름은 이 자리에서 붙입니다.
+    private func submissionFailureMessage(for error: Error) -> String {
+        guard let searchError = error as? PhotoSpotSearchError else {
+            return "장소를 등록하지 못했어요. 잠시 후 다시 시도해주세요."
+        }
+
+        switch searchError {
+        case .notConfigured:
+            // 다시 시도를 권하지 않습니다. 주소가 없는 상태는 반복해도 같습니다.
+            return "장소 등록은 아직 준비 중이에요. 조금만 기다려주세요."
+        case .server, .malformedResponse, .empty:
+            return "장소를 등록하지 못했어요. 잠시 후 다시 시도해주세요."
+        }
     }
 
     private func requestAuthentication(afterLogin action: ((AuthUser) -> Void)? = nil) {
@@ -825,11 +969,14 @@ struct ContentView: View {
                     submissionConfirmation = receipt
                 }
             } catch {
+                // 원인은 로그로, 사용자에게는 사용자 문구로.
+                let diagnostic = (error as? PhotoSpotSearchError)?.diagnosticDescription
+                    ?? error.localizedDescription
                 AppLog.network.error(
-                    "Place submission failed: \(error.localizedDescription, privacy: .public)"
+                    "Place submission failed: \(diagnostic, privacy: .public)"
                 )
                 await MainActor.run {
-                    appErrorMessage = error.localizedDescription
+                    appErrorMessage = submissionFailureMessage(for: error)
                 }
             }
         }
@@ -849,10 +996,15 @@ struct ContentView: View {
             placeSubmissionStore.markApproved(spotIDs: Set(submittedSpots.map(\.id)))
             submittedSpotsState = .loaded
         } catch {
+            // 승인된 제보 장소를 가져오는 것은 배경 작업입니다.
+            // 실패해도 앱은 시드 131곳으로 정상 동작하므로, 사용자에게
+            // 서버 사정을 알릴 이유가 없습니다. 원인은 로그로만 갑니다.
+            let diagnostic = (error as? PhotoSpotSearchError)?.diagnosticDescription
+                ?? error.localizedDescription
             AppLog.network.error(
-                "Submitted spots fetch failed: \(error.localizedDescription, privacy: .public)"
+                "Submitted spots fetch failed: \(diagnostic, privacy: .public)"
             )
-            submittedSpotsState = .failed(message: error.localizedDescription)
+            submittedSpotsState = .failed(message: "등록된 장소를 불러오지 못했어요")
         }
     }
 
@@ -860,6 +1012,50 @@ struct ContentView: View {
         for spot in spots {
             addAISpot(spot)
         }
+    }
+
+    /// 상세 화면 본문. 표시 방식과 분리해 둡니다.
+    private func detailView(for presentation: SpotDetailPresentation) -> some View {
+        SpotDetailView(
+            authViewModel: authViewModel,
+            spot: presentation.spot,
+            source: presentation.source,
+            isSaved: savedSpotStore.contains(presentation.spot),
+            communityPosts: communityViewModel.posts(for: presentation.spot),
+            currentUserID: authViewModel.currentUser?.id ?? "",
+            spots: selectableSpots,
+            userLocation: locationReader.coordinate,
+            onToggleSave: {
+                savedSpotStore.toggle(presentation.spot)
+            },
+            onOpenMap: {
+                detailPresentation = nil
+                openMap(presentation.spot)
+            },
+            onReportPhoto: {
+                performAuthenticatedAction { _ in
+                    detailPresentation = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                        presentComposer(.addSpot, spot: presentation.spot)
+                    }
+                }
+            },
+            onSubmitCommunity: { draft in
+                performAuthenticatedAction { user in
+                    communityViewModel.addPost(draft, author: user)
+                }
+            },
+            onUpdateCommunity: { post, draft in
+                performAuthenticatedAction { _ in
+                    communityViewModel.updatePost(post, draft: draft)
+                }
+            },
+            onDeleteCommunity: { post in
+                performAuthenticatedAction { _ in
+                    communityViewModel.deletePost(post)
+                }
+            }
+        )
     }
 
     private func showDetail(_ spot: PhotoSpot, source: SpotDetailSource) {
@@ -877,6 +1073,14 @@ struct ContentView: View {
         }
 
         selectedTab = .map
+    }
+
+    /// 지도의 내 위치 버튼.
+    /// 추천 모드로 되돌리지 않습니다. 저장 목록을 보다가 눌러도
+    /// 목록이 초기화되지 않고 카메라만 움직여야 합니다.
+    private func focusUserLocationOnMap() {
+        locationReader.requestLocation()
+        mapState.userLocationFocusRevision += 1
     }
 
     private func showCurrentLocationOnMap() {

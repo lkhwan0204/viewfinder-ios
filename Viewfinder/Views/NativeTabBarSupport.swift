@@ -262,6 +262,47 @@ final class NativeTabBarVisibilityController: NSObject {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────
+//  탭바를 불투명 surface2 로 (시도 A)
+//
+//  AppDelegate 의 UITabBarAppearance 설정이 iOS 26 플로팅 탭바에
+//  적용되지 않았습니다. toolbarBackground 는 appearance 프록시가 아니라
+//  SwiftUI 가 자기 바 렌더링에 직접 거는 경로라 별개의 시도입니다.
+//
+//  두 가지를 짝으로 씁니다.
+//   toolbarBackground           어떤 색으로 그릴지          iOS 16+
+//   toolbarBackgroundVisibility 그리긴 그리라는 지시        iOS 18+
+//  색만 지정하고 가시성이 자동(스크롤에 따라 숨김)이면 색이 무의미해집니다.
+//
+//  배포 타깃이 17.0 이라 가시성 쪽은 가용성 분기가 필요하고,
+//  분기를 뷰 본문에 직접 쓰면 TabView 체인이 지저분해지므로 감쌉니다.
+// ─────────────────────────────────────────────────────────────────
+private struct VFOpaqueTabBar: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content
+                .toolbarBackground(Color(uiColor: VFPalette.surface2), for: .tabBar)
+                .toolbarBackgroundVisibility(.visible, for: .tabBar)
+        } else {
+            content
+                .toolbarBackground(Color(uiColor: VFPalette.surface2), for: .tabBar)
+                .toolbarBackground(.visible, for: .tabBar)
+        }
+    }
+}
+
+extension View {
+    /// 탭바 배경을 앱 크롬 색(surface2)으로 고정합니다.
+    ///
+    /// TabView 컨테이너와 각 탭 루트 양쪽에 붙입니다.
+    /// 툴바 배경은 내비게이션 바처럼 "지금 선택된 탭의 콘텐츠" 기준으로
+    /// 해석되기 때문에, 컨테이너에만 걸면 무시되고 자식에 걸어야 반영되는
+    /// 경우가 있습니다. 한 번의 빌드로 판정하기 위해 양쪽 다 겁니다.
+    func vfOpaqueTabBar() -> some View {
+        modifier(VFOpaqueTabBar())
+    }
+}
+
 struct NativeTabBarAnimator: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
         let viewController = UIViewController()

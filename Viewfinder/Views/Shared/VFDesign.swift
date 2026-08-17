@@ -37,6 +37,18 @@ enum VFPalette {
     /// surface1 위에 올라가는 요소. 칩, 아이콘 배경.
     static let surface2 = dynamic(dark: 0x1C1C1F, light: 0xEBEBF0)
 
+    /// 지도 위 컨트롤 표면. 라이트/다크에 따라 바뀌지 않습니다.
+    ///
+    /// 네이버 지도는 앱 모드와 무관하게 항상 밝습니다.
+    /// 그래서 지도 위 컨트롤은 다이내믹 컬러를 쓸 수 없습니다.
+    /// surface2 를 쓰면 라이트 모드에서 밝은 회색 칩 + 흰 글자가 되어
+    /// 아무것도 읽히지 않습니다.
+    ///
+    /// 값은 surface2 의 다크 값과 같습니다.
+    /// 탭바(다크에서 surface2)와 지도 컨트롤이 같은 색으로 보이게
+    /// 맞춘 것입니다.
+    static let mapChrome = uiColor(hex: 0x1C1C1F)
+
     // MARK: Ink — 텍스트
     static let ink1 = dynamic(dark: 0xFFFFFF, light: 0x111111)
     static let ink2 = dynamic(dark: 0x98989D, light: 0x6E6E73)
@@ -45,25 +57,62 @@ enum VFPalette {
     /// 구분선. 아주 약하게. 기본 그룹핑 수단은 여백이다.
     static let separator = dynamic(dark: 0xFFFFFF, light: 0x000000, darkAlpha: 0.09, lightAlpha: 0.10)
 
-    // MARK: Brand — 골든아워 앰버
+    // MARK: Brand — 오렌지
+    //
+    // 검정 + 강한 오렌지 조합입니다. (Blackmagic Design 계열의 인상)
+    //
+    // 이전에는 골든아워 앰버(#F0A03C)를 썼는데 두 가지 문제가 있었습니다.
+    //  1. 노란기가 강해서 검정 위에서 강렬함이 부족했습니다.
+    //  2. 혼잡도 "보통"(#D9A94B)과 색조가 거의 같아서, 브랜드 강조와
+    //     의미 색을 구별할 수 없었습니다. 브랜드 색과 의미 색이 충돌하면
+    //     시스템의 근본이 흔들립니다.
+    //
+    // 오렌지로 옮기면서 혼잡도는 무채색으로 내렸습니다.
+    // 결과적으로 오렌지가 화면에서 유일한 컬러가 되어 강조력이 최대가 됩니다.
+    //
     /// 앱의 시그니처. 화면당 2곳 이하로 아껴 쓴다.
-    /// 허용: 선택된 탭 / 저장된 상태 / 선택된 칩 / 지도 핀 / 골든아워 / Primary 버튼
+    /// 허용: 선택된 탭 / 저장된 상태 / 선택된 칩 / 지도 핀 / 주 동작
     /// 금지: 본문 대량 사용 / 큰 면적 배경 / 사진 위 오버레이
-    static let amber = dynamic(dark: 0xF0A03C, light: 0xC97D1F)
-    static let amberDim = dynamic(dark: 0xC4802E, light: 0xA66517)
+    static let amber = dynamic(dark: 0xFF6D00, light: 0xD95A00)
+    static let amberDim = dynamic(dark: 0xCC5700, light: 0xB04800)
 
-    /// 앰버 표면 위에 올라가는 텍스트/아이콘 색.
+    /// 오렌지 표면 위에 올라가는 텍스트/아이콘 색.
     ///
-    /// 다크의 앰버(#F0A03C)는 밝은 색이라 흰 글자를 올리면 대비가 2:1 수준으로
-    /// 떨어집니다. 어두운 잉크를 올려야 4.5:1 을 넘깁니다.
-    /// 라이트의 앰버(#C97D1F)는 어두우므로 흰 글자가 맞습니다.
-    static let onAmber = dynamic(dark: 0x14100A, light: 0xFFFFFF)
+    /// #FF6D00 위 흰 글자는 대비가 2.8:1 로 기준 미달입니다.
+    /// 어두운 잉크를 올리면 6.7:1 이 되어 통과합니다.
+    /// 라이트의 오렌지(#D95A00)는 어두우므로 흰 글자가 맞습니다.
+    static let onAmber = dynamic(dark: 0x150A00, light: 0xFFFFFF)
 
     // MARK: Semantic — 혼잡도
-    // 색상 단독으로 정보를 전달하지 않는다. 점 개수 + 라벨을 함께 쓴다.
-    static let crowdCalm = dynamic(dark: 0x6BAE8E, light: 0x3F8A67)
-    static let crowdNormal = dynamic(dark: 0xD9A94B, light: 0xA37B22)
-    static let crowdBusy = dynamic(dark: 0xD4795E, light: 0xB0523A) // 빨강이 아니다. 테라코타.
+    //
+    // 신호등 3색으로 갑니다. 혼잡도는 사용자가 가장 빨리 스캔하는 정보이고,
+    // 초록/주황/빨강은 학습이 필요 없는 유일한 색 체계입니다.
+    //
+    // 단, 브랜드 오렌지(#FF6D00)와 섞이면 안 됩니다.
+    // 그래서 색조를 의도적으로 벌려놨습니다.
+    //   브랜드 오렌지  hue 약 26도 (붉은 주황)
+    //   혼잡 주황      hue 약 40도 (노란 주황)  <- 확실히 더 노랗게
+    //   매우혼잡 빨강  hue 약 4도  (순수 빨강)  <- 확실히 더 붉게
+    //
+    // 색 단독으로 정보를 전달하지는 않습니다.
+    // VFCrowdBadge 가 점 개수(형태) + 라벨(텍스트)을 항상 함께 그립니다.
+    static let crowdCalm = dynamic(dark: 0x46C08A, light: 0x2E8F63)
+    static let crowdNormal = dynamic(dark: 0xF2B02E, light: 0xB07A10)
+    static let crowdBusy = dynamic(dark: 0xF0453A, light: 0xC62A20)
+
+    // MARK: Avatar
+    //
+    // 사용자별 아바타 배경. 이전에는 파랑/갈색/초록/보라/빨강/청록 6색이었습니다.
+    // 검정·흰색·오렌지만 쓰는 체계에서 유채색 6개는 이질적입니다.
+    // 밝기 6단계 무채색으로 바꿔 사용자 구분은 유지하고 색만 걷어냅니다.
+    static let avatarTones: [UIColor] = [
+        dynamic(dark: 0x2A2A2E, light: 0xE4E4E9),
+        dynamic(dark: 0x35353A, light: 0xD8D8DE),
+        dynamic(dark: 0x404046, light: 0xCCCCD3),
+        dynamic(dark: 0x4B4B52, light: 0xC0C0C8),
+        dynamic(dark: 0x56565E, light: 0xB4B4BD),
+        dynamic(dark: 0x61616A, light: 0xA8A8B2)
+    ]
 
     // MARK: 유틸리티
 
@@ -222,10 +271,84 @@ private struct VFTextModifier: ViewModifier {
     }
 }
 
+extension VFTextStyle {
+    /// 크기는 그대로 두고 굵기만 바꾼다.
+    ///
+    /// 배지·타임스탬프처럼 "작지만 또렷해야 하는" 글자가 있다.
+    /// 그런 곳에 크기가 맞는 토큰을 쓰면 굵기가 안 맞고, 굵기를 맞추려고
+    /// 한 단계 큰 토큰을 쓰면 크기가 안 맞는다. 그래서 토큰을 벗어나
+    /// raw font 로 돌아가는 일이 반복됐다.
+    ///
+    /// 굵기는 같은 크기 안의 변주이므로 토큰을 깨지 않는다.
+    /// 크기·tracking·lineSpacing·Dynamic Type 기준은 그대로 유지된다.
+    /// 크기를 바꾸는 변주는 일부러 만들지 않았다. 크기는 9개 중에서
+    /// 골라야 하고, 그것이 이 시스템의 핵심이다.
+    func weight(_ newWeight: Font.Weight) -> VFTextStyle {
+        VFTextStyle(
+            size: size,
+            weight: newWeight,
+            tracking: tracking,
+            lineSpacing: lineSpacing,
+            relativeTo: relativeTo,
+            design: design,
+            usesMonospacedDigit: usesMonospacedDigit
+        )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 아이콘의 Dynamic Type
+//
+//  SF Symbol 은 글자가 아니라 기호다. vfText 를 걸면 안 된다.
+//  tracking / lineSpacing 이 의미가 없고, 토큰의 크기가 아이콘에 맞는
+//  크기라는 보장도 없다.
+//
+//  그런데 아이콘도 커져야 하는 경우가 있다. 규칙은 아이콘이 무엇과
+//  나란히 있는지로 갈린다.
+//
+//  [커져야 하는 아이콘] 글자와 한 줄에 있는 아이콘
+//   글자만 커지고 아이콘이 그대로면 12pt 기호 옆에 28pt 글자가 서게
+//   된다. 둘의 관계가 깨진다. 이런 곳에 vfIcon 을 쓴다.
+//
+//  [커지면 안 되는 아이콘] 고정 크기 프레임 안의 아이콘
+//   .frame(width: 32, height: 32) 같은 터치 타겟 안에 든 아이콘이다.
+//   프레임은 안 커지는데 기호만 커지면 넘쳐서 잘린다.
+//   이런 곳은 고정 크기가 정답이다. 시스템 탭바·툴바 아이콘도 고정이다.
+// ═══════════════════════════════════════════════════════════════════
+
+private struct VFIconModifier: ViewModifier {
+    @ScaledMetric private var scaledSize: CGFloat
+    private let weight: Font.Weight
+
+    init(size: CGFloat, weight: Font.Weight, relativeTo: Font.TextStyle) {
+        self.weight = weight
+        _scaledSize = ScaledMetric(wrappedValue: size, relativeTo: relativeTo)
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: scaledSize, weight: weight))
+    }
+}
+
 extension View {
     /// 폰트 + 한글 tracking + lineSpacing + Dynamic Type 을 한 번에 적용한다.
     func vfText(_ style: VFTextStyle) -> some View {
         modifier(VFTextModifier(style: style))
+    }
+
+    /// SF Symbol 을 Dynamic Type 에 맞춰 키운다.
+    ///
+    /// 글자와 한 줄에 있는 아이콘에만 쓴다. 고정 프레임 안의 아이콘은
+    /// 고정 크기로 둔다. (위 주석 참고)
+    ///
+    /// - Parameter relativeTo: 나란히 있는 글자의 기준 스타일.
+    ///   같은 비율로 커져야 관계가 유지된다.
+    func vfIcon(
+        _ size: CGFloat,
+        weight: Font.Weight = .semibold,
+        relativeTo: Font.TextStyle = .body
+    ) -> some View {
+        modifier(VFIconModifier(size: size, weight: weight, relativeTo: relativeTo))
     }
 }
 
@@ -286,6 +409,15 @@ extension View {
     ///
     /// Phase 3 에서 iOS 26 의
     /// `.scrollEdgeEffectStyle(.soft, for: .top)` 으로 교체할 예정입니다.
+    /// 스크롤 콘텐츠가 상태바 영역으로 올라올 때 시스템 재료로 경계를 만듭니다.
+    /// iOS 26 미만에서는 아무 것도 하지 않습니다.
+    ///
+    /// ⚠️ 이 모디파이어가 빌드 에러를 내면 VFTopScrollEdgeEffect 의 본문을
+    ///    `content` 만 반환하도록 바꾸면 됩니다. 기능 손실은 상단 경계뿐입니다.
+    func vfTopScrollEdge() -> some View {
+        modifier(VFTopScrollEdgeEffect())
+    }
+
     func vfTopEdgeFade(height: CGFloat = 72) -> some View {
         overlay(alignment: .top) {
             LinearGradient(
@@ -459,9 +591,22 @@ enum VFPhoto {
     static let wideAspect: CGFloat = 2.0 / 1.0
 
     /// Hero 가 차지할 화면 높이 비율.
-    static let heroHeightRatio: CGFloat = 0.72
+    ///
+    /// 0.72 로 시작했지만 HTML 목업으로 검증한 결과, 그 높이에서는 Hero 아래
+    /// 첫 섹션이 "헤더만 겨우" 보이고 카드가 탭바에 잘렸습니다.
+    /// "아래에 더 있다"는 신호가 없으면 스크롤을 유도하지 못합니다.
+    /// 0.64 로 낮추면 첫 카드의 절반 정도가 보여서 스크롤 유도가 생깁니다.
+    static let heroHeightRatio: CGFloat = 0.64
     /// 카로셀에서 다음 카드가 보이는 폭.
     static let carouselPeek: CGFloat = 28
+
+    /// 섹션 카로셀 카드가 화면 폭에서 차지하는 비율.
+    ///
+    /// 처음에는 "화면 폭 - 마진 - peek" 로 계산해서 카드가 화면의 83% 를 차지했는데,
+    /// Hero 가 이미 큰 사진이라 아래 카드까지 크면 화면 전체가 무거워집니다.
+    /// 0.60 이면 카드 1.6장이 보여서 "옆으로 더 있다" 는 신호가 생기고
+    /// 사진 크기도 Hero 와 위계가 구분됩니다.
+    static let railWidthRatio: CGFloat = 0.60
     /// 3열 타일 gutter.
     static let tileGutter: CGFloat = VFSpace.xs
 }
@@ -503,15 +648,20 @@ enum VFCrowdLevel: Int, CaseIterable {
     }
 
     /// 채워진 점의 개수. 색맹 사용자를 위한 형태 인코딩.
+    ///
+    /// calm 이 0 이었는데, 그러면 "여유" 일 때 점 3개가 모두 흐려져
+    /// 정보가 없는 상태와 구별되지 않았습니다.
+    /// 최소 1개는 채웁니다. 점 개수는 "얼마나 붐비는가" 를 뜻합니다.
+    ///   1 여유 · 2 보통 · 3 붐빔
+    /// busy 와 veryBusy 는 점이 같습니다. 색도 이미 같고(crowdBusy),
+    /// 구분은 라벨이 합니다.
     var filledDots: Int {
         switch self {
         case .calm:
-            return 0
-        case .normal:
             return 1
-        case .busy:
+        case .normal:
             return 2
-        case .veryBusy:
+        case .busy, .veryBusy:
             return 3
         }
     }
@@ -559,5 +709,28 @@ struct VFCrowdBadge: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(level.accessibilityLabel)
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - Scroll Edge Effect
+//
+//  navigationBar 를 숨긴 화면에서 스크롤한 본문이 상태바 시계와 겹쳐 읽히는
+//  문제를 시스템 재료로 해결합니다.
+//  직접 만든 그라디언트(vfTopEdgeFade)와 달리, 콘텐츠가 상단에 닿을 때만
+//  나타나고 사진 위에 검정 띠를 남기지 않습니다.
+//
+//  ⚠️ 이 파일에서 유일하게 iOS 26 전용 API 를 쓰는 곳입니다.
+//     빌드 에러가 나면 body 를 `content` 만 반환하도록 바꾸세요.
+// ═══════════════════════════════════════════════════════════════════
+
+struct VFTopScrollEdgeEffect: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            content
+        }
     }
 }

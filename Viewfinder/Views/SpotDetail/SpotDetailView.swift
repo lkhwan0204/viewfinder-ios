@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import SwiftUI
 import UIKit
@@ -41,6 +42,8 @@ struct SpotDetailView: View {
     let communityPosts: [CommunityPost]
     let currentUserID: String
     let spots: [PhotoSpot]
+    /// 거리 표시용. 없으면 거리 지표가 "위치 확인 필요" 로 표시됩니다.
+    var userLocation: CLLocationCoordinate2D? = nil
     let onToggleSave: () -> Void
     let onOpenMap: () -> Void
     let onReportPhoto: () -> Void
@@ -67,12 +70,21 @@ struct SpotDetailView: View {
                     VStack(alignment: .leading, spacing: source.isCompact ? 14 : 20) {
                         SpotDetailHeroImage(
                             spot: spot,
-                            height: source.isCompact ? 172 : 254,
+                            height: heroHeight(in: proxy.size),
+                            cornerRadius: source.isMapContext ? AppLayout.cardCornerRadius : 0,
+                            showsBorder: source.isMapContext,
                             onReportPhoto: {
                                 requireAuthentication(action: onReportPhoto)
                             }
                         )
-                            .frame(width: contentWidth)
+                            // 사진 진입(전체 화면)에서는 화면 폭을 꽉 채웁니다.
+                            // 음수 패딩으로 부모의 좌우 마진을 상쇄합니다.
+                            .frame(width: source.isMapContext ? contentWidth : proxy.size.width)
+
+                            .padding(
+                                .horizontal,
+                                source.isMapContext ? 0 : -horizontalPadding
+                            )
 
                         header
                         shootingConditions
@@ -106,7 +118,9 @@ struct SpotDetailView: View {
                     }
                     .frame(width: contentWidth, alignment: .leading)
                     .padding(.horizontal, horizontalPadding)
-                    .padding(.top, source.isCompact ? 12 : 18)
+                    // full-bleed 사진이 화면 최상단에 붙어야 하므로
+                    // 전체 화면일 때는 상단 여백을 두지 않습니다.
+                    .padding(.top, source.isMapContext ? 12 : 0)
                     .padding(.bottom, actionBarOverlayReserve)
                     .frame(maxWidth: .infinity, alignment: .center)
                 }
@@ -179,6 +193,17 @@ struct SpotDetailView: View {
         }
     }
 
+    /// 대표 사진 높이.
+    ///
+    /// 전체 화면에서는 화면 높이의 44% 를 씁니다. 홈 Hero(72%)보다는 작지만
+    /// 사진이 먼저 눈에 들어오고, 아래 정보도 함께 보이는 균형점입니다.
+    private func heroHeight(in size: CGSize) -> CGFloat {
+        if source.isCompact {
+            return 172
+        }
+        return max(300, size.height * 0.44)
+    }
+
     private var detailHorizontalPadding: CGFloat {
         source.isCompact ? 14 : AppLayout.pageHorizontalPadding
     }
@@ -245,22 +270,6 @@ struct SpotDetailView: View {
             }
             .buttonStyle(.plain)
 
-            NativeActionDivider()
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.16)) {
-                    onToggleSave()
-                }
-            } label: {
-                DetailActionButton(
-                    title: isSaved ? "저장됨" : "저장",
-                    symbolName: isSaved ? "bookmark.fill" : "bookmark",
-                    isPrimary: false,
-                    height: actionButtonHeight,
-                    tint: isSaved ? AppColors.accent : nil
-                )
-            }
-            .buttonStyle(.plain)
         }
     }
 
@@ -289,6 +298,18 @@ struct SpotDetailView: View {
                 }
 
                 Spacer(minLength: 0)
+
+                // 저장은 하단 액션 바에서 여기로 옮겼습니다.
+                // 액션 바의 "지도에서 보기 / 길찾기" 는 장소로 이동하는 동작이고,
+                // 저장은 장소 자체에 대한 상태 토글이라 성격이 다릅니다.
+                // 제목 반대편에 두면 "이 장소를 저장한다" 는 관계가 분명해집니다.
+                VFSaveButton(
+                    isSaved: isSaved,
+                    action: onToggleSave,
+                    diameter: 30,
+                    style: .plain
+                )
+                .offset(y: -4)
             }
 
             Text(spot.summary)
@@ -338,12 +359,12 @@ struct SpotDetailView: View {
                 SpotShootingMetric(
                     symbolName: "person.2.fill",
                     title: "혼잡도",
-                    value: spot.crowdLevel
+                    value: crowdMetricValue
                 )
                 SpotShootingMetric(
-                    symbolName: "camera.aperture",
-                    title: "추천 렌즈",
-                    value: spot.lensSuggestion
+                    symbolName: "clock.badge.checkmark.fill",
+                    title: "이용 시간",
+                    value: openingHoursMetricValue
                 )
                 SpotShootingMetric(
                     symbolName: "cloud.sun.fill",
@@ -354,15 +375,39 @@ struct SpotDetailView: View {
         }
     }
 
+    /// 최근 제보로 계산한 혼잡도. 제보가 없으면 nil.
+    ///
+    /// 계산은 VFLiveCrowd 한 곳에서만 합니다.
+    /// 홈과 상세가 각자 계산하던 시절에는 같은 장소가 홈에서 "붐빔",
+    /// 상세에서 "여유" 로 보이는 문제가 있었습니다.
+    private var liveCrowd: VFCrowdLevel? {
+        VFLiveCrowd.resolve(spot: spot, posts: communityPosts)
+    }
+
+    /// 제보가 없으면 시드 값으로 채우지 않고 없다고 말합니다.
+    /// 관측되지 않은 값을 실시간처럼 보여주면 혼잡도 전체가 신뢰를 잃습니다.
+    private var crowdMetricValue: String {
+        guard let liveCrowd else {
+            return "현장 정보 없음"
+        }
+        return "\(liveCrowd.label) · 실시간"
+    }
+
+    /// 지금 들어갈 수 있는지. 사진가가 출발 전 가장 먼저 확인하는 정보입니다.
+    ///
+    /// 기존에는 "방문 전 확인" 접힌 영역 안에만 있어서 잘 보이지 않았습니다.
+    /// 촬영 가이드로 끌어올리고 접힌 영역에서는 제거했습니다.
+    private var openingHoursMetricValue: String {
+        let hours = spot.openingHours.trimmingCharacters(in: .whitespacesAndNewlines)
+        return hours.isEmpty ? "정보 없음" : hours
+    }
+
     private var visitInformation: some View {
         DisclosureGroup(isExpanded: $isVisitInformationExpanded) {
             VStack(spacing: 14) {
-                DetailInfoRow(
-                    symbolName: "calendar.badge.clock",
-                    title: spot.eventTitle,
-                    value: spot.eventPeriod,
-                    tint: AppColors.secondaryText
-                )
+                // "추천 이유"(eventTitle) 행을 제거했습니다.
+                // 이 섹션은 운영시간/비용/주차를 확인하는 곳이라
+                // 추천 이유가 들어갈 자리가 아니었습니다.
                 DetailInfoRow(symbolName: "ticket.fill", title: "입장/비용", value: spot.feeInfo, tint: AppColors.secondaryText)
                 DetailInfoRow(
                     symbolName: "parkingsign.circle.fill",
@@ -370,7 +415,6 @@ struct SpotDetailView: View {
                     value: "\(spot.parkingInfo) · \(spot.nearbyParkingInfo)",
                     tint: AppColors.secondaryText
                 )
-                DetailInfoRow(symbolName: "clock.badge.checkmark.fill", title: "이용 가능시간", value: spot.openingHours, tint: AppColors.secondaryText)
             }
             .padding(.top, 14)
         } label: {
@@ -383,7 +427,7 @@ struct SpotDetailView: View {
                     Text("방문 전 확인")
                         .font(AppTypography.cardTitle)
                         .foregroundStyle(AppColors.primary)
-                    Text("운영 시간, 비용, 주차 정보를 확인하세요")
+                    Text("비용과 주차 정보를 확인하세요")
                         .font(AppTypography.metadata)
                         .foregroundStyle(AppColors.secondaryText)
                 }
@@ -410,13 +454,22 @@ struct SpotDetailView: View {
 struct SpotDetailHeroImage: View {
     let spot: PhotoSpot
     let height: CGFloat
+    /// full-bleed 로 쓸 때는 0. 지도 시트에서는 카드처럼 둥글게.
+    var cornerRadius: CGFloat = AppLayout.cardCornerRadius
+    /// full-bleed 에서는 테두리를 그리지 않습니다.
+    var showsBorder: Bool = true
     let onReportPhoto: () -> Void
 
     var body: some View {
         Group {
             if spot.hasReliableDisplayImage {
                 ZStack(alignment: .bottomTrailing) {
-                    PhotoSpotImageView(spot: spot, symbolSize: 34)
+                    // 상세 화면 대표 사진은 화면 폭을 채우므로 hero 해상도로 받습니다.
+                    PhotoSpotImageView(
+                        spot: spot,
+                        symbolSize: 34,
+                        targetPixelWidth: VFPhotoDetail.hero.pixelWidth
+                    )
 
                     if let attributionText {
                         Text(attributionText)
@@ -448,11 +501,13 @@ struct SpotDetailHeroImage: View {
             }
         }
         .frame(height: height)
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cardCornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cardCornerRadius, style: .continuous)
-                .stroke(AppColors.divider.opacity(0.65), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay {
+            if showsBorder {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(AppColors.divider.opacity(0.65), lineWidth: 1)
+            }
+        }
     }
 
     private var attributionText: String? {
@@ -474,10 +529,16 @@ struct SpotHeroMap: View {
     let spot: PhotoSpot
 
     var body: some View {
-        NaverSpotPreviewMap(spot: spot)
-        .allowsHitTesting(false)
-        .frame(height: 210)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        // 기존에는 allowsHitTesting(false) 로 지도가 완전히 상호작용 불가였습니다.
+        // 위치만 확인할 수 있었고 확대/축소가 아예 되지 않았습니다.
+        //
+        // 핀치 확대/축소와 확대 버튼은 켜고, 지도 패닝(드래그)은 끕니다.
+        // 상세 화면이 세로 스크롤 시트라서 지도 패닝을 허용하면
+        // 지도 위에서 손가락을 움직일 때 화면 스크롤이 막힙니다.
+        // 위치를 옮겨서 둘러보는 것은 "지도에서 보기" 전체 지도에서 하도록 유도합니다.
+        NaverSpotPreviewMap(spot: spot, allowsZoom: true)
+            .frame(height: 260)
+            .clipShape(RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous))
     }
 }
 
@@ -736,7 +797,13 @@ struct DetailActionButton: View {
     var tint: Color? = nil
 
     private var foregroundColor: Color {
-        isPrimary ? AppColors.background : (tint ?? AppColors.primary.opacity(0.94))
+        // "지도에서 보기" 와 "길찾기" 는 같은 유리 바 안의 같은 계층이므로
+        // 글자색을 동일하게 둡니다.
+        //
+        // 한동안 길찾기만 앰버로 강조했는데, 두 버튼이 나란히 있는 상태에서
+        // 한쪽만 색이 다르면 위계보다 불일치로 읽혔습니다.
+        // 주 동작 강조가 필요해지면 배경이나 크기로 구분하는 편이 낫습니다.
+        tint ?? AppColors.primary.opacity(0.94)
     }
 
     var body: some View {
@@ -744,12 +811,10 @@ struct DetailActionButton: View {
             .foregroundStyle(foregroundColor)
             .frame(maxWidth: .infinity)
             .frame(minHeight: max(height, AppLayout.touchTarget))
-            .background {
-                if isPrimary {
-                    Capsule()
-                        .fill(AppColors.primary)
-                }
-            }
+            // 액션 바 전체에 이미 Liquid Glass 가 적용되어 있습니다.
+            // 여기서 흰 캡슐을 덮으면 유리 위에 불투명 블록이 얹혀
+            // "지도에서 보기" 와 재료가 달라 보입니다. (유리 위 유리/불투명 금지)
+            // 주 동작 구분은 배경이 아니라 글자 색(앰버)으로 표현합니다.
             .contentShape(Rectangle())
     }
 

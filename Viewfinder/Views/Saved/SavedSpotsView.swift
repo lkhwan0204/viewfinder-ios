@@ -36,7 +36,15 @@ struct MyTabView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var previousScrollOffset: CGFloat?
     @State private var isTabBarHidden = false
-    @State private var isSignInConfirmationPresented = false
+
+    // 미리보기 개수.
+    //
+    // 저장은 2열 격자이므로 2개 = 정확히 한 줄입니다.
+    // 제보는 한 줄짜리 행이라 3개까지 부담이 없습니다.
+    // 내 글은 사진 전체 폭 카드라 2개만 해도 화면을 채웁니다.
+    private let savedPreviewLimit = 2
+    private let submissionPreviewLimit = 3
+    private let postPreviewLimit = 2
 
     private var myPosts: [CommunityPost] {
         guard let user else { return [] }
@@ -50,8 +58,25 @@ struct MyTabView: View {
                     VStack(alignment: .leading, spacing: 26) {
                         screenHeader
 
+                        // ═══════════════════════════════════════════
+                        //  [버그였던 상황]
+                        //  프로필 섹션이 if user != nil 안에 있었습니다.
+                        //  그런데 profileSection 자체가 게스트 분기를
+                        //  이미 갖고 있습니다(MyProfileCard isGuest: true).
+                        //  호출부가 막아서 그 분기에 도달할 수 없었고,
+                        //  로그아웃하면 프로필 자리가 그냥 비었습니다.
+                        //
+                        //  대신 guestSignInSection 이 저장한 장소 아래에
+                        //  같은 내용을 다시 그리고 있었습니다.
+                        //  로그인 유도가 화면 중간에 묻혀 있었던 것입니다.
+                        //
+                        //  로그인 여부와 무관하게 프로필 자리는 항상
+                        //  최상단에 있어야 합니다. 로그인했으면 내 정보,
+                        //  안 했으면 로그인 유도가 같은 자리에 옵니다.
+                        // ═══════════════════════════════════════════
+                        profileSection
+
                         if user != nil {
-                            profileSection
                             activityOverview(using: proxy)
                         }
 
@@ -64,8 +89,6 @@ struct MyTabView: View {
 
                             postSection
                                 .id(MySectionAnchor.posts)
-                        } else {
-                            guestSignInSection
                         }
 
                         usageInfoSection
@@ -93,18 +116,6 @@ struct MyTabView: View {
                 .onAppear {
                     updateTabBarVisibility(0)
                 }
-                .confirmationDialog(
-                    "로그인하시겠어요?",
-                    isPresented: $isSignInConfirmationPresented,
-                    titleVisibility: .visible
-                ) {
-                    Button("로그인") {
-                        onRequestSignIn()
-                    }
-                    Button("취소", role: .cancel) {}
-                } message: {
-                    Text("로그인하면 프로필과 작성 활동을 계정에 연결할 수 있어요.")
-                }
             }
             // Phase 1: 스크롤한 본문이 상태바 시계와 겹쳐 읽히는 문제를 수정합니다.
             .vfTopEdgeFade()
@@ -131,19 +142,32 @@ struct MyTabView: View {
                 isGuest: false
             )
         } else {
+            // 카드 안에 "로그인" 이라고 적힌 앰버 버튼이 이미 있습니다.
+            // 그것을 누른 사람에게 "로그인하시겠어요?" 를 다시 묻는 것은
+            // 같은 질문을 두 번 하는 것입니다.
+            // 확인 다이얼로그는 되돌릴 수 없는 동작에만 씁니다.
             Button {
-                requestSignInConfirmation()
+                onRequestSignIn()
             } label: {
+                // 문구를 줄였습니다.
+                //
+                // 전에는 세 덩어리가 겹쳐 있었습니다.
+                //   "게스트로 둘러보는 중"
+                //   "로그인하면 내 글과 제보를 한곳에서 관리할 수 있어요."
+                //   [로그인 →] 배지
+                // 셋 다 "로그인해라" 는 같은 말이었고, 가장 긴 문장이
+                // 가장 큰 자리를 차지했습니다.
+                //
+                // 무엇을 하는 곳인지(로그인)와 왜 필요한지(한 줄)만 남깁니다.
                 MyProfileCard(
-                    title: "게스트로 둘러보는 중",
-                    subtitle: "로그인하면 내 글과 제보를 한곳에서 관리할 수 있어요.",
+                    title: "로그인",
+                    subtitle: "글과 제보를 남기려면 필요해요",
                     isGuest: true
                 )
             }
             .buttonStyle(.plain)
             .contentShape(Rectangle())
             .accessibilityLabel("게스트 프로필, 로그인")
-            .accessibilityHint("로그인 안내를 엽니다")
         }
     }
 
@@ -172,11 +196,13 @@ struct MyTabView: View {
 
     @ViewBuilder
     private func activityCards(using proxy: ScrollViewProxy) -> some View {
+        // isLocked 분기를 없앴습니다.
+        // 활동 요약은 로그인한 뒤에만 표시되므로 user 는 항상 존재합니다.
+        // user == nil 조건과 "로그인 필요" 문구는 도달할 수 없는 코드였습니다.
         MyActivitySummaryCard(
             title: "저장",
             value: "\(savedSpots.count)",
             symbolName: "bookmark.fill",
-            isLocked: false,
             action: {
                 scroll(to: .saved, using: proxy)
             }
@@ -184,82 +210,47 @@ struct MyTabView: View {
 
         MyActivitySummaryCard(
             title: "내 글",
-            value: user == nil ? "로그인 필요" : "\(myPosts.count)",
+            value: "\(myPosts.count)",
             symbolName: "bubble.left.and.bubble.right.fill",
-            isLocked: user == nil,
             action: {
-                if user == nil {
-                    requestSignInConfirmation()
-                } else {
-                    scroll(to: .posts, using: proxy)
-                }
+                scroll(to: .posts, using: proxy)
             }
         )
 
         MyActivitySummaryCard(
             title: "장소 제보",
-            value: user == nil ? "로그인 필요" : "\(submissionReceipts.count)",
+            value: "\(submissionReceipts.count)",
             symbolName: "mappin.and.ellipse",
-            isLocked: user == nil,
             action: {
-                if user == nil {
-                    requestSignInConfirmation()
-                } else {
-                    scroll(to: .submissions, using: proxy)
-                }
+                scroll(to: .submissions, using: proxy)
             }
         )
     }
 
-    private var guestBenefitsSection: some View {
-        MyGuestBenefitsCard {
-            requestSignInConfirmation()
-        }
-    }
-
-    private var guestSignInSection: some View {
-        Button(action: requestSignInConfirmation) {
-            HStack(alignment: .center, spacing: 14) {
-                Image(systemName: "person.crop.circle.badge.plus")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(AppColors.primary)
-                    .frame(width: 46, height: 46)
-                    .background(AppColors.primarySoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("게스트로 둘러보는 중")
-                        .font(AppTypography.cardTitle)
-                        .foregroundStyle(AppColors.primary)
-
-                    Text("글을 쓰거나 장소를 제보할 때 로그인하면 돼요.")
-                        .font(AppTypography.metadata)
-                        .foregroundStyle(AppColors.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 6)
-
-                Image(systemName: "arrow.right")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
-                    .accessibilityHidden(true)
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .appCardSurface()
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("게스트로 둘러보는 중, 로그인")
-        .accessibilityHint("로그인 안내를 엽니다")
+    /// 미리보기와 전체 보기가 같은 카드를 쓰게 합니다.
+    /// 두 곳에서 각각 만들면 인자 하나가 어긋나도 알아채기 어렵습니다.
+    private func postCard(_ post: CommunityPost) -> some View {
+        CommunityPostCard(
+            post: post,
+            spot: spot(for: post),
+            currentUserID: user?.id ?? "",
+            isLiked: likedPostIDs.contains(post.id),
+            likeCount: post.likeCount + (likedPostIDs.contains(post.id) ? 1 : 0),
+            isFollowing: followedAuthorIDs.contains(post.authorID),
+            comments: commentsByPostID[post.id] ?? [],
+            onEdit: onEditPost,
+            onDelete: onDeletePost,
+            onToggleLike: onToggleLike,
+            onToggleFollow: onToggleFollow,
+            onAddComment: onAddComment,
+            onSelectSpot: onSelectSpot
+        )
     }
 
     private var usageInfoSection: some View {
         VStack(alignment: .leading, spacing: AppLayout.contentSpacing) {
             Text("이용 안내")
-                .font(AppTypography.sectionTitle)
+                .vfText(.title2)
                 .foregroundStyle(AppColors.primary)
                 .accessibilityAddTraits(.isHeader)
 
@@ -284,23 +275,34 @@ struct MyTabView: View {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  로그아웃
+    //
+    //  [문제였던 상황]
+    //  회색 글자(secondaryText #98989D) + 1pt 얇은 테두리뿐이었습니다.
+    //  검정 배경에 채움이 없어서 버튼이 있는지조차 알기 어려웠습니다.
+    //
+    //  [앰버로 하지 않은 이유]
+    //  이 화면에서 앰버는 이미 "로그인" 이 쓰고 있었습니다.
+    //  로그아웃까지 앰버로 하면, 같은 색이 서로 반대인 두 동작을
+    //  가리키게 됩니다. 그러면 앰버가 아무 의미도 갖지 못합니다.
+    //  앰버는 "지금 하면 좋은 일" 이고, 로그아웃은 그 반대입니다.
+    //
+    //  안 보이는 원인은 색이 아니라 대비였습니다.
+    //  글자를 흰색으로 올리고 표면을 채우면 색을 쓰지 않고도 보입니다.
+    // ═══════════════════════════════════════════════════════════════
     private var signOutButton: some View {
         Button(action: onSignOut) {
             Label("로그아웃", systemImage: "rectangle.portrait.and.arrow.right")
-                .font(AppTypography.bodyStrong)
-                .foregroundStyle(AppColors.secondaryText)
+                .vfText(.callout)
+                .fontWeight(.semibold)
+                .foregroundStyle(AppColors.primary)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .frame(minHeight: 52)
+                .background(AppColors.mutedSurface, in: Capsule())
         }
         .buttonStyle(.plain)
-        .overlay(
-            Capsule()
-                .stroke(AppColors.divider, lineWidth: 1)
-        )
-    }
-
-    private func requestSignInConfirmation() {
-        isSignInConfirmationPresented = true
+        .contentShape(Capsule())
     }
 
     private func scroll(to anchor: MySectionAnchor, using proxy: ScrollViewProxy) {
@@ -311,7 +313,13 @@ struct MyTabView: View {
 
     private var savedSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            MySectionHeader(title: "저장한 장소", count: savedSpots.count)
+            if savedSpots.count > savedPreviewLimit {
+                MySectionHeader(title: "저장한 장소", count: savedSpots.count) {
+                    SavedSpotsGridView(spots: savedSpots, onSelect: onSelectSpot)
+                }
+            } else {
+                MySectionHeader(title: "저장한 장소", count: savedSpots.count)
+            }
 
             if savedSpots.isEmpty {
                 AppStatePanel(
@@ -322,12 +330,32 @@ struct MyTabView: View {
                     action: onExploreSpots
                 )
             } else {
-                LazyVStack(spacing: 10) {
-                    ForEach(savedSpots) { spot in
+                // ═══════════════════════════════════════════════════
+                //  목록 -> 2열 사진 격자
+                //
+                //  [문제였던 상황]
+                //  84pt 썸네일 + 이름·지역·시간 3줄짜리 행이었습니다.
+                //  저장한 장소는 "여기 가고 싶다" 고 표시해둔 사진입니다.
+                //  그런데 사진이 전체 폭의 1/4 을 차지하고 나머지를
+                //  글자가 채우고 있었습니다. 연락처 목록과 같은 형태입니다.
+                //
+                //  사진을 크게 하면 저장 목록이 "가고 싶은 곳 모음" 으로
+                //  읽힙니다. 홈에서 사진을 보고 저장한 것이므로
+                //  다시 찾을 때도 사진으로 찾습니다.
+                //  이름은 사진 아래 한 줄로 충분합니다.
+                // ═══════════════════════════════════════════════════
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: VFSpace.sm),
+                        GridItem(.flexible(), spacing: VFSpace.sm)
+                    ],
+                    spacing: VFSpace.md
+                ) {
+                    ForEach(savedSpots.prefix(savedPreviewLimit)) { spot in
                         Button {
                             onSelectSpot(spot)
                         } label: {
-                            SavedSpotRow(spot: spot)
+                            SavedSpotTile(spot: spot)
                         }
                         .buttonStyle(.plain)
                     }
@@ -338,7 +366,13 @@ struct MyTabView: View {
 
     private var submissionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            MySectionHeader(title: "내 장소 제보", count: submissionReceipts.count)
+            if submissionReceipts.count > submissionPreviewLimit {
+                MySectionHeader(title: "내 장소 제보", count: submissionReceipts.count) {
+                    MySubmissionListView(receipts: submissionReceipts)
+                }
+            } else {
+                MySectionHeader(title: "내 장소 제보", count: submissionReceipts.count)
+            }
 
             if submissionReceipts.isEmpty {
                 MyEmptyState(
@@ -347,23 +381,33 @@ struct MyTabView: View {
                 )
             } else {
                 LazyVStack(spacing: 0) {
-                    ForEach(submissionReceipts) { receipt in
+                    let preview = Array(submissionReceipts.prefix(submissionPreviewLimit))
+
+                    ForEach(preview) { receipt in
                         PlaceSubmissionReceiptRow(receipt: receipt)
 
-                        if receipt.id != submissionReceipts.last?.id {
+                        if receipt.id != preview.last?.id {
                             Divider()
+                                .overlay(AppColors.divider)
                         }
                     }
                 }
                 .padding(.horizontal, 14)
-                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                // 캔버스 위에 놓이는 정보 블록이므로 surface1 입니다.
+                .appCardSurface()
             }
         }
     }
 
     private var postSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            MySectionHeader(title: "내 글", count: myPosts.count)
+            if myPosts.count > postPreviewLimit {
+                MySectionHeader(title: "내 글", count: myPosts.count) {
+                    MyPostListView(posts: myPosts, makeCard: postCard)
+                }
+            } else {
+                MySectionHeader(title: "내 글", count: myPosts.count)
+            }
 
             if myPosts.isEmpty {
                 MyEmptyState(
@@ -371,23 +415,12 @@ struct MyTabView: View {
                     message: "남긴 현장 정보가 아직 없어요"
                 )
             } else {
-                LazyVStack(spacing: 10) {
-                    ForEach(myPosts) { post in
-                        CommunityPostCard(
-                            post: post,
-                            spot: spot(for: post),
-                            currentUserID: user?.id ?? "",
-                            isLiked: likedPostIDs.contains(post.id),
-                            likeCount: post.likeCount + (likedPostIDs.contains(post.id) ? 1 : 0),
-                            isFollowing: followedAuthorIDs.contains(post.authorID),
-                            comments: commentsByPostID[post.id] ?? [],
-                            onEdit: onEditPost,
-                            onDelete: onDeletePost,
-                            onToggleLike: onToggleLike,
-                            onToggleFollow: onToggleFollow,
-                            onAddComment: onAddComment,
-                            onSelectSpot: onSelectSpot
-                        )
+                // CommunityPostCard 가 카드 표면을 버리고 사진 우선으로
+                // 바뀌었습니다. 글을 나누는 수단이 여백뿐이므로
+                // 커뮤니티 피드와 같은 간격을 씁니다.
+                LazyVStack(spacing: VFSpace.xl) {
+                    ForEach(myPosts.prefix(postPreviewLimit)) { post in
+                        postCard(post)
                     }
                 }
             }
@@ -425,70 +458,134 @@ struct MyTabView: View {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  프로필 카드
+//
+//  [문제였던 상황]
+//  카드 배경이 AppColors.primary 였습니다.
+//  다크 모드에서 그 값은 흰색이라, 마이 탭을 열면 화면 최상단에
+//  거대한 흰 블록이 있었습니다. 앱에서 가장 밝고 가장 큰 면이
+//  프로필 카드였습니다.
+//  검정 캔버스 + 사진이 주인공인 앱에서 가장 눈에 띄는 것이
+//  내 이메일 주소일 이유가 없습니다.
+//
+//  같은 실수를 작성 화면(제출 버튼·혼잡도 선택)과 댓글 전송 버튼에서도
+//  했습니다. AppColors.primary 는 "글자색" 이고 표면색이 아닙니다.
+//
+//  [바꾼 것]
+//  1. 배경을 surface1(카드 표면)로 내렸습니다.
+//  2. 아바타를 커뮤니티와 같은 "이름 첫 글자" 로 통일했습니다.
+//     person.crop.circle.fill 아이콘은 모든 사용자가 같아서
+//     내 프로필이라는 느낌을 주지 못했습니다.
+//  3. "로그인됨" 배지를 없앴습니다. 이름과 이메일이 보이는 것이
+//     이미 로그인 상태를 말합니다. 배지는 같은 말을 반복했습니다.
+//     게스트일 때만 행동 유도가 필요하므로 그때만 표시합니다.
+// ═══════════════════════════════════════════════════════════════════
+
 private struct MyProfileCard: View {
     let title: String
     let subtitle: String
     let isGuest: Bool
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 16) {
-                    identity
-                    statusBadge
-                }
-            } else {
-                HStack(spacing: 14) {
-                    identity
-                    Spacer(minLength: 8)
-                    statusBadge
-                }
+        // 접근성 큰 글자용 세로 분기를 없앴습니다.
+        // 트레일링이 앰버 배지에서 chevron 으로 바뀌면서 가로 폭에
+        // 여유가 생겼고, 글자는 fixedSize 로 줄바꿈됩니다.
+        HStack(spacing: VFSpace.md) {
+            identity
+
+            Spacer(minLength: VFSpace.sm)
+
+            // 앰버 "로그인" 배지를 chevron 으로 바꿨습니다.
+            //
+            // 카드 제목이 이미 "로그인" 입니다. 그 옆에 앰버 배지로
+            // "로그인" 을 또 적으면 같은 단어가 두 번 나옵니다.
+            // 카드 전체가 버튼이므로 갈 수 있다는 신호(chevron)만
+            // 있으면 충분합니다.
+            //
+            // 앰버를 아낀 덕에 이 화면에서 앰버는 활동 요약 숫자와
+            // 저장 상태에만 남습니다.
+            if isGuest {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(AppColors.secondaryText)
+                    .accessibilityHidden(true)
             }
         }
-        .padding(18)
+        .padding(VFSpace.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            AppColors.primary,
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-        )
+        // ═══════════════════════════════════════════════════════════
+        //  활동 요약 카드와 같은 표면입니다.
+        //
+        //  한때 이 카드만 surface2 로 올렸는데, 바로 아래 활동 요약
+        //  카드가 surface1 이라 같은 화면에 두 가지 어두운 회색이
+        //  나란히 놓였습니다. 둘 다 정보 블록인데 표면이 달랐습니다.
+        //
+        //  VFDesign 의 3단 규칙을 따릅니다.
+        //    canvas    화면 배경
+        //    surface1  카드 — 정보 블록
+        //    surface2  카드 위에 올라가는 요소. 칩, 아이콘 배경.
+        //
+        //  프로필 카드는 정보 블록이므로 surface1 입니다.
+        // ═══════════════════════════════════════════════════════════
+        .appCardSurface()
     }
 
     private var identity: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 42, weight: .medium))
-                .foregroundStyle(AppColors.background)
-                .frame(width: 56, height: 56)
-                .background(AppColors.background.opacity(0.14), in: Circle())
-                .accessibilityHidden(true)
+        HStack(spacing: VFSpace.md) {
+            MyProfileAvatar(name: title, isGuest: isGuest)
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(AppColors.background)
+                    .vfText(.title2)
+                    .foregroundStyle(AppColors.primary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(subtitle)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(AppColors.background.opacity(0.72))
+                    .vfText(.subhead)
+                    .foregroundStyle(AppColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
+}
 
-    private var statusBadge: some View {
-        HStack(spacing: 6) {
-            Image(systemName: isGuest ? "arrow.right" : "checkmark.circle.fill")
-                .accessibilityHidden(true)
+/// 커뮤니티 아바타와 같은 규칙(이름 첫 글자)을 씁니다.
+/// 두 화면에서 같은 사람이 다르게 보이면 같은 사람인지 알 수 없습니다.
+private struct MyProfileAvatar: View {
+    let name: String
+    let isGuest: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
-            Text(isGuest ? "로그인" : "로그인됨")
+    private let size: CGFloat = 52
+
+    var body: some View {
+        Group {
+            if isGuest {
+                Image(systemName: "person.fill")
+                    .font(.system(size: size * 0.42, weight: .semibold))
+            } else {
+                Text(initial)
+                    .font(.system(size: size * 0.42, weight: .semibold))
+            }
         }
-        .font(.subheadline.weight(.bold))
-        .foregroundStyle(AppColors.primary)
-        .padding(.horizontal, 13)
-        .frame(minHeight: 44)
-        .background(AppColors.background, in: Capsule())
+        .foregroundStyle(inkColor)
+        .frame(width: size, height: size)
+        // 카드(surface1) 위에 올라가는 요소이므로 surface2 입니다.
+        // 캔버스 색(#000000)으로 내리면 카드(#121214)와 차이가
+        // 거의 없어서 원이 보이지 않습니다.
+        .background(AppColors.mutedSurface, in: Circle())
+        .accessibilityHidden(true)
+    }
+
+    private var initial: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first else { return "?" }
+        return String(first).uppercased()
+    }
+
+    private var inkColor: Color {
+        colorScheme == .dark ? .white.opacity(0.94) : .black.opacity(0.72)
     }
 }
 
@@ -496,7 +593,6 @@ private struct MyActivitySummaryCard: View {
     let title: String
     let value: String
     let symbolName: String
-    let isLocked: Bool
     let action: () -> Void
 
     var body: some View {
@@ -507,27 +603,20 @@ private struct MyActivitySummaryCard: View {
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(AppColors.primary)
                         .frame(width: 34, height: 34)
-                        .background(AppColors.primarySoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.tile, style: .continuous))
                         .accessibilityHidden(true)
 
                     Spacer(minLength: 4)
-
-                    if isLocked {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(AppColors.secondaryText)
-                            .accessibilityHidden(true)
-                    }
                 }
 
                 Text(value)
-                    .font(isLocked ? AppTypography.caption : .title2.weight(.bold))
-                    .foregroundStyle(isLocked ? AppColors.secondaryText : AppColors.primary)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(AppColors.primary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(title)
-                    .font(AppTypography.metadata)
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(2)
             }
@@ -538,98 +627,8 @@ private struct MyActivitySummaryCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
-        .accessibilityValue(isLocked ? "로그인 필요" : "\(value)개")
-        .accessibilityHint(isLocked ? "로그인 안내를 엽니다" : "해당 활동 섹션으로 이동합니다")
-    }
-}
-
-private struct MyGuestBenefitsCard: View {
-    let onSignIn: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(AppColors.primary)
-                    .frame(width: 40, height: 40)
-                    .background(AppColors.primarySoft, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("로그인하면 더 편해요")
-                        .font(AppTypography.cardTitle)
-                        .foregroundStyle(AppColors.primary)
-
-                    Text("둘러보기와 저장은 그대로 이용하면서 계정 활동을 이어갈 수 있어요.")
-                        .font(AppTypography.metadata)
-                        .foregroundStyle(AppColors.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            VStack(spacing: 12) {
-                MyBenefitRow(
-                    symbolName: "square.and.pencil",
-                    title: "현장 정보 작성",
-                    detail: "직접 확인한 촬영 상황을 공유해요."
-                )
-                MyBenefitRow(
-                    symbolName: "mappin.and.ellipse",
-                    title: "장소 제보 관리",
-                    detail: "제보한 장소의 검토 상태를 확인해요."
-                )
-                MyBenefitRow(
-                    symbolName: "heart",
-                    title: "계정이 필요한 활동",
-                    detail: "글, 댓글, 좋아요는 로그인 후 이용해요."
-                )
-            }
-
-            Button(action: onSignIn) {
-                Text("로그인하고 활동 연결하기")
-                    .font(AppTypography.bodyStrong)
-                    .foregroundStyle(AppColors.background)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(AppColors.primary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("로그인 안내를 엽니다")
-        }
-        .padding(18)
-        .appCardSurface()
-    }
-}
-
-private struct MyBenefitRow: View {
-    let symbolName: String
-    let title: String
-    let detail: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 11) {
-            Image(systemName: symbolName)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(AppColors.primary)
-                .frame(width: 30, height: 30)
-                .background(AppColors.mutedSurface, in: Circle())
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(AppTypography.bodyStrong)
-                    .foregroundStyle(AppColors.primary)
-
-                Text(detail)
-                    .font(AppTypography.metadata)
-                    .foregroundStyle(AppColors.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .accessibilityElement(children: .combine)
+        .accessibilityValue("\(value)개")
+        .accessibilityHint("해당 활동 섹션으로 이동합니다")
     }
 }
 
@@ -644,16 +643,17 @@ private struct MyInformationRow: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(AppColors.primary)
                 .frame(width: 38, height: 38)
-                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(AppTypography.bodyStrong)
+                    .vfText(.callout)
+                    .fontWeight(.semibold)
                     .foregroundStyle(AppColors.primary)
 
                 Text(detail)
-                    .font(AppTypography.metadata)
+                    .vfText(.subhead)
                     .foregroundStyle(AppColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -674,16 +674,17 @@ private struct PlaceSubmissionReceiptRow: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(AppColors.primary)
                 .frame(width: 28, height: 28)
-                .background(AppColors.background, in: Circle())
+                .background(AppColors.mutedSurface, in: Circle())
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(receipt.name)
-                    .font(.system(size: 15, weight: .bold))
+                    .vfText(.callout)
+                    .fontWeight(.semibold)
                     .foregroundStyle(AppColors.primary)
                     .lineLimit(1)
 
                 Text(receipt.status.detail)
-                    .font(.system(size: 12, weight: .medium))
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(2)
             }
@@ -691,33 +692,86 @@ private struct PlaceSubmissionReceiptRow: View {
             Spacer(minLength: 8)
 
             Text(receipt.status.title)
-                .font(.system(size: 12, weight: .bold))
+                .vfText(.caption)
                 .foregroundStyle(AppColors.primary)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 6)
-                .background(AppColors.background, in: Capsule())
+                .background(AppColors.mutedSurface, in: Capsule())
         }
         .padding(.vertical, 13)
     }
 }
 
-private struct MySectionHeader: View {
+// ═══════════════════════════════════════════════════════════════════
+//  섹션 헤더 + 더보기
+//
+//  [문제였던 상황]
+//  마이 탭이 저장·제보·내 글을 전부 나열했습니다.
+//  마이 탭은 hub 입니다. 내 활동이 얼마나 있는지 보고, 필요하면
+//  그 목록으로 들어가는 화면입니다. 그런데 목록 자체가 되어 있어서
+//  저장한 장소가 많으면 이용 안내와 로그아웃까지 한참 스크롤해야
+//  했습니다.
+//
+//  커뮤니티 카드를 사진 전체 폭으로 키운 뒤 "내 글" 이 특히
+//  심해졌습니다. 글 5개면 3000pt 가까이 됩니다.
+//  제가 커뮤니티를 바꾸면서 만든 문제입니다.
+//
+//  [지금]
+//  각 섹션은 미리보기만 보여주고, 개수가 더 있으면 헤더 오른쪽에
+//  "더보기" 가 나타납니다. 전용 화면으로 push 합니다.
+// ═══════════════════════════════════════════════════════════════════
+
+private struct MySectionHeader<Destination: View>: View {
     let title: String
     let count: Int
+    /// 미리보기보다 항목이 많을 때만 전달합니다.
+    ///
+    /// var 로 두면 memberwise init 에 nil 기본값이 생겨서
+    /// MySectionHeader(title:count:) 호출이 이 init 과 아래 확장 init
+    /// 양쪽에 맞아버리고, Destination 을 추론할 수 없게 됩니다.
+    /// let 이면 memberwise init 이 이 인자를 반드시 요구하므로
+    /// 두 경로가 겹치지 않습니다.
+    let destination: (() -> Destination)?
 
     var body: some View {
         HStack(spacing: 7) {
             Text(title)
-                .font(.system(size: 19, weight: .bold))
+                .vfText(.title2)
                 .foregroundStyle(AppColors.primary)
 
             Text("\(count)")
-                .font(.system(size: 12, weight: .bold))
+                .vfText(.mono)
                 .foregroundStyle(AppColors.secondaryText)
+
+            Spacer(minLength: VFSpace.sm)
+
+            if let destination {
+                NavigationLink {
+                    destination()
+                } label: {
+                    HStack(spacing: 3) {
+                        Text("더보기")
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .frame(minHeight: AppLayout.touchTarget)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(title) 전체 보기")
+            }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title), \(count)개")
-        .accessibilityAddTraits(.isHeader)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+extension MySectionHeader where Destination == EmptyView {
+    init(title: String, count: Int) {
+        self.title = title
+        self.count = count
+        self.destination = nil
     }
 }
 
@@ -732,101 +786,143 @@ private struct MyEmptyState: View {
                 .foregroundStyle(AppColors.secondaryText)
 
             Text(message)
-                .font(.system(size: 14, weight: .semibold))
+                .vfText(.subhead)
                 .foregroundStyle(AppColors.secondaryText)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .appCardSurface()
     }
 }
 
-struct SavedSpotsView: View {
+/// 저장 격자의 한 칸.
+///
+/// 사진이 주인공이고 이름은 아래 한 줄입니다.
+/// 지역과 촬영 시간은 뺐습니다. 격자 칸 폭에 3줄을 넣으면
+/// 글자가 잘리거나 사진이 작아집니다. 그 정보는 상세에 있습니다.
+struct SavedSpotTile: View {
+    let spot: PhotoSpot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            VFPhotoTile(
+                spot: spot,
+                aspectRatio: VFPhoto.squareAspect,
+                imageDetail: .thumbnail
+            )
+
+            Text(spot.name)
+                .vfText(.callout)
+                .fontWeight(.semibold)
+                .foregroundStyle(AppColors.primary)
+                .lineLimit(1)
+
+            Text(HomeSpotDisplayFormatter.region(for: spot))
+                .vfText(.caption)
+                .foregroundStyle(AppColors.secondaryText)
+                .lineLimit(1)
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(spot.name), \(HomeSpotDisplayFormatter.region(for: spot))")
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 전체 보기 화면
+//
+//  마이 탭의 각 섹션에서 "더보기" 로 들어옵니다.
+//  마이 탭은 hub 이고 여기가 목록입니다.
+//
+//  세 화면 모두 미리보기와 같은 컴포넌트를 씁니다.
+//  같은 데이터를 두 곳에서 다르게 그리면 같은 것으로 안 읽힙니다.
+//  (커뮤니티에서 피드와 상세가 사진 규칙이 달라 버그가 났던 것과
+//   같은 이유입니다.)
+// ═══════════════════════════════════════════════════════════════════
+
+struct SavedSpotsGridView: View {
     let spots: [PhotoSpot]
     let onSelect: (PhotoSpot) -> Void
 
     var body: some View {
-        NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("저장")
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundStyle(AppColors.primary)
-
-                    if spots.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Image(systemName: "bookmark")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(AppColors.secondaryText)
-                                .frame(width: 40, height: 40)
-                                .background(AppColors.primarySoft, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                            Text("아직 저장한 출사지가 없어요")
-                                .font(.system(size: 17, weight: .bold))
-                        }
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    } else {
-                        LazyVStack(spacing: 10) {
-                            ForEach(spots) { spot in
-                                Button {
-                                    onSelect(spot)
-                                } label: {
-                                    SavedSpotRow(spot: spot)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
+        ScrollView(showsIndicators: false) {
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: VFSpace.sm),
+                    GridItem(.flexible(), spacing: VFSpace.sm)
+                ],
+                spacing: VFSpace.md
+            ) {
+                ForEach(spots) { spot in
+                    Button {
+                        onSelect(spot)
+                    } label: {
+                        SavedSpotTile(spot: spot)
                     }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 16)
-                .padding(.bottom, 28)
             }
-            .background(AppColors.background.ignoresSafeArea())
-            .navigationBarHidden(true)
+            .vfScreenMargin()
+            .padding(.top, VFSpace.md)
+            .vfScrollBottomInset()
         }
+        .background(AppColors.background.ignoresSafeArea())
+        .navigationTitle("저장한 장소")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
-struct SavedSpotRow: View {
-    let spot: PhotoSpot
+struct MySubmissionListView: View {
+    let receipts: [PlaceSubmissionReceipt]
 
     var body: some View {
-        HStack(spacing: 12) {
-            PhotoSpotImageView(spot: spot, symbolSize: 20)
-                .frame(width: 84, height: 84)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        ScrollView(showsIndicators: false) {
+            LazyVStack(spacing: 0) {
+                ForEach(receipts) { receipt in
+                    PlaceSubmissionReceiptRow(receipt: receipt)
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text(spot.name)
-                    .font(.system(size: 15.5, weight: .bold))
-                    .foregroundStyle(AppColors.primary)
-                    .lineLimit(1)
-
-                Text(HomeSpotDisplayFormatter.region(for: spot))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineLimit(1)
-
-                Text(HomeSpotDisplayFormatter.bestTime(spot.bestTime))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(spot.theme.primary)
-                    .lineLimit(1)
+                    if receipt.id != receipts.last?.id {
+                        Divider()
+                            .overlay(AppColors.divider)
+                    }
+                }
             }
-
-            Spacer(minLength: 0)
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(AppColors.secondaryText.opacity(0.65))
+            .padding(.horizontal, 14)
+            .appCardSurface()
+            .vfScreenMargin()
+            .padding(.top, VFSpace.md)
+            .vfScrollBottomInset()
         }
-        .padding(10)
-        .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(AppColors.divider.opacity(0.72), lineWidth: 1)
-        )
+        .background(AppColors.background.ignoresSafeArea())
+        .navigationTitle("내 장소 제보")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// 카드 생성을 클로저로 받습니다.
+///
+/// CommunityPostCard 는 인자가 13개입니다. 이 화면이 그것들을 다시
+/// 프로퍼티로 받으면 MyTabView 의 인자 목록을 그대로 복사해야 하고,
+/// 하나라도 어긋나면 미리보기와 전체 보기가 다르게 동작합니다.
+/// MyTabView.postCard 를 그대로 넘겨받아 같은 카드임을 보장합니다.
+struct MyPostListView<Card: View>: View {
+    let posts: [CommunityPost]
+    let makeCard: (CommunityPost) -> Card
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            LazyVStack(spacing: VFSpace.xl) {
+                ForEach(posts) { post in
+                    makeCard(post)
+                }
+            }
+            .vfScreenMargin()
+            .padding(.top, VFSpace.md)
+            .vfScrollBottomInset()
+        }
+        .background(AppColors.background.ignoresSafeArea())
+        .navigationTitle("내 글")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

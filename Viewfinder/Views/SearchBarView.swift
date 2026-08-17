@@ -35,6 +35,7 @@ struct SearchBarView: View {
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(AppColors.secondaryText.opacity(0.7))
                         .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("검색어 지우기")

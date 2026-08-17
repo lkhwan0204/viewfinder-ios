@@ -9,13 +9,25 @@ struct KoreaMapBackdropView: View {
     let selectedSpotRevision: Int
     let focusUserLocationRevision: Int
     let userCoordinate: CLLocationCoordinate2D?
-    let savedSpotIDs: Set<String>
+    /// 사용자가 지금 고른 핀. 이 핀만 커지고 이름표가 붙습니다.
+    let selectedPinID: String?
     let onSelectSpot: (PhotoSpot) -> Void
-    let onShowDetail: (PhotoSpot) -> Void
+    let onDeselect: () -> Void
 
     @StateObject private var locationPermission = LocationPermissionRequester()
 
     var body: some View {
+        // 내 위치 버튼은 여기 있지 않습니다.
+        //
+        // [문제였던 상황]
+        // 이 파일의 ZStack 안에서 .padding(.bottom, 104) 로 띄우고 있었는데,
+        // 이 뷰 전체가 MapTabView 에서 .ignoresSafeArea() 로 감싸져 있습니다.
+        // 반면 하단 카드는 safe area 를 지키는 컨테이너에 있었습니다.
+        // 두 컨트롤이 서로 다른 좌표계에 놓여서 높이가 어긋났고,
+        // 카드와 버튼 사이에 지도가 100pt 넘게 비어 보였습니다.
+        //
+        // 지금은 검색바·칩·내 위치·카드가 모두 MapTabView 의 한 VStack 안에
+        // 있습니다. 같은 좌표계, 같은 좌우 여백을 씁니다.
         ZStack {
             NaverMapRepresentable(
                 spots: spots,
@@ -23,31 +35,25 @@ struct KoreaMapBackdropView: View {
                 selectedSpotRevision: selectedSpotRevision,
                 focusUserLocationRevision: focusUserLocationRevision,
                 userCoordinate: userCoordinate,
-                savedSpotIDs: savedSpotIDs,
-                onSelectSpot: { spot in
-                    onSelectSpot(spot)
-                    onShowDetail(spot)
-                },
+                selectedPinID: selectedPinID,
+                // 핀 탭은 상세를 열지 않습니다.
+                //
+                // [문제였던 상황]
+                // 핀을 누르면 곧바로 화면 72% 를 덮는 상세 시트가 떴습니다.
+                // 핀 6개를 둘러보려면 모달을 6번 열고 닫아야 했습니다.
+                // 지도는 "둘러보는" 화면인데 한 곳을 볼 때마다 지도가 사라졌습니다.
+                //
+                // 이제 핀 탭 -> 하단 카드, 카드 탭 -> 상세 두 단계입니다.
+                onSelectSpot: onSelectSpot,
+                // onFocusSpot 은 updateUIView 안에서 호출됩니다.
+                // 거기서 SwiftUI 상태를 바로 고치면
+                // "Modifying state during view update" 경고가 납니다.
                 onFocusSpot: { spot in
-                    onSelectSpot(spot)
-                }
+                    DispatchQueue.main.async { onSelectSpot(spot) }
+                },
+                onDeselect: onDeselect
             )
             .ignoresSafeArea()
-
-            VStack {
-                Spacer()
-
-                HStack {
-                    Spacer()
-
-                    LocateMeButton {
-                        locationPermission.requestWhenInUse()
-                        locationPermission.focusRevision += 1
-                    }
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 104)
-                }
-            }
         }
         .onAppear {
             locationPermission.requestWhenInUse()
@@ -61,22 +67,43 @@ private struct NaverMapRepresentable: UIViewRepresentable {
     let selectedSpotRevision: Int
     let focusUserLocationRevision: Int
     let userCoordinate: CLLocationCoordinate2D?
-    let savedSpotIDs: Set<String>
+    let selectedPinID: String?
     let onSelectSpot: (PhotoSpot) -> Void
     let onFocusSpot: (PhotoSpot) -> Void
+    let onDeselect: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onSelectSpot: onSelectSpot, onFocusSpot: onFocusSpot)
+        Coordinator(onSelectSpot: onSelectSpot, onFocusSpot: onFocusSpot, onDeselect: onDeselect)
     }
 
     func makeUIView(context: Context) -> NMFNaverMapView {
         let naverMapView = NMFNaverMapView(frame: .zero)
         naverMapView.showLocationButton = false
         naverMapView.showZoomControls = false
-        naverMapView.mapView.logoAlign = .rightBottom
-        naverMapView.mapView.logoMargin = UIEdgeInsets(top: 0, left: 0, bottom: 92, right: 14)
+        naverMapView.showCompass = false
+        // 축척 바("1km")는 출사지를 찾는 데 쓰이지 않는데
+        // 우하단에서 내 위치 버튼, 네이버 로고와 겹쳐 보였습니다.
+        naverMapView.showScaleBar = false
+        // ═══════════════════════════════════════════════════════════
+        //  네이버 로고를 좌하단으로 옮겼습니다.
+        //
+        //  [문제였던 상황]
+        //  로고가 우하단이고 내 위치 버튼도 우하단이라 버튼이 로고 위에
+        //  겹쳐 앉았습니다. 스크린샷에서 앰버 화살표가 "NAVER" 글자를
+        //  가리고 있었습니다. 지도 제공자 표기는 가려지면 안 되는
+        //  요소이고, 보기에도 두 개가 뭉쳐 보였습니다.
+        //  같은 이유로 축척 바를 이미 끈 흔적이 위에 남아 있습니다.
+        //  즉 우하단 한 자리를 세 요소가 다투고 있었습니다.
+        //
+        //  [지금]
+        //  좌하단 = 지도 제공자 표기, 우하단 = 앱 컨트롤.
+        //  자리를 나눠서 겹칠 일이 없앴습니다.
+        //  네이버 지도 앱 자신도 로고를 좌하단에 둡니다.
+        // ═══════════════════════════════════════════════════════════
+        naverMapView.mapView.logoAlign = .leftBottom
+        naverMapView.mapView.logoMargin = UIEdgeInsets(top: 0, left: 14, bottom: 6, right: 0)
         context.coordinator.configure(naverMapView)
-        context.coordinator.syncMarkers(spots: spots, savedSpotIDs: savedSpotIDs, on: naverMapView.mapView)
+        context.coordinator.syncMarkers(spots: spots, selectedPinID: selectedPinID, on: naverMapView.mapView)
         if let userCoordinate {
             context.coordinator.focusOnUserLocation(userCoordinate, mapView: naverMapView.mapView, animated: false)
         } else if selectedSpotRevision > 0 {
@@ -86,7 +113,7 @@ private struct NaverMapRepresentable: UIViewRepresentable {
     }
 
     func updateUIView(_ naverMapView: NMFNaverMapView, context: Context) {
-        context.coordinator.syncMarkers(spots: spots, savedSpotIDs: savedSpotIDs, on: naverMapView.mapView)
+        context.coordinator.syncMarkers(spots: spots, selectedPinID: selectedPinID, on: naverMapView.mapView)
 
         if selectedSpotRevision > 0,
            context.coordinator.selectedSpotRevision != selectedSpotRevision
@@ -124,18 +151,53 @@ private struct NaverMapRepresentable: UIViewRepresentable {
 
         private let onSelectSpot: (PhotoSpot) -> Void
         private let onFocusSpot: (PhotoSpot) -> Void
+        private let onDeselect: () -> Void
         private var markers: [String: NMFMarker] = [:]
 
-        init(onSelectSpot: @escaping (PhotoSpot) -> Void, onFocusSpot: @escaping (PhotoSpot) -> Void) {
+        init(
+            onSelectSpot: @escaping (PhotoSpot) -> Void,
+            onFocusSpot: @escaping (PhotoSpot) -> Void,
+            onDeselect: @escaping () -> Void
+        ) {
             self.onSelectSpot = onSelectSpot
             self.onFocusSpot = onFocusSpot
+            self.onDeselect = onDeselect
+        }
+
+        /// 줌은 그대로 두고 좌표만 화면 중앙 위쪽으로 옮깁니다.
+        /// pivot y 0.36 은 선택된 핀이 하단 카드에 가리지 않게 하는 값입니다.
+        func center(on spot: PhotoSpot, mapView: NMFMapView) {
+            let update = NMFCameraUpdate(
+                scrollTo: NMGLatLng(lat: spot.latitude, lng: spot.longitude)
+            )
+            // pivot y 0.43 은 "카드에 가리지 않는 지도 영역의 중앙" 입니다.
+            //
+            // [계산]
+            // contentInset 이 top 92 / bottom 100 이므로 콘텐츠 영역은 92~752 (660).
+            // 카드 상단은 화면 아래에서 92+96 이므로 y=664.
+            // 즉 핀이 보일 수 있는 구간은 92~664, 그 중앙이 378.
+            // (378 - 92) / 660 = 0.43
+            //
+            // 전에는 0.36 이라 누른 핀은 화면 위쪽, 카드는 화면 맨 아래에 놓여
+            // 방금 누른 것과 그 정보가 화면 양 끝으로 갈렸습니다.
+            update.pivot = CGPoint(x: 0.5, y: 0.43)
+            update.animation = .easeIn
+            update.animationDuration = 0.28
+            mapView.moveCamera(update)
+            // onFocusSpot 을 부르지 않습니다.
+            // 이 메서드는 touchHandler 에서만 호출되고,
+            // 그 자리에서 이미 onSelectSpot 으로 선택을 알렸습니다.
         }
 
         func configure(_ naverMapView: NMFNaverMapView) {
-            naverMapView.mapView.contentInset = UIEdgeInsets(top: 86, left: 0, bottom: 220, right: 0)
+            // 상단: 카테고리 칩 한 줄 + 상태 pill.  하단: 탭바 + 내 위치 버튼.
+            // (이전 bottom 220 은 항상 떠 있던 큰 프리뷰 카드를 위한 값이었습니다.
+            //  카드가 선택 시에만 나타나도록 바뀌어 그만큼 필요하지 않습니다.
+            //  이 값이 네이버 로고를 화면 중앙까지 밀어 올리고 있었습니다.)
+            naverMapView.mapView.contentInset = UIEdgeInsets(top: 92, left: 0, bottom: 100, right: 0)
         }
 
-        func syncMarkers(spots: [PhotoSpot], savedSpotIDs: Set<String>, on mapView: NMFMapView) {
+        func syncMarkers(spots: [PhotoSpot], selectedPinID: String?, on mapView: NMFMapView) {
             let incomingIDs = Set(spots.map(\.id))
 
             for (id, marker) in markers where !incomingIDs.contains(id) {
@@ -143,21 +205,37 @@ private struct NaverMapRepresentable: UIViewRepresentable {
                 markers[id] = nil
             }
 
-            for spot in spots {
+            for (index, spot) in spots.enumerated() {
+                let isSelected = spot.id == selectedPinID
+                // 앞선 장소일수록 높은 zIndex. 겹치면 뒤쪽이 숨습니다.
+                let priority = spots.count - index
+
                 if let marker = markers[spot.id] {
                     marker.position = NMGLatLng(lat: spot.latitude, lng: spot.longitude)
-                    configure(marker: marker, spot: spot, isSaved: savedSpotIDs.contains(spot.id))
+                    configure(marker: marker, spot: spot, isSelected: isSelected, priority: priority)
                     continue
                 }
 
                 let marker = NMFMarker(position: NMGLatLng(lat: spot.latitude, lng: spot.longitude))
-                configure(marker: marker, spot: spot, isSaved: savedSpotIDs.contains(spot.id))
+                configure(marker: marker, spot: spot, isSelected: isSelected, priority: priority)
                 marker.userInfo = ["spotID": spot.id, "title": spot.name]
                 marker.touchHandler = { [weak self] overlay in
                     guard let self else { return true }
+
+                    // 같은 핀을 다시 누르면 선택을 해제합니다.
+                    // (지도 빈 곳 탭으로 해제하려면 터치 델리게이트가 필요한데,
+                    //  검증할 수 없는 SDK API 라서 재탭 토글로 대신합니다.)
+                    if self.selectedSpotID == spot.id {
+                        self.selectedSpotID = nil
+                        self.onDeselect()
+                        return true
+                    }
+
                     self.selectedSpotID = spot.id
                     self.onSelectSpot(spot)
-                    self.focus(on: spot, mapView: mapView, animated: true)
+                    // 확대는 하지 않습니다. 핀을 하나씩 눌러보는 중인데
+                    // 매번 줌이 14.5 로 튀면 둘러보던 맥락이 사라집니다.
+                    self.center(on: spot, mapView: mapView)
                     return true
                 }
                 marker.mapView = mapView
@@ -165,29 +243,102 @@ private struct NaverMapRepresentable: UIViewRepresentable {
             }
         }
 
-        private func configure(marker: NMFMarker, spot: PhotoSpot, isSaved: Bool) {
-            marker.captionText = spot.name
-            marker.captionTextSize = 12
-            marker.captionRequestedWidth = 84
-            marker.captionColor = AppColors.uiPrimary
-            marker.captionHaloColor = AppColors.uiCardBackground.withAlphaComponent(0.96)
-            marker.captionAligns = [NMFAlignType.bottom]
-            marker.captionOffset = 5
-            marker.iconImage = isSaved ? ViewfinderMapMarkerIcon.saved : ViewfinderMapMarkerIcon.normal
+        private func configure(marker: NMFMarker, spot: PhotoSpot, isSelected: Bool, priority: Int) {
+            // ═══════════════════════════════════════════════════════
+            //  이름표는 선택된 핀에만 붙입니다.
+            //
+            //  [문제였던 상황]
+            //  모든 핀에 이름을 강제로 표시(isForceShowCaption = true)했더니
+            //  우리 캡션("보래매공원", "푸른수목원")이 네이버 자체 라벨
+            //  ("국회의사당", "여의도한강공원")과 뒤섞여서
+            //  어느 것이 우리 콘텐츠인지 구분되지 않았습니다.
+            //
+            //  사진이 이미 "여기 뭔가 있다"를 말하고 있습니다.
+            //  이름은 사용자가 그 핀을 골랐을 때 필요한 정보입니다.
+            // ═══════════════════════════════════════════════════════
+            if isSelected {
+                marker.captionText = spot.name
+                marker.captionTextSize = 13
+                marker.captionRequestedWidth = 108
+                marker.captionColor = AppColors.uiPrimary
+                marker.captionHaloColor = AppColors.uiCardBackground.withAlphaComponent(0.96)
+                marker.captionAligns = [NMFAlignType.bottom]
+                marker.captionOffset = 4
+            } else {
+                marker.captionText = ""
+            }
+
             marker.iconTintColor = .clear
-            marker.width = 38
-            marker.height = 50
-            marker.anchor = CGPoint(x: 0.5, y: 1.0)
+            // 꼬리가 없어졌으므로 좌표에 정사각형의 "중심"을 맞춥니다.
+            // (꼬리가 있을 때는 아래 끝이 좌표를 가리켰으므로 y: 1.0 이었습니다.)
+            marker.anchor = CGPoint(x: 0.5, y: 0.5)
+            // ═══════════════════════════════════════════════════════
+            //  핀 겹침
+            //
+            //  [문제였던 상황]
+            //  겹침 처리를 전부 끄고 강제로 다 그리라고 지시했습니다.
+            //      isHideCollidedMarkers = false
+            //      isForceShowIcon       = true
+            //  54pt 사진 핀이 서로 반쯤 포개져서, 사진이 주인공인 앱에서
+            //  사진이 가려졌습니다. 상암에 3장, 여의도에 2장이 겹쳤습니다.
+            //
+            //  [해결]
+            //  네이버 SDK 가 프레임마다 계산해주는 겹침 판정을 그대로 씁니다.
+            //  별도 클러스터러(NMCClusterer)를 쓰지 않는 이유는,
+            //  검증할 수 없는 SDK API 를 늘리지 않기 위해서입니다.
+            //  아래 네 줄은 이미 코드에 있던 프로퍼티를 뒤집은 것뿐입니다.
+            //
+            //  기준을 나눕니다.
+            //   - 네이버 POI 심볼에는 절대 지지 않습니다 (Symbols = false).
+            //     상업 시설 라벨이 우리 콘텐츠를 이기면 안 됩니다.
+            //   - 우리 핀끼리는 겹치면 우선순위가 낮은 쪽이 숨습니다.
+            //     확대하면 자리가 생겨 자연스럽게 다시 나타납니다.
+            //   - 선택된 핀은 어떤 경우에도 숨지 않습니다.
+            // ═══════════════════════════════════════════════════════
             marker.isHideCollidedSymbols = false
-            marker.isHideCollidedMarkers = false
-            marker.isHideCollidedCaptions = false
-            marker.isForceShowIcon = true
-            marker.isForceShowCaption = true
+            marker.isHideCollidedMarkers = !isSelected
+            marker.isHideCollidedCaptions = true
+            marker.isForceShowIcon = isSelected
+            marker.isForceShowCaption = isSelected
+
+            // 겹칠 때 누가 남을지 정합니다.
+            // spots 는 추천 엔진이 매긴 순서(가까운·관련 높은 순)이므로
+            // 앞에 있는 장소가 살아남게 합니다.
+            marker.zIndex = isSelected ? 10_000 : priority
+
+            // 핀은 항상 사진 정사각형입니다.
+            //
+            // 이전에는 사진을 못 구하면 검은 물방울 핀으로 폴백했는데,
+            // 한 화면에 물방울과 사진 사각형이 섞여 나와 핀이 두 종류로 보였습니다.
+            // 지금은 사진이 없거나 아직 로딩 중이면 같은 크기·같은 모양의
+            // 회색 자리표시 사각형을 쓰고, 사진이 도착하면 그 자리에서 교체합니다.
+            if let photoOverlay = MapPinPhotoStore.shared.cachedOverlay(for: spot, isSelected: isSelected) {
+                apply(photoOverlay: photoOverlay, isSelected: isSelected, to: marker)
+            } else {
+                apply(
+                    photoOverlay: MapPinPhotoStore.shared.placeholderOverlay(isSelected: isSelected),
+                    isSelected: isSelected,
+                    to: marker
+                )
+
+                MapPinPhotoStore.shared.loadOverlay(for: spot, isSelected: isSelected) { [weak self] overlay in
+                    guard let self, let target = self.markers[spot.id] else { return }
+                    self.apply(photoOverlay: overlay, isSelected: isSelected, to: target)
+                }
+            }
+        }
+
+        private func apply(photoOverlay: NMFOverlayImage, isSelected: Bool, to marker: NMFMarker) {
+            let size = ViewfinderMapPhotoPin.size(isSelected: isSelected)
+            marker.iconImage = photoOverlay
+            marker.width = size.width
+            marker.height = size.height
         }
 
         func focus(on spot: PhotoSpot, mapView: NMFMapView, animated: Bool) {
             let update = NMFCameraUpdate(scrollTo: NMGLatLng(lat: spot.latitude, lng: spot.longitude), zoomTo: 14.5)
-            update.pivot = CGPoint(x: 0.5, y: 0.38)
+            // center(on:) 과 같은 값. 이 경로도 하단 카드를 함께 띄웁니다.
+            update.pivot = CGPoint(x: 0.5, y: 0.43)
 
             if animated {
                 update.animation = .easeIn
@@ -216,13 +367,22 @@ private struct NaverMapRepresentable: UIViewRepresentable {
 
 struct NaverSpotPreviewMap: UIViewRepresentable {
     let spot: PhotoSpot
+    /// 확대/축소를 허용할지. 상세 화면의 "위치 미리보기" 에서 true 로 씁니다.
+    var allowsZoom: Bool = false
 
     func makeUIView(context: Context) -> NMFNaverMapView {
         let naverMapView = NMFNaverMapView(frame: .zero)
         naverMapView.showCompass = false
         naverMapView.showScaleBar = false
-        naverMapView.showZoomControls = false
+        naverMapView.showZoomControls = allowsZoom
         naverMapView.showLocationButton = false
+
+        // 핀치/더블탭 확대는 허용하되, 패닝·회전·기울기는 막습니다.
+        // 세로 스크롤 화면 안에 있는 지도라 패닝을 허용하면 스크롤이 막힙니다.
+        naverMapView.mapView.isZoomGestureEnabled = allowsZoom
+        naverMapView.mapView.isScrollGestureEnabled = false
+        naverMapView.mapView.isRotateGestureEnabled = false
+        naverMapView.mapView.isTiltGestureEnabled = false
         naverMapView.mapView.logoAlign = .rightBottom
         naverMapView.mapView.logoMargin = UIEdgeInsets(top: 0, left: 0, bottom: 10, right: 10)
         context.coordinator.render(spot: spot, on: naverMapView.mapView, animated: false)
@@ -269,26 +429,6 @@ struct NaverSpotPreviewMap: UIViewRepresentable {
             }
             mapView.moveCamera(update)
         }
-    }
-}
-
-private struct LocateMeButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "location.fill")
-                .font(.system(size: 17, weight: .bold))
-                .foregroundStyle(AppColors.accent)
-                .frame(width: 46, height: 46)
-                .background(AppColors.cardBackground, in: Circle())
-                .overlay(
-                    Circle()
-                        .stroke(AppColors.divider, lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("내 위치로 이동")
     }
 }
 
@@ -340,29 +480,16 @@ private enum ViewfinderMapMarkerIcon {
     private static let markerStrokeColor = UIColor.white
     private static let markerCenterColor = UIColor.white
 
-    static let normal: NMFOverlayImage = makeOverlayImage(
-        size: CGSize(width: 38, height: 50),
-        fillColor: markerFillColor,
-        strokeColor: markerStrokeColor,
-        centerColor: markerCenterColor,
-        reuseIdentifier: "viewfinder-marker-normal-fixed-v1"
-    )
-
+    // 지도 탭의 핀은 전부 사진 사각형(ViewfinderMapPhotoPin)입니다.
+    // 물방울 핀은 상세 화면의 위치 미리보기 지도에만 남깁니다.
+    // 그 지도는 장소가 하나뿐이고 위에 이미 대표 사진이 있으므로,
+    // 사진을 한 번 더 반복하는 것보다 좌표를 가리키는 편이 맞습니다.
     static let preview: NMFOverlayImage = makeOverlayImage(
         size: CGSize(width: 42, height: 54),
         fillColor: markerFillColor,
         strokeColor: markerStrokeColor,
         centerColor: markerCenterColor,
         reuseIdentifier: "viewfinder-marker-preview-fixed-v1"
-    )
-
-    static let saved: NMFOverlayImage = makeOverlayImage(
-        size: CGSize(width: 38, height: 50),
-        fillColor: markerFillColor,
-        strokeColor: markerStrokeColor,
-        centerColor: markerCenterColor,
-        reuseIdentifier: "viewfinder-marker-saved-fixed-v1",
-        centerStyle: .bookmark
     )
 
     private static func makeOverlayImage(
@@ -451,5 +578,293 @@ private enum ViewfinderMapMarkerIcon {
         }
 
         return NMFOverlayImage(image: image, reuseIdentifier: reuseIdentifier)
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 지도 스타일
+//
+//  Phase 4A 에서 지도를 앱의 다크 캔버스에 맞추려고
+//  ViewfinderMapStyle.applyDark(lightness / symbolScale / setLayerGroup)
+//  를 넣었지만 실기에서 효과가 나타나지 않았고,
+//  사용자 판단으로 지도는 네이버 기본 외관을 그대로 쓰기로 했습니다.
+//
+//  검증되지 않은 SDK 프로퍼티 3개를 코드에 남겨둘 이유가 없어 제거했습니다.
+//  지도 위 컨트롤의 대비는 지도를 어둡게 만드는 방식이 아니라,
+//  컨트롤 자체를 불투명 검정으로 만드는 방식으로 확보합니다.
+//  (MapCategoryFilter.swift 의 MapChrome 참고)
+// ═══════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - 사진 핀
+//
+//  [문제였던 상황]
+//  사진 출사지 앱인데 지도에 사진이 한 장도 없었습니다.
+//  검정 물방울 핀만 떠 있어서, 지도만 보면 무슨 앱인지 알 수 없었습니다.
+//  게다가 네이버 기본 POI("스타필드", "이케아")가 우리 핀보다 시각적으로
+//  강해서, 우리 콘텐츠가 배경으로 밀려 있었습니다.
+//
+//  [변경]
+//  핀 안에 그 장소의 사진을 넣습니다.
+//  "문래창작촌" 이라는 텍스트보다 그 골목 사진 한 장이
+//  "여기 갈까?" 판단에 압도적으로 유용합니다.
+//  기능적으로도 우월하고, 사진 앱이라는 정체성을 지도에서도 유지합니다.
+//
+//  사진이 없거나 아직 로딩 중인 장소는 기존 물방울 핀으로 폴백합니다.
+// ═══════════════════════════════════════════════════════════════════
+
+final class MapPinPhotoStore {
+    static let shared = MapPinPhotoStore()
+
+    private var overlays: [String: NMFOverlayImage] = [:]
+    /// 원본 사진. 선택 상태가 바뀔 때 핀을 다시 그려야 하는데,
+    /// 원본이 없으면 매번 네트워크를 다시 타게 됩니다.
+    private var sources: [String: UIImage] = [:]
+    private var inFlight: Set<String> = []
+
+    private init() {}
+
+    private func cacheKey(spotID: String, isSelected: Bool) -> String {
+        "vf-photo-pin-\(spotID)-\(isSelected ? "selected" : "idle")"
+    }
+
+    /// 즉시 쓸 수 있는 핀을 반환합니다. (메인 스레드에서만 호출)
+    ///
+    /// 완성된 핀이 없더라도 원본 사진이 캐시에 있으면 그 자리에서 그려서 줍니다.
+    /// 핀을 선택/해제할 때 사진을 다시 받지 않게 하려는 것입니다.
+    func cachedOverlay(for spot: PhotoSpot, isSelected: Bool) -> NMFOverlayImage? {
+        let key = cacheKey(spotID: spot.id, isSelected: isSelected)
+
+        if let existing = overlays[key] {
+            return existing
+        }
+
+        guard let source = sources[spot.id] else { return nil }
+
+        let overlay = NMFOverlayImage(
+            image: ViewfinderMapPhotoPin.image(from: source, isSelected: isSelected),
+            reuseIdentifier: key
+        )
+        overlays[key] = overlay
+        return overlay
+    }
+
+    /// 사진이 없거나 로딩 중일 때 쓰는 자리표시 핀.
+    /// 사진 핀과 같은 크기·같은 모양이라 지도에 핀이 두 종류로 보이지 않습니다.
+    func placeholderOverlay(isSelected: Bool) -> NMFOverlayImage {
+        let key = "vf-photo-pin-placeholder-\(isSelected ? "selected" : "idle")"
+
+        if let existing = overlays[key] {
+            return existing
+        }
+
+        let overlay = NMFOverlayImage(
+            image: ViewfinderMapPhotoPin.placeholderImage(isSelected: isSelected),
+            reuseIdentifier: key
+        )
+        overlays[key] = overlay
+        return overlay
+    }
+
+    /// 사진 핀을 준비합니다. 완료 콜백은 메인 스레드에서 호출됩니다.
+    /// 사진을 구할 수 없으면 콜백이 호출되지 않고, 호출부는 자리표시 핀을 유지합니다.
+    func loadOverlay(
+        for spot: PhotoSpot,
+        isSelected: Bool,
+        completion: @escaping (NMFOverlayImage) -> Void
+    ) {
+        if let ready = cachedOverlay(for: spot, isSelected: isSelected) {
+            completion(ready)
+            return
+        }
+
+        let fetchKey = "fetch-\(spot.id)"
+        guard !inFlight.contains(fetchKey) else { return }
+        inFlight.insert(fetchKey)
+
+        // 1) 번들 애셋이 있으면 네트워크를 타지 않습니다.
+        if let imageName = spot.imageName, let asset = UIImage(named: imageName) {
+            finish(spotID: spot.id, fetchKey: fetchKey, source: asset, isSelected: isSelected, completion: completion)
+            return
+        }
+
+        // 2) 원격 이미지. 핀은 48pt 짜리라 아주 작게 받습니다.
+        guard let imageURL = spot.imageURL else {
+            inFlight.remove(fetchKey)
+            return
+        }
+
+        let requestURL = imageURL.wikimediaPreviewURL(width: 240) ?? imageURL
+
+        URLSession.shared.dataTask(with: requestURL) { [weak self] data, _, _ in
+            guard let self else { return }
+
+            guard let data, let image = UIImage(data: data) else {
+                DispatchQueue.main.async { self.inFlight.remove(fetchKey) }
+                return
+            }
+
+            self.finish(
+                spotID: spot.id,
+                fetchKey: fetchKey,
+                source: image,
+                isSelected: isSelected,
+                completion: completion
+            )
+        }
+        .resume()
+    }
+
+    private func finish(
+        spotID: String,
+        fetchKey: String,
+        source: UIImage,
+        isSelected: Bool,
+        completion: @escaping (NMFOverlayImage) -> Void
+    ) {
+        // 그리기는 백그라운드에서 해도 안전하지만,
+        // NMFOverlayImage 생성과 캐시 갱신은 메인에서 합니다.
+        let rendered = ViewfinderMapPhotoPin.image(from: source, isSelected: isSelected)
+        let key = cacheKey(spotID: spotID, isSelected: isSelected)
+
+        DispatchQueue.main.async {
+            self.sources[spotID] = source
+            let overlay = NMFOverlayImage(image: rendered, reuseIdentifier: key)
+            self.overlays[key] = overlay
+            self.inFlight.remove(fetchKey)
+            completion(overlay)
+        }
+    }
+}
+
+enum ViewfinderMapPhotoPin {
+    /// 기본 핀 크기. 사진 48 + 그림자 여백.
+    ///
+    /// 꼬리(아래로 뾰족한 삼각형)는 없습니다.
+    /// 이 지도에서 핀은 "사진"이고 사진이 주인공입니다.
+    /// 꼬리는 사각형의 형태를 흐리고, 핀이 모이면 삼각형끼리 겹칩니다.
+    static let size = CGSize(width: 54, height: 54)
+
+    /// 선택된 핀. 카드에 뜬 장소가 지도의 어느 핀인지 눈으로 찾을 수 있어야 합니다.
+    static let selectedSize = CGSize(width: 68, height: 68)
+
+    static func size(isSelected: Bool) -> CGSize {
+        isSelected ? selectedSize : size
+    }
+
+    static func image(from source: UIImage, isSelected: Bool) -> UIImage {
+        render(isSelected: isSelected) { innerRect in
+            draw(source, filling: innerRect)
+        }
+    }
+
+    /// 사진이 없거나 아직 로딩 중인 장소용.
+    /// 물방울 핀으로 폴백하지 않고, 같은 사각형 안에 조리개 기호만 놓습니다.
+    static func placeholderImage(isSelected: Bool) -> UIImage {
+        render(isSelected: isSelected) { innerRect in
+            UIColor(white: 0.16, alpha: 1).setFill()
+            UIBezierPath(rect: innerRect).fill()
+
+            let config = UIImage.SymbolConfiguration(
+                pointSize: innerRect.width * 0.46,
+                weight: .regular
+            )
+
+            guard let glyph = UIImage(systemName: "camera.aperture", withConfiguration: config)?
+                .withTintColor(UIColor(white: 1, alpha: 0.42), renderingMode: .alwaysOriginal)
+            else { return }
+
+            glyph.draw(
+                in: CGRect(
+                    x: innerRect.midX - glyph.size.width / 2,
+                    y: innerRect.midY - glyph.size.height / 2,
+                    width: glyph.size.width,
+                    height: glyph.size.height
+                )
+            )
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  링 색에서 isSaved 를 뺐습니다.
+    //
+    //  전에는 저장한 장소의 링을 앰버로 칠했습니다. 그런데
+    //   1. 선택된 핀도 앰버로 칠해야 하므로 두 상태가 같은 색이 됩니다.
+    //   2. 저장 모드에서는 화면의 모든 핀이 저장된 것이라 전부 앰버가 되어
+    //      구분 정보가 0이 되고 화면만 시끄러워집니다.
+    //
+    //  앰버는 "지금 선택된 것" 하나에만 씁니다.
+    //  (VFDesign 의 규칙: 앰버는 한 화면에 2곳 이하, 의미는 하나)
+    //  저장 여부는 하단 카드의 북마크 아이콘이 말해줍니다.
+    // ═══════════════════════════════════════════════════════════════
+    private static func render(
+        isSelected: Bool,
+        fillingInner: (CGRect) -> Void
+    ) -> UIImage {
+        let canvas = size(isSelected: isSelected)
+        let inset: CGFloat = isSelected ? 4 : 3
+        let cornerRadius: CGFloat = isSelected ? 16 : 12
+        let ringWidth: CGFloat = isSelected ? 3 : 2
+        let ringColor: UIColor = isSelected ? AppColors.uiAccent : .white
+
+        let renderer = UIGraphicsImageRenderer(size: canvas)
+
+        return renderer.image { context in
+            let cgContext = context.cgContext
+
+            let photoRect = CGRect(
+                x: inset,
+                y: inset,
+                width: canvas.width - inset * 2,
+                height: canvas.height - inset * 2
+            )
+
+            // 링. 아래에 그림자를 둬서 어떤 지도 색에서도 떠 보이게 합니다.
+            cgContext.saveGState()
+            cgContext.setShadow(
+                offset: CGSize(width: 0, height: 2),
+                blur: isSelected ? 8 : 6,
+                color: UIColor.black.withAlphaComponent(isSelected ? 0.45 : 0.35).cgColor
+            )
+            ringColor.setFill()
+            UIBezierPath(roundedRect: photoRect, cornerRadius: cornerRadius).fill()
+            cgContext.restoreGState()
+
+            // 내용을 링 안쪽에 클리핑해서 그립니다.
+            let innerRect = photoRect.insetBy(dx: ringWidth, dy: ringWidth)
+            let clipPath = UIBezierPath(
+                roundedRect: innerRect,
+                cornerRadius: cornerRadius - ringWidth
+            )
+
+            cgContext.saveGState()
+            clipPath.addClip()
+            fillingInner(innerRect)
+            cgContext.restoreGState()
+        }
+    }
+
+    /// 원본을 대상 영역에 aspect fill 로 그립니다.
+    private static func draw(_ image: UIImage, filling rect: CGRect) {
+        let imageSize = image.size
+
+        guard imageSize.width > 0, imageSize.height > 0 else {
+            UIColor(white: 0.16, alpha: 1).setFill()
+            UIBezierPath(rect: rect).fill()
+            return
+        }
+
+        let scale = max(rect.width / imageSize.width, rect.height / imageSize.height)
+        let drawSize = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+
+        image.draw(
+            in: CGRect(
+                x: rect.midX - drawSize.width / 2,
+                y: rect.midY - drawSize.height / 2,
+                width: drawSize.width,
+                height: drawSize.height
+            )
+        )
     }
 }
