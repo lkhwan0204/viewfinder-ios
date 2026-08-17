@@ -285,6 +285,10 @@ struct HomeFeedView: View {
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .appCardSurface()
+                    // 카드 전체를 누를 수 있게 합니다.
+                    // 없으면 글자와 아이콘만 눌리고 14pt 패딩과 아이콘
+                    // 사이 여백은 눌리지 않습니다.
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("지도 탭으로 이동합니다")
@@ -651,6 +655,7 @@ struct HomeSearchResultsView: View {
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(AppColors.secondaryText)
                                 .frame(width: 36, height: 36)
+                                .contentShape(Rectangle())
                                 .background(AppColors.primarySoft, in: Circle())
                         }
                         .buttonStyle(.plain)
@@ -1361,6 +1366,7 @@ private struct HomeCategoryListRow: View {
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white)
                             .frame(width: 31, height: 31)
+                            .contentShape(Rectangle())
                             .background(.black.opacity(0.26), in: Circle())
                     }
                     .buttonStyle(.plain)

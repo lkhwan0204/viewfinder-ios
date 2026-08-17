@@ -45,6 +45,7 @@ struct LoginView: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(AppColors.primary)
                     .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
+                    .contentShape(Rectangle())
                     .background(AppColors.mutedSurface, in: Circle())
                     .overlay(Circle().stroke(AppColors.divider, lineWidth: 1))
             }

@@ -1196,6 +1196,7 @@ struct CommunityPhotoPreview: View {
                     .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.white)
                     .frame(width: 38, height: 38)
+                    .contentShape(Rectangle())
                     .background(AppColors.cardBackground.opacity(0.16), in: Circle())
             }
             .buttonStyle(.plain)
@@ -1547,6 +1548,7 @@ struct CommunityComposerView: View {
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 36, height: 36)
+                            .contentShape(Rectangle())
                             .background(Color.black.opacity(0.30), in: Circle())
                             .overlay(Circle().stroke(.white.opacity(0.55), lineWidth: 0.8))
                     }
@@ -2120,6 +2122,7 @@ struct CustomTagInputSection: View {
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(canAddTag ? AppColors.primary : AppColors.secondaryText.opacity(0.45))
                         .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .disabled(!canAddTag)

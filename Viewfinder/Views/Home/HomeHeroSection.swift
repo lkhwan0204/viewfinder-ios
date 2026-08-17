@@ -120,6 +120,7 @@ struct HomeHeroSection: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Color.white)
                     .frame(width: Self.controlHeight, height: Self.controlHeight)
+                    .contentShape(Rectangle())
                     .vfGlass(interactive: true)
             }
             .buttonStyle(.plain)
@@ -204,6 +205,10 @@ struct HomeHeroSection: View {
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, VFSpace.md)
                 .frame(height: Self.controlHeight)
+                // 캡슐 전체를 누를 수 있게 합니다.
+                // 이 칩은 label 에 Text 가 있어서 글자 부분은 눌렸지만,
+                // 좌우 패딩 영역은 히트 영역이 아니었습니다.
+                .contentShape(Capsule())
                 .vfGlass(interactive: true)
             }
             .buttonStyle(.plain)
