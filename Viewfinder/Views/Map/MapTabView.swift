@@ -252,6 +252,42 @@ struct MapTabView: View {
                         }
                     )
 
+                    // ═══════════════════════════════════════════════
+                    //  저장 버튼을 칩 줄에서 검색 줄로 옮겼습니다.
+                    //
+                    //  [문제 1] 칩 줄이 옆으로 스크롤됐습니다.
+                    //  칩 6개(약 342pt)와 저장 버튼 44pt 가 한 줄에 있어서
+                    //  393pt 화면 폭을 넘었습니다. 마지막 칩이 잘리고
+                    //  스크롤이 생겼습니다.
+                    //  저장 버튼을 빼면 칩만 남아 스크롤 없이 들어옵니다.
+                    //
+                    //  [문제 2] 저장 버튼 위치가 애매했습니다.
+                    //  스크롤되는 칩 줄의 끝에 고정되어 있어서, 칩과
+                    //  한 묶음인지 별개인지 알 수 없었습니다.
+                    //  게다가 칩은 필터인데 저장은 목록을 여는 이동이라
+                    //  성격도 다릅니다.
+                    //
+                    //  검색 줄에 두면 "찾기 / 저장한 것 보기" 로 성격이
+                    //  맞고, 위치가 고정되어 항상 같은 자리에 있습니다.
+                    // ═══════════════════════════════════════════════
+                    if !isSearching {
+                        Button {
+                            if isMapSavedFilterEnabled {
+                                onToggleRecommendations()
+                            } else {
+                                onToggleSavedFilter()
+                                isSavedListPresented = true
+                            }
+                        } label: {
+                            MapCircleButton(
+                                symbolName: isMapSavedFilterEnabled ? "bookmark.fill" : "bookmark",
+                                isActive: isMapSavedFilterEnabled
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isMapSavedFilterEnabled ? "저장 목록 끄기" : "저장한 출사지 보기")
+                    }
+
                     if isSearching {
                         Button {
                             searchQuery = ""
@@ -447,48 +483,34 @@ struct MapTabView: View {
     //  4. 저장 모드에서는 카테고리 필터가 적용되지 않으므로 줄 자체를 숨깁니다.
     //     (저장 목록 시트가 자기 카테고리 탭을 따로 갖고 있습니다.)
     // ═══════════════════════════════════════════════════════════════
+    /// 카테고리 필터 칩 한 줄.
+    ///
+    /// 저장 버튼이 검색 줄로 올라가면서 이 줄은 전체 폭을 씁니다.
+    /// 칩 6개가 약 342pt 이고 가용 폭이 369pt 이므로 스크롤이 생기지
+    /// 않습니다. ScrollView 는 남겨둡니다. 접근성 큰 글자에서는 칩이
+    /// 커져 넘칠 수 있고, 그때 잘리는 것보다 스크롤되는 것이 낫습니다.
+    @ViewBuilder
     private var mapControls: some View {
-        HStack(alignment: .top, spacing: 10) {
-            if isMapSavedFilterEnabled {
-                Spacer(minLength: 0)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(MapCategoryFilter.mapDisplayed) { filter in
-                            Button {
-                                onSelectCategory(filter)
-                            } label: {
-                                MapFilterPill(
-                                    title: filter.title,
-                                    isSelected: filter == mapCategoryFilter
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("\(filter.title) 카테고리")
-                            .accessibilityValue(filter == mapCategoryFilter ? "선택됨" : "")
+        if !isMapSavedFilterEnabled {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(MapCategoryFilter.mapDisplayed) { filter in
+                        Button {
+                            onSelectCategory(filter)
+                        } label: {
+                            MapFilterPill(
+                                title: filter.title,
+                                isSelected: filter == mapCategoryFilter
+                            )
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(filter.title) 카테고리")
+                        .accessibilityValue(filter == mapCategoryFilter ? "선택됨" : "")
                     }
-                    .padding(.trailing, 6)
                 }
             }
-
-            Button {
-                if isMapSavedFilterEnabled {
-                    onToggleRecommendations()
-                } else {
-                    onToggleSavedFilter()
-                    isSavedListPresented = true
-                }
-            } label: {
-                MapCircleButton(
-                    symbolName: isMapSavedFilterEnabled ? "bookmark.fill" : "bookmark",
-                    isActive: isMapSavedFilterEnabled
-                )
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isMapSavedFilterEnabled ? "저장 목록 끄기" : "저장한 출사지 보기")
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

@@ -240,12 +240,20 @@ enum MapChrome {
 extension View {
     /// 지도 위에 놓이는 모든 컨트롤의 공통 표면.
     func mapChromeSurface<S: Shape>(_ shape: S, isActive: Bool = false) -> some View {
+        // 그림자를 없앴습니다.
+        //
+        // 처음에는 유리(.ultraThinMaterial) 칩이 밝은 지도에 묻히는 것을
+        // 막으려고 그림자를 넣었습니다. 그 뒤 표면을 불투명 #1C1C1F 로
+        // 바꾸면서 대비는 표면 자체가 확보하게 됐고, 그림자는 칩마다
+        // 옅은 얼룩을 남기는 역할만 하게 됐습니다.
+        //
+        // 칩이 여섯 개 나란히 있으면 그림자도 여섯 개입니다.
+        // 지도 위에 흐릿한 띠가 생겨 보입니다.
         self
             .background(isActive ? AppColors.accent : MapChrome.surface, in: shape)
             .overlay(
                 shape.stroke(isActive ? Color.clear : MapChrome.hairline, lineWidth: 0.5)
             )
-            .shadow(color: .black.opacity(0.24), radius: 8, y: 2)
     }
 }
 
