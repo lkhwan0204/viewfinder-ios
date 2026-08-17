@@ -70,6 +70,7 @@ struct HomeHeroSection: View {
                         to: recommendation.spot
                     ),
                     size: cardSize,
+                    controlStripHeight: controlStripHeight,
                     communityPosts: communityPosts,
                     onSelect: { onSelect(recommendation.spot) }
                 )
@@ -93,6 +94,18 @@ struct HomeHeroSection: View {
     // 아직 어떤 곳인지 모르는 상태에서 저장을 요구하는 셈이 됩니다.
     // 저장은 상세 화면에서 장소를 확인한 뒤에 하는 동작으로 옮겼습니다.
 
+    /// 사진 위 컨트롤 한 줄의 높이.
+    ///
+    /// 이 값을 상수로 뽑은 이유는 Hero 카드가 같은 값을 봐야 하기 때문입니다.
+    /// 카드는 이 줄만큼을 자기 탭 영역에서 제외합니다. 둘이 다른 숫자를
+    /// 쓰면 컨트롤 아래쪽이나 위쪽에 어긋난 띠가 생깁니다.
+    private static let controlHeight: CGFloat = 38
+
+    /// 카드 상단에서 컨트롤 줄이 끝나는 지점.
+    private var controlStripHeight: CGFloat {
+        topInset + VFSpace.sm + Self.controlHeight
+    }
+
     private var topControls: some View {
         HStack(alignment: .top, spacing: VFSpace.sm) {
             contextPill
@@ -103,7 +116,7 @@ struct HomeHeroSection: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Color.white)
-                    .frame(width: 38, height: 38)
+                    .frame(width: Self.controlHeight, height: Self.controlHeight)
                     .vfGlass(interactive: true)
             }
             .buttonStyle(.plain)
@@ -127,7 +140,7 @@ struct HomeHeroSection: View {
                 }
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, VFSpace.md)
-                .frame(height: 38)
+                .frame(height: Self.controlHeight)
                 .vfGlass(interactive: true)
             }
             .buttonStyle(.plain)
@@ -139,6 +152,28 @@ struct HomeHeroSection: View {
 
 // MARK: - Hero Card
 
+/// Hero 카드의 탭 영역. 위쪽 컨트롤 줄을 뺀 나머지 사각형입니다.
+///
+/// Rectangle() 을 그대로 쓰면 카드 전체가 탭 영역이 되어 사진 위
+/// 컨트롤과 겹칩니다. (HomeHeroCard 의 contentShape 주석 참고)
+private struct HeroCardTapArea: Shape {
+    let topExclusion: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        // 카드가 컨트롤 줄보다 짧은 비정상 상황에서 음수 높이가 되지
+        // 않게 막습니다. 그런 경우에는 탭 영역이 없는 것이 맞습니다.
+        let top = min(max(topExclusion, 0), rect.height)
+        return Path(
+            CGRect(
+                x: rect.minX,
+                y: rect.minY + top,
+                width: rect.width,
+                height: rect.height - top
+            )
+        )
+    }
+}
+
 private struct HomeHeroCard: View {
     let recommendation: GPTRecommendedSpot
     let distanceText: String?
@@ -149,6 +184,9 @@ private struct HomeHeroCard: View {
     /// 그 "화면 밖 왼쪽 경계" 를 기준으로 잡혀서 장소명이 왼쪽으로 잘렸습니다.
     /// 사진 크기를 먼저 고정하고 텍스트를 overlay 로 올려서 해결합니다.
     let size: CGSize
+    /// 카드 상단에서 사진 위 컨트롤(날씨 칩 · 검색 버튼)이 차지하는 높이.
+    /// 이 만큼을 탭 영역에서 제외합니다. 아래 contentShape 주석 참고.
+    let controlStripHeight: CGFloat
     let communityPosts: [CommunityPost]
     let onSelect: () -> Void
 
@@ -194,7 +232,43 @@ private struct HomeHeroCard: View {
         .frame(width: size.width, height: size.height)
         .clipped()
         .overlay(alignment: .bottomLeading) { textLayer }
-        .contentShape(Rectangle())
+        // ═══════════════════════════════════════════════════════════
+        //  탭 영역에서 상단 컨트롤 줄을 뺐습니다.
+        //
+        //  [문제였던 상황]
+        //  날씨 칩이나 검색 버튼을 누르면 그 동작과 함께 장소 상세까지
+        //  열렸습니다.
+        //  → 사용자 피드백: "홈화면에 날씨나 검색 버튼 누르면 맨 위에
+        //     있는 장소 카드가 눌리던데"
+        //
+        //  [원인]
+        //  이 카드는 contentShape(Rectangle()) 로 카드 전체를 탭 영역으로
+        //  잡고 있었습니다. 컨트롤은 HomeHeroSection 에서
+        //  .overlay(alignment: .top) 으로 이 카드 위에 얹혀 있으므로,
+        //  두 탭 영역이 상단에서 완전히 겹칩니다.
+        //
+        //  겹치는 것 자체는 보통 문제가 안 됩니다. 위에 있는 버튼이
+        //  터치를 먹고 끝나야 합니다. 그런데 이 카드는 TabView 의
+        //  .page 스타일 안에 있고, 그것은 UIPageViewController 로
+        //  구현됩니다. 카드의 탭 제스처는 UIKit 이 관리하는 페이지 안에
+        //  있고 버튼은 그 바깥 SwiftUI 레이어에 있어서, 서로의 제스처를
+        //  취소시키지 못합니다. 그래서 양쪽이 다 실행됩니다.
+        //
+        //  [해결]
+        //  제스처 우선순위를 조정하는 대신 겹침 자체를 없앴습니다.
+        //  컨트롤 줄 높이만큼을 카드의 탭 영역에서 빼면, 그 자리에는
+        //  카드의 탭 영역이 존재하지 않습니다. 어느 쪽이 먼저 처리되든
+        //  결과가 같습니다.
+        //
+        //  highPriorityGesture 나 allowsHitTesting 으로도 손댈 수 있지만,
+        //  둘 다 "누가 이기는지" 를 다투는 방식이고 UIKit 경계를 넘는
+        //  이번 경우에는 동작을 확신할 수 없습니다.
+        //
+        //  컨트롤 사이의 빈 자리(칩과 검색 버튼 사이)도 함께 탭이 빠집니다.
+        //  전에는 거기를 누르면 상세가 열렸습니다. 그 줄은 컨트롤의
+        //  자리이므로 상세를 여는 자리가 아닌 편이 맞습니다.
+        // ═══════════════════════════════════════════════════════════
+        .contentShape(HeroCardTapArea(topExclusion: controlStripHeight))
         .onTapGesture(perform: onSelect)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)

@@ -415,52 +415,6 @@ struct HomeFeedView: View {
         .padding(.top, 4)
     }
 
-    private var contextRow: some View {
-        HStack(spacing: 10) {
-            Button(action: onShowWeather) {
-                HomeContextPill(
-                    symbolName: weatherSnapshot?.symbolName ?? "cloud.sun.fill",
-                    title: weatherPillTitle,
-                    value: weatherSnapshot?.displayText ?? (weatherLoadFailed ? "날씨 정보를 불러올 수 없음" : "날씨 확인 중"),
-                    tint: AppColors.primary
-                )
-            }
-            .buttonStyle(.plain)
-
-            Button(action: onShowCurrentLocation) {
-                HomeContextPill(
-                    symbolName: "location.fill",
-                    title: "현재 위치",
-                    value: currentLocationTitle,
-                    tint: AppColors.primary
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var weatherPillTitle: String {
-        let trimmed = currentLocationTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != "현재 위치 기반" else {
-            return "오늘 날씨"
-        }
-
-        let parts = trimmed.split(separator: " ").map(String.init)
-        let neighborhood = parts.last { part in
-            ["동", "읍", "면", "리"].contains { part.hasSuffix($0) }
-        }
-
-        if let neighborhood {
-            return "\(neighborhood) 날씨"
-        }
-
-        if let last = parts.last {
-            return "\(last) 날씨"
-        }
-
-        return "오늘 날씨"
-    }
-
     /// 로컬 키워드 검색만 실행합니다.
     ///
     /// performSearch 는 로컬 검색 뒤에 AI 검색까지 이어서 돌립니다.
@@ -609,44 +563,6 @@ struct NearbyRecommendationEmptyView: View {
             title: message,
             message: "현재 위치와 등록된 장소를 기준으로 다시 확인해보세요."
         )
-    }
-}
-
-struct HomeContextPill: View {
-    let symbolName: String
-    let title: String
-    let value: String
-    let tint: Color
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: symbolName)
-                // Dynamic Type 제외: 고정 27pt 타일 안의 기호.
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 27, height: 27)
-                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .vfText(.caption.weight(.semibold))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineLimit(1)
-
-                Text(value)
-                    .vfText(.caption.weight(.semibold))
-                    .foregroundStyle(AppColors.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 13)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .frame(minHeight: 56)
-        .appCardSurface(cornerRadius: AppLayout.cardCornerRadius)
     }
 }
 
@@ -1418,21 +1334,43 @@ private struct HomeCategoryListRow: View {
             }
 
             VStack(alignment: .leading, spacing: 7) {
-                Text(spot.name)
-                    .vfText(.headline)
-                    .foregroundStyle(AppColors.primary)
-                    .lineLimit(2)
+                // ═══════════════════════════════════════════════════
+                //  탭 제스처를 글자 블록에만 걸었습니다.
+                //
+                //  [문제였던 상황]
+                //  contentShape + onTapGesture 가 바깥 VStack 에 걸려
+                //  있었고, 그 안에 "대표 사진 제보" 버튼이 들어 있었습니다.
+                //  제보 버튼을 누르면 제보 화면과 장소 상세가 같이
+                //  열렸습니다.
+                //
+                //  홈 Hero 에서 날씨·검색 버튼이 카드 탭과 겹쳤던 것과
+                //  같은 문제입니다. 여기는 사진이 없는 장소에서만
+                //  버튼이 나타나기 때문에 눈에 덜 띄었습니다.
+                //
+                //  [해결]
+                //  탭 영역을 글자 세 줄로 좁혔습니다. 버튼은 바깥에
+                //  남으므로 겹치지 않습니다.
+                // ═══════════════════════════════════════════════════
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(spot.name)
+                        .vfText(.headline)
+                        .foregroundStyle(AppColors.primary)
+                        .lineLimit(2)
 
-                Text(HomeSpotDisplayFormatter.region(for: spot))
-                    .vfText(.subhead.weight(.medium))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineLimit(1)
+                    Text(HomeSpotDisplayFormatter.region(for: spot))
+                        .vfText(.subhead.weight(.medium))
+                        .foregroundStyle(AppColors.secondaryText)
+                        .lineLimit(1)
 
-                Text(recommendation.reason)
-                    .vfText(.subhead)
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineLimit(2)
-                    .lineSpacing(2)
+                    Text(recommendation.reason)
+                        .vfText(.subhead)
+                        .foregroundStyle(AppColors.secondaryText)
+                        .lineLimit(2)
+                        .lineSpacing(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onSelect)
 
                 if !spot.hasReliableDisplayImage {
                     Button(action: onReportMissingPhoto) {
@@ -1448,8 +1386,6 @@ private struct HomeCategoryListRow: View {
                     .buttonStyle(.plain)
                 }
             }
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onSelect)
 
             Spacer(minLength: 0)
         }
@@ -1459,70 +1395,6 @@ private struct HomeCategoryListRow: View {
                 .fill(AppColors.divider)
                 .frame(height: 0.5)
         }
-    }
-}
-
-struct CompactSpotCard: View {
-    let recommendation: GPTRecommendedSpot
-    let isSaved: Bool
-    let onToggleSave: () -> Void
-
-    private var spot: PhotoSpot {
-        recommendation.spot
-    }
-
-    private var detailText: String {
-        let region = HomeSpotDisplayFormatter.region(for: spot)
-        let reason = recommendation.reason
-            .replacingOccurrences(of: "커뮤니티에서 ", with: "")
-            .replacingOccurrences(of: " 이야기가 자주 올라오는 출사지예요", with: "")
-            .replacingOccurrences(of: " 이야기가 자주 올라오는", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !reason.isEmpty else { return region }
-        return "\(region) · \(reason)"
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SpotVisualTile(spot: spot, width: 172, height: 146, cornerRadius: 18)
-                .overlay(alignment: .topTrailing) {
-                    Button {
-                        onToggleSave()
-                    } label: {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                            // Dynamic Type 제외: 사진 위 고정 34pt 저장 버튼.
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(isSaved ? AppColors.accent : .white)
-                            .frame(width: 34, height: 34)
-                            .background(.black.opacity(0.20), in: Circle())
-                            .overlay(
-                                Circle()
-                                    .stroke(.white.opacity(0.30), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .padding(9)
-                }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(spot.name)
-                    .vfText(.headline.weight(.bold))
-                    .foregroundStyle(AppColors.primary)
-                    .lineLimit(2)
-                    .lineSpacing(1.1)
-                    .minimumScaleFactor(0.82)
-
-                Text(detailText)
-                    .vfText(.subhead.weight(.medium))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineLimit(2)
-                    .lineSpacing(2)
-            }
-            .frame(minHeight: 62, alignment: .top)
-        }
-        .frame(width: 172, alignment: .top)
-        .contentShape(Rectangle())
     }
 }
 
