@@ -310,7 +310,74 @@ struct MapFilterPill: View {
     }
 }
 
-/// 지도 위 원형 아이콘 버튼. (저장 목록, 내 위치)
+// ═══════════════════════════════════════════════════════════════════
+//  저장 필터 칩 — 저장 버튼의 다섯 번째이자 마지막 자리
+//
+//  [자리를 네 번 옮겼습니다]
+//   1차 칩 줄 끝      스크롤되는 줄에 붙어 소속이 불분명
+//   2차 검색바 옆     검색바가 전체 폭을 못 쓰고 "저장한 것 안에서
+//                     검색" 으로 읽힘
+//   3차 우측 하단     내 위치 버튼과 8pt 간격, 오조작
+//   4차 좌측 하단     지도 위에 홀로 뜬 원. 아무것과도 관계가 없음
+//  네 번 다 "어색하다" 는 반응이었습니다.
+//
+//  [진단]
+//  자리가 문제가 아니라 층이 문제였습니다.
+//  저장은 지도에 뿌릴 핀 집합을 바꾸는 필터입니다. 그런데 떠 있는
+//  버튼 층에 있었습니다. 그 층에는 내 위치밖에 없고, 내 위치는
+//  카메라를 움직이는 것이지 핀을 고르는 것이 아닙니다.
+//  성격이 다른 것 하나를 억지로 그 층에 끼워넣었기 때문에,
+//  어디에 놓아도 소속이 없어 보였습니다.
+//
+//  [지금]
+//  필터니까 필터 줄로 갑니다. 칩 줄의 첫 칸입니다.
+//  떠 있는 컨트롤이 하나 줄고, 지도를 거르는 모든 수단이 한 줄에
+//  모입니다. 아래 떠 있는 것은 내 위치 하나뿐입니다.
+//
+//  1차와 같은 줄이지만 상황이 다릅니다. 1차의 실패 원인은 그 줄이
+//  넘쳐서 스크롤됐다는 것이었고, 지금 칩 줄은 균등 분할이라 넘칠 수가
+//  없습니다. 44pt 를 떼어주고도 카테고리 칩이 48pt 씩 남습니다.
+//
+//  [카테고리 칩과 구별되게 만든 방법]
+//  저장은 카테고리와 다른 축입니다. 카페를 고르면 공원이 풀리지만,
+//  저장은 카테고리와 동시에 성립하지 않고 아예 다른 모드입니다.
+//  그래서 같은 줄에 있어도 같은 것으로 보이면 안 됩니다.
+//   - 글자가 아니라 아이콘입니다. 여섯 개의 두 글자 칩 사이에서
+//     혼자 기호라서 다른 종류로 읽힙니다.
+//   - 켜지면 카테고리 칩이 사라지고 이 칩이 줄 전체로 늘어나며
+//     "저장한 곳만" 이라고 말합니다. 모드가 바뀌었다는 것을 줄의
+//     모양 자체가 알려주고, 빈 줄이 남지 않습니다.
+// ═══════════════════════════════════════════════════════════════════
+struct MapSavedFilterChip: View {
+    let isActive: Bool
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: isActive ? "bookmark.fill" : "bookmark")
+                .font(.system(size: 13, weight: .semibold))
+
+            if isActive {
+                Text("저장한 곳만")
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+        .foregroundStyle(isActive ? AppColors.onAccent : MapChrome.ink)
+        .padding(.horizontal, isActive ? 12 : 0)
+        // 꺼져 있을 때는 44pt 고정입니다. 아이콘만 있으면 내용 폭이
+        // 13pt 라서, 최소 폭을 주지 않으면 캡슐이 아이콘에 달라붙습니다.
+        // 켜지면 줄 전체로 늘어납니다.
+        .frame(minWidth: isActive ? nil : 44, maxWidth: isActive ? .infinity : 44)
+        .frame(height: MapChrome.controlHeight)
+        .mapChromeSurface(Capsule(), isActive: isActive)
+        .padding(.vertical, 3)
+        .contentShape(Rectangle())
+        .animation(.easeInOut(duration: 0.16), value: isActive)
+    }
+}
+
+/// 지도 위 원형 아이콘 버튼. (내 위치)
 struct MapCircleButton: View {
     let symbolName: String
     var isActive = false

@@ -319,43 +319,22 @@ struct MapTabView: View {
                 //  검색 중에는 둘 다 숨깁니다. 제안 목록이 지도를 덮고
                 //  있으므로 지도를 조작할 이유가 없습니다.
                 //
-                //  [세로로 쌓지 않고 좌우로 나눈 이유]
-                //  처음에는 우측 하단에 저장 위, 내 위치 아래로 8pt 간격
-                //  세로 스택이었습니다. 44pt 원 두 개가 8pt 간격이면
-                //  손가락이 닿는 영역이 사실상 붙어 있습니다.
-                //  → 사용자 피드백: "내 위치 누르다가 저장버튼 누를 것 같은데"
+                //  [떠 있는 컨트롤은 내 위치 하나입니다]
+                //  저장 버튼이 여기 있었고, 자리를 네 번 옮겼는데 네 번 다
+                //  어색했습니다. (칩 줄 끝 → 검색바 옆 → 우하단 → 좌하단)
                 //
-                //  간격을 넓히는 것은 근본 해결이 아닙니다. 오조작 확률만
-                //  줄어들고, 두 컨트롤이 한 묶음으로 읽히는 것도 그대로입니다.
+                //  자리가 아니라 층이 문제였습니다. 저장은 핀 집합을 바꾸는
+                //  필터인데, 이 층은 카메라를 움직이는 층입니다. 성격이
+                //  다른 것을 억지로 끼워넣었으니 어디에 놓아도 소속이
+                //  없어 보였습니다. 그래서 칩 줄로 보냈습니다.
+                //  (MapSavedFilterChip 주석에 판단 근거가 있습니다.)
                 //
-                //  그래서 반대쪽 코너로 보냈습니다. 두 버튼이 약 300pt
-                //  떨어지므로 오조작이 구조적으로 불가능합니다.
-                //  지도 앱들이 컨트롤을 서로 다른 코너에 앵커하는 방식이고,
-                //  두 축이 다르다는 것도 자리로 드러납니다.
-                //    왼쪽  무엇을 보여줄까 (저장한 곳만 / 전체)
-                //    오른쪽 어디를 볼까 (내 위치로 이동)
-                //
-                //  내 위치를 오른쪽에 둔 것은 더 자주 쓰는 쪽을 주 손가락이
-                //  닿는 자리에 두기 위함입니다.
+                //  이 층에 하나만 남으니 좌우를 나눌 이유도 없어졌고,
+                //  우하단은 네이버 로고를 좌하단으로 옮겨서 비워둔
+                //  자리입니다. 엄지가 닿는 쪽입니다.
                 // ═══════════════════════════════════════════════════
                 if !isSearching {
-                    HStack(spacing: VFSpace.sm) {
-                        Button {
-                            if isMapSavedFilterEnabled {
-                                onToggleRecommendations()
-                            } else {
-                                onToggleSavedFilter()
-                                isSavedListPresented = true
-                            }
-                        } label: {
-                            MapCircleButton(
-                                symbolName: isMapSavedFilterEnabled ? "bookmark.fill" : "bookmark",
-                                isActive: isMapSavedFilterEnabled
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(isMapSavedFilterEnabled ? "저장 목록 끄기" : "저장한 출사지 보기")
-
+                    HStack(spacing: 0) {
                         Spacer(minLength: 0)
 
                         Button(action: onFocusUserLocation) {
@@ -498,7 +477,11 @@ struct MapTabView: View {
     //  4. 저장 모드에서는 카테고리 필터가 적용되지 않으므로 줄 자체를 숨깁니다.
     //     (저장 목록 시트가 자기 카테고리 탭을 따로 갖고 있습니다.)
     // ═══════════════════════════════════════════════════════════════
-    /// 카테고리 필터 칩 한 줄. 6개가 줄을 균등하게 나눠 씁니다.
+    /// 지도를 거르는 모든 수단이 모인 한 줄.
+    ///
+    /// [저장] + 카테고리 6개. 저장이 44pt 를 쓰고 남는 폭을 카테고리
+    /// 칩이 균등하게 나눕니다. 저장이 켜지면 카테고리는 사라지고
+    /// 저장 칩이 줄 전체로 늘어납니다. (MapSavedFilterChip 주석 참고)
     ///
     /// ScrollView 를 없앴습니다.
     ///
@@ -519,8 +502,21 @@ struct MapTabView: View {
     /// 글자만 살짝 작아지는 편이 낫습니다.
     @ViewBuilder
     private var mapControls: some View {
-        if !isMapSavedFilterEnabled {
-            HStack(spacing: 6) {
+        HStack(spacing: 6) {
+            Button {
+                if isMapSavedFilterEnabled {
+                    onToggleRecommendations()
+                } else {
+                    onToggleSavedFilter()
+                    isSavedListPresented = true
+                }
+            } label: {
+                MapSavedFilterChip(isActive: isMapSavedFilterEnabled)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isMapSavedFilterEnabled ? "저장 목록 끄기" : "저장한 출사지 보기")
+
+            if !isMapSavedFilterEnabled {
                 ForEach(MapCategoryFilter.mapDisplayed) { filter in
                     Button {
                         onSelectCategory(filter)
@@ -535,8 +531,8 @@ struct MapTabView: View {
                     .accessibilityValue(filter == mapCategoryFilter ? "선택됨" : "")
                 }
             }
-            .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

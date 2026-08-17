@@ -84,8 +84,24 @@ private struct NaverMapRepresentable: UIViewRepresentable {
         // 축척 바("1km")는 출사지를 찾는 데 쓰이지 않는데
         // 우하단에서 내 위치 버튼, 네이버 로고와 겹쳐 보였습니다.
         naverMapView.showScaleBar = false
-        naverMapView.mapView.logoAlign = .rightBottom
-        naverMapView.mapView.logoMargin = UIEdgeInsets(top: 0, left: 0, bottom: 6, right: 14)
+        // ═══════════════════════════════════════════════════════════
+        //  네이버 로고를 좌하단으로 옮겼습니다.
+        //
+        //  [문제였던 상황]
+        //  로고가 우하단이고 내 위치 버튼도 우하단이라 버튼이 로고 위에
+        //  겹쳐 앉았습니다. 스크린샷에서 앰버 화살표가 "NAVER" 글자를
+        //  가리고 있었습니다. 지도 제공자 표기는 가려지면 안 되는
+        //  요소이고, 보기에도 두 개가 뭉쳐 보였습니다.
+        //  같은 이유로 축척 바를 이미 끈 흔적이 위에 남아 있습니다.
+        //  즉 우하단 한 자리를 세 요소가 다투고 있었습니다.
+        //
+        //  [지금]
+        //  좌하단 = 지도 제공자 표기, 우하단 = 앱 컨트롤.
+        //  자리를 나눠서 겹칠 일이 없앴습니다.
+        //  네이버 지도 앱 자신도 로고를 좌하단에 둡니다.
+        // ═══════════════════════════════════════════════════════════
+        naverMapView.mapView.logoAlign = .leftBottom
+        naverMapView.mapView.logoMargin = UIEdgeInsets(top: 0, left: 14, bottom: 6, right: 0)
         context.coordinator.configure(naverMapView)
         context.coordinator.syncMarkers(spots: spots, selectedPinID: selectedPinID, on: naverMapView.mapView)
         if let userCoordinate {
