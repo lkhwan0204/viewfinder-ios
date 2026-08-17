@@ -54,24 +54,6 @@ struct HomeHeroSection: View {
                 .frame(height: cardSize.height)
                 .clipped()
                 .overlay(alignment: .top) { topControls }
-                // 계산이 맞는지 실기에서 확인하기 위한 한 줄.
-                // 컨트롤은 topInset+8 부터 topInset+8+38 까지 있어야 하고,
-                // 카드에서 빼는 높이도 같은 값이어야 합니다.
-                //
-                // #if DEBUG 를 모디파이어 체인 안이 아니라 클로저 안에
-                // 둔 이유는, 체인 중간의 조건부 컴파일이 비교적 최근
-                // 컴파일러 기능이라 빌드 환경에 따라 깨질 수 있기
-                // 때문입니다. 릴리스에서는 클로저 본문이 비어 남습니다.
-                .onAppear {
-                    #if DEBUG
-                    print("""
-                    [VF-HERO] topInset=\(topInset) \
-                    컨트롤높이=\(Self.controlHeight) \
-                    제외높이=\(controlStripHeight) \
-                    카드=\(cardSize.width)x\(cardSize.height)
-                    """)
-                    #endif
-                }
         }
     }
 
@@ -90,12 +72,7 @@ struct HomeHeroSection: View {
                     size: cardSize,
                     controlStripHeight: controlStripHeight,
                     communityPosts: communityPosts,
-                    onSelect: {
-                        #if DEBUG
-                        print("[VF-HERO] 카드 탭 — 상세를 엽니다: \(recommendation.spot.name)")
-                        #endif
-                        onSelect(recommendation.spot)
-                    }
+                    onSelect: { onSelect(recommendation.spot) }
                 )
                 .tag(index)
             }
@@ -135,12 +112,7 @@ struct HomeHeroSection: View {
 
             Spacer(minLength: VFSpace.sm)
 
-            Button {
-                #if DEBUG
-                print("[VF-HERO] 검색 버튼 눌림")
-                #endif
-                onSearch()
-            } label: {
+            Button(action: onSearch) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Color.white)
@@ -153,36 +125,45 @@ struct HomeHeroSection: View {
         .padding(.horizontal, VFSpace.lg - VFSpace.xs)
         .padding(.top, topInset + VFSpace.sm)
         // ═══════════════════════════════════════════════════════════
-        //  컨트롤 줄 전체가 터치를 삼킵니다.
+        //  ★ 이 background 가 상단 겹침 버그를 막는 유일한 장치입니다.
+        //    지우면 날씨 칩·검색 버튼을 눌렀을 때 뒤의 Hero 카드까지
+        //    같이 눌립니다.
         //
-        //  [1차 시도가 실패했습니다]
-        //  Hero 카드의 contentShape 에서 이 줄 높이만큼을 빼서 탭 영역이
-        //  겹치지 않게 했습니다. 계산은 맞았습니다. 컨트롤은
-        //  topInset+8 부터 topInset+46 까지이고, 카드에서 뺀 높이도
-        //  topInset+46 입니다. 그런데 실기에서 여전히 카드가 눌립니다.
-        //  → 사용자 피드백: "날씨 칩을 눌러도 뒤에 카드가 눌려"
+        //  [문제였던 상황]
+        //  날씨 칩이나 검색 버튼을 누르면 그 동작과 함께 장소 상세까지
+        //  열렸습니다. 컨트롤은 Hero 카드 위에 overlay 로 얹혀 있고,
+        //  카드는 카드 전체를 탭 영역으로 잡고 있어서 상단에서 두 탭
+        //  영역이 겹칩니다.
         //
-        //  즉 contentShape 이 이 카드의 탭 제스처를 제한하지 못합니다.
-        //  카드가 TabView 의 page 스타일(UIPageViewController) 안에 있어서,
-        //  SwiftUI 가 준 히트 테스트 도형이 그 경계에서 지켜지지 않는
-        //  것으로 보입니다.
+        //  보통은 앞에 있는 버튼이 터치를 먹고 끝납니다. 그런데 카드는
+        //  TabView 의 page 스타일 안에 있고 그것은 UIPageViewController
+        //  로 구현됩니다. 카드의 탭 제스처는 UIKit 이 관리하는 페이지
+        //  안에 있고 버튼은 그 바깥 SwiftUI 레이어에 있어서, 서로의
+        //  제스처를 취소시키지 못합니다. 그래서 양쪽이 다 실행됩니다.
         //
-        //  [2차: 도형이 아니라 실제 뷰로 막습니다]
+        //  [1차 시도는 실패했습니다]
+        //  카드의 contentShape 에서 이 줄 높이만큼을 뺐습니다.
+        //  계산은 맞았습니다. 컨트롤은 topInset+8 부터 topInset+46 까지고
+        //  카드에서 뺀 높이도 topInset+46, 좌표계도 같습니다.
+        //  그래도 실기에서 카드가 계속 눌렸습니다.
         //  contentShape 은 "이 도형 안에서만 반응해라" 는 요청이고,
-        //  지켜지지 않으면 방법이 없습니다.
-        //  대신 컨트롤 줄 뒤에 터치를 받는 실제 레이어를 깔았습니다.
-        //  뷰가 있으면 UIKit 히트 테스트 단계에서 터치가 여기서 멈추고
-        //  아래(페이지 뷰 안의 카드)로 내려가지 않습니다. 요청이 아니라
-        //  구조입니다.
+        //  UIPageViewController 경계를 넘으면 지켜지지 않습니다.
         //
-        //  background 로 넣은 이유는 z 순서입니다. 이 레이어는 버튼보다
-        //  뒤에 있으므로 버튼이 먼저 터치를 받고, 버튼 사이의 빈 자리에
-        //  떨어진 터치만 이 레이어가 삼킵니다.
-        //  줄 전체를 감싸는 방식으로 만들면 부모 탭 제스처가 자식 버튼의
-        //  터치를 가로챌 위험이 있습니다.
+        //  [2차: 도형이 아니라 실제 뷰]
+        //  컨트롤 줄 뒤에 터치를 받는 레이어를 깔았습니다.
+        //  뷰가 있으면 UIKit 히트 테스트 단계에서 터치가 여기서 멈추고
+        //  아래로 내려가지 않습니다. 요청이 아니라 구조입니다.
+        //  실기 로그로 확인했습니다. 칩을 누르면 칩만 실행되고 카드
+        //  핸들러는 호출되지 않습니다.
+        //
+        //  background 로 넣은 것이 핵심입니다. 이 레이어는 버튼보다 뒤에
+        //  있으므로 버튼이 먼저 터치를 받고, 버튼 사이 빈 자리에 떨어진
+        //  터치만 이 레이어가 삼킵니다. 줄 전체를 감싸는 방식으로 만들면
+        //  부모 탭 제스처가 자식 버튼의 터치를 가로챌 위험이 있습니다.
         //
         //  Color.clear 는 SwiftUI 에서 히트 테스트에 참여합니다.
         //  (UIKit 의 clearColor 와 다릅니다.)
+        //  빈 클로저인 것이 의도입니다. 하는 일은 터치를 소비하는 것뿐입니다.
         //
         //  대가: 이 줄에서는 좌우 스와이프로 Hero 페이지를 넘길 수
         //  없습니다. 컨트롤이 놓인 줄이므로 받아들일 만한 손실입니다.
@@ -190,11 +171,7 @@ struct HomeHeroSection: View {
         .background {
             Color.clear
                 .contentShape(Rectangle())
-                .onTapGesture {
-                    #if DEBUG
-                    print("[VF-HERO] 컨트롤 줄 빈 자리 — 터치를 삼켰습니다")
-                    #endif
-                }
+                .onTapGesture { }
         }
     }
 
@@ -202,9 +179,6 @@ struct HomeHeroSection: View {
     private var contextPill: some View {
         if let contextText, !contextText.isEmpty {
             Button {
-                #if DEBUG
-                print("[VF-HERO] 날씨 칩 눌림")
-                #endif
                 onShowContext?()
             } label: {
                 HStack(spacing: VFSpace.xs + 2) {
@@ -307,42 +281,18 @@ private struct HomeHeroCard: View {
         .frame(width: size.width, height: size.height)
         .clipped()
         .overlay(alignment: .bottomLeading) { textLayer }
-        // ═══════════════════════════════════════════════════════════
-        //  탭 영역에서 상단 컨트롤 줄을 뺐습니다.
+        // 탭 영역에서 상단 컨트롤 줄을 뺍니다.
         //
-        //  [문제였던 상황]
-        //  날씨 칩이나 검색 버튼을 누르면 그 동작과 함께 장소 상세까지
-        //  열렸습니다.
-        //  → 사용자 피드백: "홈화면에 날씨나 검색 버튼 누르면 맨 위에
-        //     있는 장소 카드가 눌리던데"
+        // ★ 주의: 이것만으로는 동작하지 않습니다.
+        //   상단 겹침 버그를 실제로 막는 것은 HomeHeroSection 의
+        //   topControls 에 붙은 background 레이어입니다. 그쪽 주석에
+        //   전체 경위가 있습니다.
         //
-        //  [원인]
-        //  이 카드는 contentShape(Rectangle()) 로 카드 전체를 탭 영역으로
-        //  잡고 있었습니다. 컨트롤은 HomeHeroSection 에서
-        //  .overlay(alignment: .top) 으로 이 카드 위에 얹혀 있으므로,
-        //  두 탭 영역이 상단에서 완전히 겹칩니다.
-        //
-        //  겹치는 것 자체는 보통 문제가 안 됩니다. 위에 있는 버튼이
-        //  터치를 먹고 끝나야 합니다. 그런데 이 카드는 TabView 의
-        //  .page 스타일 안에 있고, 그것은 UIPageViewController 로
-        //  구현됩니다. 카드의 탭 제스처는 UIKit 이 관리하는 페이지 안에
-        //  있고 버튼은 그 바깥 SwiftUI 레이어에 있어서, 서로의 제스처를
-        //  취소시키지 못합니다. 그래서 양쪽이 다 실행됩니다.
-        //
-        //  [해결]
-        //  제스처 우선순위를 조정하는 대신 겹침 자체를 없앴습니다.
-        //  컨트롤 줄 높이만큼을 카드의 탭 영역에서 빼면, 그 자리에는
-        //  카드의 탭 영역이 존재하지 않습니다. 어느 쪽이 먼저 처리되든
-        //  결과가 같습니다.
-        //
-        //  highPriorityGesture 나 allowsHitTesting 으로도 손댈 수 있지만,
-        //  둘 다 "누가 이기는지" 를 다투는 방식이고 UIKit 경계를 넘는
-        //  이번 경우에는 동작을 확신할 수 없습니다.
-        //
-        //  컨트롤 사이의 빈 자리(칩과 검색 버튼 사이)도 함께 탭이 빠집니다.
-        //  전에는 거기를 누르면 상세가 열렸습니다. 그 줄은 컨트롤의
-        //  자리이므로 상세를 여는 자리가 아닌 편이 맞습니다.
-        // ═══════════════════════════════════════════════════════════
+        // 이 도형을 남겨두는 이유는 원리상 맞는 코드이기 때문입니다.
+        // 카드의 탭 영역이 사진 위 컨트롤 자리까지 뻗는 것은 어느 컨테이너
+        // 안에서든 틀립니다. 지금은 TabView 의 page 스타일이
+        // UIPageViewController 로 구현되어 이 요청이 무시되지만, 페이저
+        // 구현이 바뀌면 이 도형이 제 역할을 하게 됩니다.
         .contentShape(HeroCardTapArea(topExclusion: controlStripHeight))
         .onTapGesture(perform: onSelect)
         .accessibilityElement(children: .combine)
