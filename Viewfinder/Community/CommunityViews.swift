@@ -1475,11 +1475,16 @@ struct CommunityComposerView: View {
 
                 Spacer(minLength: 0)
 
+                // 흰 원 + 검정 체크였습니다.
+                // AppColors.primary 는 다크에서 흰색이라, 장소를 고르면
+                // 카드 오른쪽에 흰 원반이 생겨 그 줄에서 가장 밝은
+                // 요소가 됐습니다.
+                // "선택됨" 은 VFDesign 이 앰버를 허용한 상태입니다.
                 Image(systemName: "checkmark")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(AppColors.background)
+                    .foregroundStyle(AppColors.onAccent)
                     .frame(width: 26, height: 26)
-                    .background(AppColors.primary, in: Circle())
+                    .background(AppColors.accent, in: Circle())
             }
 
             if purpose == .addSpot, selectedSpotAlreadyRegistered {

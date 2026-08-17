@@ -74,11 +74,17 @@ struct LoginView: View {
 
     private var loginHero: some View {
         VStack(alignment: .leading, spacing: 18) {
+            // 앱의 정체를 보여주는 자리입니다.
+            // 흰 사각형 + 검정 조리개였는데, 브랜드 색이 있는 앱에서
+            // 로고 자리를 무채색으로 둘 이유가 없습니다.
             Image(systemName: "camera.aperture")
                 .font(.system(size: 34, weight: .medium))
-                .foregroundStyle(AppColors.background)
+                .foregroundStyle(AppColors.onAccent)
                 .frame(width: 64, height: 64)
-                .background(AppColors.primary.opacity(0.88), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .background(
+                    AppColors.accent,
+                    in: RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
+                )
 
             VStack(alignment: .leading, spacing: 9) {
                 Text("좋은 장면을\n놓치지 않도록")
@@ -101,7 +107,7 @@ struct LoginView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(AppColors.primary)
                 .frame(width: 34, height: 34)
-                .background(AppColors.primarySoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(AppColors.primarySoft, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {

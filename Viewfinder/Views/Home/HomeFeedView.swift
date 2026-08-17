@@ -1206,11 +1206,12 @@ struct FeaturedSpotCard: View {
         .frame(width: 272, height: 352)
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: AppLayout.cardCornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cardCornerRadius, style: .continuous)
-                .stroke(.black.opacity(0.04), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 5)
+        // 검정 4% 테두리와 검정 5% 그림자를 제거했습니다.
+        //
+        // 라이트 배경 시절에 카드를 띄우기 위해 넣은 값입니다.
+        // 검정 캔버스에서는 둘 다 보이지 않습니다. 검정 위의 검정입니다.
+        // Phase 1 에서 카드 테두리·그림자를 걷어냈는데 이 카드만
+        // 남아 있었습니다. 보이지 않는 코드는 지웁니다.
     }
 }
 
