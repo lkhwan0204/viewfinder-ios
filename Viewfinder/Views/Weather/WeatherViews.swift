@@ -407,27 +407,29 @@ struct WeatherCurrentHeroCard: View {
         VStack(spacing: 8) {
             HStack(spacing: 5) {
                 Image(systemName: "location.north.fill")
-                    .font(.system(size: 12, weight: .bold))
+                    .vfIcon(12, weight: .bold, relativeTo: .subheadline)
 
                 Text("현재 위치")
-                    .font(.system(size: 13, weight: .semibold))
+                    .vfText(.subhead.weight(.semibold))
             }
             .foregroundStyle(theme.primaryText.opacity(0.92))
 
             Text(locationTitle)
-                .font(.system(size: 29, weight: .medium))
+                .vfText(.title1.weight(.medium))
                 .foregroundStyle(theme.primaryText)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.72)
 
             Text("\(snapshot.temperature)")
+                // Dynamic Type 제외: 기온 숫자 96pt. 읽기 편함이 아니라 레이아웃이 정한 크기다. 접근성 최대에서 2배가 되면 화면을 넘긴다. minimumScaleFactor 0.68 과 lineLimit 1 로 이미 방어하고 있다.
                 .font(.system(size: 96, weight: .thin))
                 .foregroundStyle(theme.primaryText)
                 .minimumScaleFactor(0.68)
                 .lineLimit(1)
                 .overlay(alignment: .topTrailing) {
                     Text("°")
+                        // Dynamic Type 제외: 위 기온의 도 기호 58pt. offset 으로 숫자에 붙여 놓았으므로 숫자와 같이 고정이어야 위치가 유지된다.
                         .font(.system(size: 58, weight: .thin))
                         .foregroundStyle(theme.primaryText)
                         .offset(x: 30, y: 10)
@@ -437,11 +439,11 @@ struct WeatherCurrentHeroCard: View {
 
             HStack(spacing: 8) {
                 Image(systemName: snapshot.symbolName)
-                    .font(.system(size: 20, weight: .semibold))
+                    .vfIcon(20, relativeTo: .title2)
                     .foregroundStyle(snapshot.accentColor)
 
                 Text(snapshot.condition)
-                    .font(.system(size: 19, weight: .semibold))
+                    .vfText(.title2)
                     .foregroundStyle(theme.primaryText)
             }
             .frame(maxWidth: .infinity, alignment: .center)
@@ -467,11 +469,11 @@ struct WeatherCurrentHeroCard: View {
     private func heroMetric(title: String, value: String) -> some View {
         HStack(spacing: 4) {
             Text(title)
-                .font(.system(size: 14, weight: .medium))
+                .vfText(.subhead.weight(.medium))
                 .foregroundStyle(theme.secondaryText)
 
             Text(value)
-                .font(.system(size: 15, weight: .semibold))
+                .vfText(.callout.weight(.semibold))
                 .foregroundStyle(theme.primaryText)
         }
         .accessibilityElement(children: .combine)
@@ -488,16 +490,16 @@ struct WeatherHeroMiniMetric: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: symbolName)
-                .font(.system(size: 11.5, weight: .semibold))
+                .vfIcon(11.5, relativeTo: .caption)
                 .foregroundStyle(tint)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 10, weight: .medium))
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
 
                 Text(value)
-                    .font(.system(size: 11.5, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(AppColors.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
@@ -505,7 +507,13 @@ struct WeatherHeroMiniMetric: View {
         }
         .padding(.horizontal, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 38)
+        // 세로 패딩 3pt.
+        // 두 줄(제목 12pt + 값 12pt + 간격 1)이 약 30pt 이므로
+        // 3pt 를 더해도 36pt 로 최소 높이 38 아래입니다. 기본 크기에서는
+        // 지금과 똑같이 38pt 로 보이고, 글자가 커질 때만 늘어납니다.
+        // 6pt 를 주면 42pt 가 되어 기본 크기에서 칩이 커집니다.
+        .padding(.vertical, 3)
+        .frame(minHeight: 38)
         .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
@@ -522,11 +530,11 @@ struct WeatherLoadingCard: View {
             }
 
             Text("오늘 날씨를 불러오는 중이에요")
-                .font(.system(size: 20, weight: .bold))
+                .vfText(.title2.weight(.bold))
                 .foregroundStyle(theme.primaryText)
 
             Text("현재 위치 기준으로 시간대별 날씨와 촬영에 필요한 정보를 정리하고 있어요.")
-                .font(.system(size: 14, weight: .semibold))
+                .vfText(.subhead.weight(.semibold))
                 .foregroundStyle(theme.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -545,11 +553,11 @@ struct WeatherHourlySection: View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("시간별")
-                    .font(.system(size: 22, weight: .bold))
+                    .vfText(.title2.weight(.bold))
                     .foregroundStyle(theme.primaryText)
 
                 Text("기온과 강수확률")
-                    .font(.system(size: 13, weight: .semibold))
+                    .vfText(.subhead.weight(.semibold))
                     .foregroundStyle(theme.secondaryText)
             }
 
@@ -598,12 +606,13 @@ struct WeatherHourlyCard: View {
     var body: some View {
         VStack(spacing: 7) {
             Text(forecast.timeLabel)
-                .font(.system(size: 11, weight: .semibold))
+                .vfText(.caption.weight(.semibold))
                 .foregroundStyle(theme.secondaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
 
             Image(systemName: forecast.symbolName)
+                // Dynamic Type 제외: 고정 34x30 프레임 안의 날씨 기호.
                 .font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(forecast.accentColor)
                 .frame(width: 34, height: 30)
@@ -611,10 +620,10 @@ struct WeatherHourlyCard: View {
             precipitationLabel
 
             Text("\(forecast.temperature)°")
-                .font(.system(size: 15, weight: .semibold))
+                .vfText(.callout.weight(.semibold))
                 .foregroundStyle(theme.secondaryText)
         }
-        .frame(width: 56)
+        .frame(minWidth: 56)
     }
 
     @ViewBuilder
@@ -622,16 +631,16 @@ struct WeatherHourlyCard: View {
         if let probability = forecast.precipitationProbability, probability > 0 {
             HStack(spacing: 3) {
                 Image(systemName: "drop.fill")
-                    .font(.system(size: 10, weight: .bold))
+                    .vfIcon(10, weight: .bold, relativeTo: .caption)
 
                 Text("\(probability)%")
-                    .font(.system(size: 13, weight: .bold))
+                    .vfText(.subhead.weight(.bold))
             }
             .foregroundStyle(isRainLikely ? theme.primaryText : theme.secondaryText)
             .lineLimit(1)
         } else {
             Text(" ")
-                .font(.system(size: 13, weight: .bold))
+                .vfText(.subhead.weight(.bold))
                 .lineLimit(1)
         }
     }
@@ -682,7 +691,7 @@ struct WeatherMetricsGrid: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("오늘 정보")
-                .font(.system(size: 19, weight: .bold))
+                .vfText(.title2.weight(.bold))
                 .foregroundStyle(theme.primaryText)
 
             LazyVGrid(columns: columns, spacing: 12) {
@@ -747,25 +756,26 @@ struct WeatherMetricCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: metric.symbolName)
+                // Dynamic Type 제외: 고정 24pt 프레임 안의 지표 기호.
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(iconTint)
                 .frame(width: 24, height: 24)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(metric.title)
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(theme.secondaryText)
                     .lineLimit(1)
 
                 Text(metric.value)
-                    .font(.system(size: 15.5, weight: .bold))
+                    .vfText(.callout.weight(.bold))
                     .foregroundStyle(theme.primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
                 if let subtitle = metric.subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.system(size: 10, weight: .medium))
+                        .vfText(.caption)
                         .foregroundStyle(theme.secondaryText)
                         .lineLimit(2)
                         .minimumScaleFactor(0.78)
@@ -800,23 +810,29 @@ struct WeatherDetailRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: symbolName)
+                // Dynamic Type 제외: 고정 34pt 타일 안의 기호.
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(tint)
                 .frame(width: 34, height: 34)
                 .background(tint.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             Text(title)
-                .font(.system(size: 14, weight: .bold))
+                .vfText(.subhead.weight(.bold))
                 .foregroundStyle(AppColors.primary)
 
             Spacer(minLength: 0)
 
             Text(value)
-                .font(.system(size: 14, weight: .semibold))
+                .vfText(.subhead.weight(.semibold))
                 .foregroundStyle(AppColors.secondaryText)
         }
         .padding(.horizontal, 12)
-        .frame(height: 52)
+        // 세로 패딩 8pt.
+        // 이 줄의 높이는 34pt 아이콘 타일이 정합니다. 34 + 16 = 50 으로
+        // 최소 높이 52 아래입니다. 10pt 를 주면 54pt 가 되어 기본
+        // 크기에서 줄이 2pt 커집니다.
+        .padding(.vertical, 8)
+        .frame(minHeight: 52)
         .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -832,11 +848,12 @@ struct WeatherHourlyRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(forecast.timeLabel)
-                .font(.system(size: 13, weight: .bold))
+                .vfText(.subhead.weight(.bold))
                 .foregroundStyle(AppColors.primary)
-                .frame(width: 42, alignment: .leading)
+                .frame(minWidth: 42, alignment: .leading)
 
             Image(systemName: forecast.symbolName)
+                // Dynamic Type 제외: 고정 30pt 타일 안의 기호.
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(tint)
                 .frame(width: 30, height: 30)
@@ -844,11 +861,11 @@ struct WeatherHourlyRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(forecast.condition)
-                    .font(.system(size: 13, weight: .bold))
+                    .vfText(.subhead.weight(.bold))
                     .foregroundStyle(AppColors.primary)
 
                 Text("구름 \(forecast.cloudCover)%")
-                    .font(.system(size: 11, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(AppColors.secondaryText)
             }
 
@@ -856,16 +873,17 @@ struct WeatherHourlyRow: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(forecast.temperature)°")
-                    .font(.system(size: 14, weight: .bold))
+                    .vfText(.subhead.weight(.bold))
                     .foregroundStyle(AppColors.primary)
 
                 Text("강수 \(forecast.precipitationProbability ?? 0)%")
-                    .font(.system(size: 11, weight: .semibold))
+                    .vfText(.caption.weight(.semibold))
                     .foregroundStyle(AppColors.secondaryText)
             }
         }
         .padding(.horizontal, 12)
-        .frame(height: 58)
+        .padding(.vertical, 10)
+        .frame(minHeight: 58)
         .background(AppColors.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -933,7 +951,7 @@ struct WeatherSunSection: View {
                    let countdown = event.countdownLabel {
                     HStack(spacing: 6) {
                         Image(systemName: event.symbolName)
-                            .font(.system(size: 15, weight: .semibold))
+                            .vfIcon(15, relativeTo: .subheadline)
 
                         Text(countdown)
                             .vfText(.headline)
@@ -1024,14 +1042,14 @@ struct WeatherSunSection: View {
     ) -> some View {
         HStack(spacing: 6) {
             Image(systemName: symbol)
-                .font(.system(size: 13, weight: .semibold))
+                .vfIcon(13, relativeTo: .subheadline)
 
             Text(title)
-                .font(.system(size: 14, weight: .medium))
+                .vfText(.subhead.weight(.medium))
                 .foregroundStyle(isNext ? AppColors.accent : theme.secondaryText)
 
             Text(Self.timeFormatter.string(from: date))
-                .font(.system(size: 17, weight: .semibold))
+                .vfText(.headline)
         }
         .foregroundStyle(isNext ? AppColors.accent : theme.primaryText)
         .accessibilityElement(children: .combine)
