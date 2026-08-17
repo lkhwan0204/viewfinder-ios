@@ -78,20 +78,6 @@ final class MockCommunityService: CommunityService {
             authorName: "문래스냅",
             createdAt: Date().addingTimeInterval(-51 * 60),
             updatedAt: nil
-        ),
-        CommunityPost(
-            id: "mock-euljiro-night",
-            spotID: "seed-euljiro-local-cafe-alley",
-            spotName: "을지로 카페골목",
-            message: "비 온 뒤 골목 조명이 반사돼서 야경 컷 분위기가 좋아요.",
-            crowd: .normal,
-            tags: ["야경 좋음", "비 분위기 좋음", "필름감성"],
-            photoData: nil,
-            likeCount: 9,
-            authorID: "mock-local-euljiro",
-            authorName: "을지로밤",
-            createdAt: Date().addingTimeInterval(-70 * 60),
-            updatedAt: nil
         )
     ]
 
