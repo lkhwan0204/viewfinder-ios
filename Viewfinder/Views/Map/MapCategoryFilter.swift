@@ -79,11 +79,39 @@ enum MapCategoryFilter: String, CaseIterable, Identifiable {
         switch self {
         case .all:
             return true
+        // ═══════════════════════════════════════════════════════
+        //  bestTime 을 판정에서 뺐습니다.
+        //
+        //  [문제였던 상황]
+        //  "노을" 칩이 131곳 중 58곳(44%)을 반환했습니다.
+        //  절반을 반환하는 필터는 좁혀주는 일을 하지 않습니다.
+        //  "산책" 칩이 park+walk+trail 을 다 삼켜 50% 를 반환했던 것과
+        //  같은 문제입니다.
+        //
+        //  원인은 bestTime 이었습니다. bestTime 만으로도 57곳(43%)이
+        //  걸립니다. 대부분의 출사지가 "오후 늦은 빛, 해질녘" 처럼
+        //  적혀 있기 때문입니다.
+        //
+        //  bestTime 은 "언제 가면 좋은가" 라는 방문 안내입니다.
+        //  늦은 오후 빛이 대체로 좋으니 거의 모든 장소에 들어갑니다.
+        //  그래서 이 필터는 "노을이 좋은 곳" 이 아니라
+        //  "해질녘에 가도 되는 곳" 을 뜻하게 되어 있었습니다.
+        //
+        //  [지금]
+        //  mood 와 tags 만 봅니다. 둘은 등록할 때 그 장소의 성격으로
+        //  붙이는 값입니다. 누군가 이 장소를 노을 명소로 분류했다는
+        //  뜻이므로 필터의 근거가 됩니다.
+        //
+        //  검증 (시드 131곳)
+        //    노을  58곳(44%) -> 30곳(22%)
+        //    야경  27곳(20%) -> 24곳(18%)
+        //  여섯 칩이 18~32% 구간에 고르게 들어옵니다.
+        // ═══════════════════════════════════════════════════════
         case .sunset:
-            return containsAny(spot.bestTime, keywords: ["노을", "sunset", "해질녘", "블루아워"])
+            return containsAny(spot.mood, keywords: ["노을", "sunset", "해질녘", "블루아워"])
                 || containsAny(spot.hashtags, keywords: ["노을", "sunset", "해질녘", "남산타워뷰", "서울시티뷰"])
         case .night:
-            return containsAny(spot.bestTime, keywords: ["야경", "night", "밤", "블루아워"])
+            return containsAny(spot.mood, keywords: ["야경", "night", "밤", "블루아워"])
                 || containsAny(spot.hashtags, keywords: ["야경", "night", "밤", "한강야경", "도심야경"])
         case .cafe:
             return CafeRecommendationPolicy.isIndependentCafeCandidate(spot)

@@ -203,6 +203,22 @@ struct MapTabView: View {
 
     var body: some View {
         ZStack {
+            // ═══════════════════════════════════════════════════════
+            //  상태바 가독성
+            //
+            //  [문제였던 상황]
+            //  앱이 다크 모드라 상태바 글자(시계·배터리)가 흰색인데
+            //  지도는 밝습니다. 좌측 상단 시계가 거의 보이지 않았습니다.
+            //
+            //  상태바 스타일은 SwiftUI 에서 직접 바꿀 수 없고
+            //  UIViewController 를 건드려야 합니다. 그 방법은 탭 전환
+            //  시점에 따라 어긋나기 쉽고, 검증하지 못한 경로입니다.
+            //
+            //  대신 지도 위 상단에 아주 옅은 scrim 을 깝니다.
+            //  흰 글자가 읽히고, 바로 아래 검은 검색바와 이어져서
+            //  띠가 따로 보이지 않습니다. 앱에 이미 있는
+            //  vfTopControlScrim(사진 위 컨트롤 보호용)과 같은 도구입니다.
+            // ═══════════════════════════════════════════════════════
             KoreaMapBackdropView(
                 spots: spots,
                 selectedSpot: selectedSpot,
@@ -217,6 +233,8 @@ struct MapTabView: View {
                 onDeselect: { focusedSpotID = nil }
             )
             .ignoresSafeArea()
+            .vfTopControlScrim(height: 108)
+            .ignoresSafeArea(edges: .top)
 
             VStack(alignment: .leading, spacing: 8) {
                 // ═══════════════════════════════════════════════════
