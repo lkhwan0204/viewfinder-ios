@@ -157,6 +157,11 @@ struct HomeFeedView: View {
                     onDismiss: {
                         isSearchResultsPresented = false
                     },
+                    debugTrace: { line in
+                        #if DEBUG
+                        print("[VF-SEARCH] \(line)")
+                        #endif
+                    },
                     onSelectSpot: { spot in
                         onAddAISpot(spot)
                         isSearchResultsPresented = false
@@ -423,6 +428,15 @@ struct HomeFeedView: View {
             spots: searchableSpots,
             communityPosts: communityPosts
         )
+
+        #if DEBUG
+        print("""
+        [VF-SEARCH] 4. 로컬 검색 '\(query)' \
+        검색대상=\(searchableSpots.count)곳 \
+        결과=\(keywordSearchResults.spots.count)곳 \
+        글=\(keywordSearchResults.communityPosts.count)개
+        """)
+        #endif
     }
 
     private func performSearch() {
@@ -552,6 +566,9 @@ struct HomeSearchResultsView: View {
     let isLoading: Bool
     let onSubmitSearch: () -> Void
     let onDismiss: () -> Void
+    /// 홈 검색이 어디서 멈추는지 찾기 위한 임시 통로.
+    /// 원인을 잡으면 이 파라미터와 호출부를 함께 지웁니다.
+    let debugTrace: (String) -> Void
     let onSelectSpot: (PhotoSpot) -> Void
     let onReportMissingPhoto: (PhotoSpot) -> Void
     let onSelectCommunityPost: (CommunityPost) -> Void
@@ -735,6 +752,8 @@ struct HomeSearchResultsView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 18)
                 .onChange(of: query) { _, newValue in
+                    debugTrace("3. onChange 입력='\(newValue)' spots후보=\(spots.count)")
+
                     // 로컬 키워드 검색은 즉시. 동기 함수라 비용이 없습니다.
                     onQueryChange()
 
@@ -747,6 +766,12 @@ struct HomeSearchResultsView: View {
                     // 실제 장소 검색은 디바운스됩니다.
                     placeFinder.search(trimmed, near: nil, knownSpots: spots)
                 }
+                .onChange(of: spotRecommendations.count) { _, count in
+                    debugTrace("5. 출사지 결과=\(count) 커뮤니티=\(communityPosts.count) 미등록장소=\(unknownPlaces.count) hasResults=\(hasResults)")
+                }
+                .onChange(of: placeFinder.results.count) { _, count in
+                    debugTrace("6. PlaceFinder 결과=\(count) 검색중=\(placeFinder.isSearching) 메시지=\(placeFinder.message ?? "없음")")
+                }
                 .padding(.bottom, 28)
             }
             .background(AppColors.background.ignoresSafeArea())
@@ -754,6 +779,7 @@ struct HomeSearchResultsView: View {
             .vfTopEdgeFade()
             .navigationBarHidden(true)
             .onAppear {
+                debugTrace("2. 검색 화면 열림. 입력='\(query)' isLoading=\(isLoading) 메시지=\(message ?? "없음")")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     isSearchFocused = true
                 }

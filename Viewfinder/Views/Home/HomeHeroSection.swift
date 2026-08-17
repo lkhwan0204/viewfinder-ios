@@ -112,7 +112,12 @@ struct HomeHeroSection: View {
 
             Spacer(minLength: VFSpace.sm)
 
-            Button(action: onSearch) {
+            Button {
+                #if DEBUG
+                print("[VF-SEARCH] 1. Hero 검색 버튼 눌림")
+                #endif
+                onSearch()
+            } label: {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Color.white)
