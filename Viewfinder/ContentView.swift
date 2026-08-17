@@ -431,18 +431,21 @@ struct ContentView: View {
             .tabItem {
                 tabItemLabel(for: .home)
             }
+            .vfOpaqueTabBar()
 
             mapLayer
                 .tag(AppTab.map)
                 .tabItem {
                     tabItemLabel(for: .map)
                 }
+                .vfOpaqueTabBar()
 
             Color.clear
                 .tag(AppTab.add)
                 .tabItem {
                     tabItemLabel(for: .add)
                 }
+                .vfOpaqueTabBar()
 
             CommunityTabView(
                 posts: communityViewModel.posts,
@@ -491,6 +494,7 @@ struct ContentView: View {
             .tabItem {
                 tabItemLabel(for: .community)
             }
+            .vfOpaqueTabBar()
 
             MyTabView(
                 user: authViewModel.currentUser,
@@ -547,7 +551,42 @@ struct ContentView: View {
             .tabItem {
                 tabItemLabel(for: .my)
             }
+            .vfOpaqueTabBar()
         }
+        // ═══════════════════════════════════════════════════════════
+        //  탭바 배경을 SwiftUI 쪽에서 지정합니다. (시도 A)
+        //
+        //  [문제였던 상황]
+        //  AppDelegate 에서 UITabBarAppearance 로
+        //    configureWithOpaqueBackground()
+        //    backgroundEffect = nil
+        //    backgroundColor  = surface2
+        //  까지 다 걸었는데, 실기 iOS 26 에서 탭바가 여전히 밝은 유리였고
+        //  뒤의 지도 글자가 비쳤습니다. 검색바·칩은 #1C1C1F 불투명인데
+        //  탭바만 밝아서 같은 화면에 두 가지 크롬이 있었습니다.
+        //
+        //  iOS 26 플로팅 탭바는 UITabBarAppearance 의 배경 설정을
+        //  적용하지 않는 것으로 보입니다.
+        //
+        //  [시도]
+        //  toolbarBackground 는 UIKit appearance 프록시가 아니라 SwiftUI 가
+        //  자기 툴바 렌더링에 직접 거는 경로입니다. appearance 를 무시하는
+        //  구현이라도 이쪽은 볼 가능성이 있습니다.
+        //  AppDelegate 설정은 지우지 않고 둡니다. 둘은 배타적이지 않고,
+        //  이전 OS 에서는 그쪽이 실제로 동작합니다.
+        //
+        //  이것도 실패하면 유리 성질을 이용하는 방향으로 갑니다.
+        //  (탭바 뒤 콘텐츠를 어둡게 해서 유리가 따라 어두워지게)
+        //  실패 여부를 추측하지 않도록 NativeTabBarSupport 에 배경을
+        //  실제로 그리는 레이어가 무엇인지 찍는 진단을 넣었습니다.
+        //
+        //  TabView 자신과 각 탭 루트에 모두 걸었습니다.
+        //  툴바 배경은 내비게이션 바와 마찬가지로 "지금 선택된 탭의
+        //  콘텐츠" 기준으로 해석되기 때문에, 컨테이너에만 걸면 무시되고
+        //  자식에 걸어야 반영되는 경우가 있습니다. 한 번의 빌드로
+        //  판정하기 위해 양쪽 다 겁니다. 중복은 무해합니다.
+        // ═══════════════════════════════════════════════════════════
+        .vfOpaqueTabBar()
         .background {
             NativeTabBarAnimator()
             .allowsHitTesting(false)

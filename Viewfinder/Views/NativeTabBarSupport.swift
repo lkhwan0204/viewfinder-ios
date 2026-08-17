@@ -54,6 +54,9 @@ final class NativeTabBarVisibilityController: NSObject {
         }
 
         self.tabBar = tabBar
+        #if DEBUG
+        dumpBackgroundHierarchyIfNeeded(tabBar)
+        #endif
         tabBar.isHidden = false
         // alpha 는 항상 1 로 고정합니다. 이것이 관통 버그 수정의 핵심입니다.
         tabBar.alpha = 1
@@ -259,6 +262,104 @@ final class NativeTabBarVisibilityController: NSObject {
         }
 
         return hideProgress
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  탭바 배경 진단 (DEBUG 전용)
+//
+//  탭바 색을 두 번 고쳤는데 두 번 다 실기에서 안 먹었습니다.
+//  UITabBarAppearance 로 configureWithOpaqueBackground +
+//  backgroundEffect = nil + backgroundColor = surface2 를 다 걸었는데도
+//  iOS 26 플로팅 탭바가 밝은 유리로 남았습니다.
+//
+//  세 번째 추측을 하는 대신, 배경을 실제로 그리는 뷰가 무엇인지 찍습니다.
+//  UIVisualEffectView 가 남아 있다면 어떤 effect 인지, backgroundColor 가
+//  어디에 적용됐는지가 로그에 나옵니다. 그것을 보고 정확한 지점을 고칩니다.
+//
+//  DEBUG 에서만 컴파일되고, 앱 실행당 한 번만 찍습니다.
+// ─────────────────────────────────────────────────────────────────
+#if DEBUG
+private var hasDumpedTabBarBackground = false
+
+private extension NativeTabBarVisibilityController {
+    func dumpBackgroundHierarchyIfNeeded(_ tabBar: UITabBar) {
+        guard !hasDumpedTabBarBackground else { return }
+        hasDumpedTabBarBackground = true
+
+        // 레이아웃이 끝난 뒤에 읽어야 실제로 붙은 뷰가 전부 보입니다.
+        // attach 시점에는 유리 뷰가 아직 없을 수 있습니다.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak tabBar] in
+            guard let tabBar else { return }
+
+            var lines = ["[VF-TABBAR] ───────── 탭바 배경 진단 ─────────"]
+            lines.append("[VF-TABBAR] class=\(type(of: tabBar)) bounds=\(tabBar.bounds)")
+
+            let appearance = tabBar.standardAppearance
+            lines.append("[VF-TABBAR] appearance.backgroundColor=\(String(describing: appearance.backgroundColor))")
+            lines.append("[VF-TABBAR] appearance.backgroundEffect=\(String(describing: appearance.backgroundEffect))")
+
+            func walk(_ view: UIView, depth: Int) {
+                guard depth <= 4 else { return }
+                var note = ""
+                if let effectView = view as? UIVisualEffectView {
+                    note += "  EFFECT=\(String(describing: effectView.effect))"
+                }
+                if let background = view.backgroundColor, background != .clear {
+                    note += "  bg=\(background)"
+                }
+                if view.isHidden { note += "  hidden" }
+                let indent = String(repeating: "· ", count: depth)
+                lines.append("[VF-TABBAR] \(indent)\(type(of: view))\(note)")
+                view.subviews.forEach { walk($0, depth: depth + 1) }
+            }
+            tabBar.subviews.forEach { walk($0, depth: 1) }
+
+            lines.append("[VF-TABBAR] ──────────────────────────────────")
+            print(lines.joined(separator: "\n"))
+        }
+    }
+}
+#endif
+
+// ─────────────────────────────────────────────────────────────────
+//  탭바를 불투명 surface2 로 (시도 A)
+//
+//  AppDelegate 의 UITabBarAppearance 설정이 iOS 26 플로팅 탭바에
+//  적용되지 않았습니다. toolbarBackground 는 appearance 프록시가 아니라
+//  SwiftUI 가 자기 바 렌더링에 직접 거는 경로라 별개의 시도입니다.
+//
+//  두 가지를 짝으로 씁니다.
+//   toolbarBackground           어떤 색으로 그릴지          iOS 16+
+//   toolbarBackgroundVisibility 그리긴 그리라는 지시        iOS 18+
+//  색만 지정하고 가시성이 자동(스크롤에 따라 숨김)이면 색이 무의미해집니다.
+//
+//  배포 타깃이 17.0 이라 가시성 쪽은 가용성 분기가 필요하고,
+//  분기를 뷰 본문에 직접 쓰면 TabView 체인이 지저분해지므로 감쌉니다.
+// ─────────────────────────────────────────────────────────────────
+private struct VFOpaqueTabBar: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content
+                .toolbarBackground(Color(uiColor: VFPalette.surface2), for: .tabBar)
+                .toolbarBackgroundVisibility(.visible, for: .tabBar)
+        } else {
+            content
+                .toolbarBackground(Color(uiColor: VFPalette.surface2), for: .tabBar)
+                .toolbarBackground(.visible, for: .tabBar)
+        }
+    }
+}
+
+extension View {
+    /// 탭바 배경을 앱 크롬 색(surface2)으로 고정합니다.
+    ///
+    /// TabView 컨테이너와 각 탭 루트 양쪽에 붙입니다.
+    /// 툴바 배경은 내비게이션 바처럼 "지금 선택된 탭의 콘텐츠" 기준으로
+    /// 해석되기 때문에, 컨테이너에만 걸면 무시되고 자식에 걸어야 반영되는
+    /// 경우가 있습니다. 한 번의 빌드로 판정하기 위해 양쪽 다 겁니다.
+    func vfOpaqueTabBar() -> some View {
+        modifier(VFOpaqueTabBar())
     }
 }
 
