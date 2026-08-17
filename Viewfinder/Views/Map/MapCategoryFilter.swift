@@ -208,10 +208,28 @@ enum MapCategoryFilter: String, CaseIterable, Identifiable {
 // ═══════════════════════════════════════════════════════════════════
 
 enum MapChrome {
-    static let surface = Color.black.opacity(0.74)
+    // ═══════════════════════════════════════════════════════════════
+    //  탭바와 같은 색으로 맞췄습니다.
+    //
+    //  [문제였던 상황]
+    //  지도 컨트롤은 black.opacity(0.74) 였습니다. 밝은 지도 위에서는
+    //  진한 회색으로 보이는데, 탭바는 iOS 26 플로팅 유리라 지도 색을
+    //  따라 밝아집니다. 그래서 지도 탭에서만 상단 컨트롤은 검정,
+    //  하단 탭바는 밝은 회색이 되어 두 개가 다른 시스템처럼 보였습니다.
+    //  (다른 탭은 배경이 검정이라 탭바도 어두워서 문제가 없었습니다.)
+    //
+    //  [지금]
+    //  VFPalette.mapChrome(#1C1C1F)로 고정합니다.
+    //  이 값은 surface2 의 다크 값이고, 탭바 배경도 같은 값으로
+    //  맞췄습니다. 두 크롬이 같은 색이 됩니다.
+    //
+    //  0.94 로 살짝 투명도를 남긴 이유는, 완전 불투명이면 지도 위에
+    //  붙은 판처럼 보이고 떠 있는 느낌이 사라지기 때문입니다.
+    // ═══════════════════════════════════════════════════════════════
+    static let surface = Color(uiColor: VFPalette.mapChrome).opacity(0.94)
     /// 검색 제안처럼 목록을 담는 면. 글을 여러 줄 읽어야 하므로
     /// 컨트롤보다 더 불투명하게 만들어 지도가 비치지 않게 합니다.
-    static let panel = Color.black.opacity(0.90)
+    static let panel = Color(uiColor: VFPalette.mapChrome).opacity(0.97)
     static let hairline = Color.white.opacity(0.16)
     static let ink = Color.white
     static let inkDim = Color.white.opacity(0.64)
@@ -282,35 +300,18 @@ struct MapCircleButton: View {
     }
 }
 
-/// 지도 상태 한 줄. 핀이 몇 개인지 / 왜 비었는지 알려줍니다.
+/// 지도 상태 한 줄. 결과가 없거나 찾는 중일 때만 나타납니다.
 struct MapStatusPill: View {
     let text: String
-    /// 핀 겹침 때문에 일부가 숨어 있을 때 덧붙이는 안내.
-    ///
-    /// 겹침 처리를 켜면 가까이 붙은 핀은 숨습니다.
-    /// 그러면 "35곳" 이라고 써 놓고 화면에는 12개만 보이는 불일치가 생깁니다.
-    /// 개수는 사실이지만, 그 차이를 설명하지 않으면 사용자는
-    /// 핀이 사라졌다고 생각합니다.
-    var hint: String?
 
     var body: some View {
-        // 칩 줄 바로 아래에 또 검은 캡슐이 오므로,
-        // 한 단계 작게 만들어 칩보다 아래 계층으로 읽히게 합니다.
-        HStack(spacing: 5) {
-            Text(text)
-                .foregroundStyle(MapChrome.ink)
-
-            if let hint {
-                Text("·")
-                    .foregroundStyle(MapChrome.inkDim)
-                Text(hint)
-                    .foregroundStyle(MapChrome.inkDim)
-            }
-        }
-        .font(.system(size: 11.5, weight: .semibold))
-        .lineLimit(1)
-        .padding(.horizontal, 10)
-        .frame(height: 28)
-        .mapChromeSurface(Capsule())
+        // 칩 줄보다 한 단계 작게 만들어 아래 계층으로 읽히게 합니다.
+        Text(text)
+            .font(.system(size: 11.5, weight: .semibold))
+            .foregroundStyle(MapChrome.ink)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .mapChromeSurface(Capsule())
     }
 }

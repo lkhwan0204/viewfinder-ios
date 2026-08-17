@@ -141,22 +141,27 @@ struct MapTabView: View {
         return spots.first { $0.id == focusedSpotID }
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  개수 표시를 없앴습니다.
+    //
+    //  "내 주변 출사지 6곳" 은 원래 진단용이었습니다.
+    //  핀이 하나도 안 보이던 때, 데이터가 없는 것인지 렌더링이
+    //  안 되는 것인지 구분하려고 넣었습니다.
+    //  핀이 정상 동작하는 것을 확인했으므로 역할이 끝났습니다.
+    //
+    //  그리고 이 값은 사용자의 행동을 바꾸지 않습니다.
+    //  6곳인지 7곳인지 알아도 할 일이 달라지지 않고, 핀이 화면에
+    //  보이므로 개수는 눈으로 셀 수 있습니다.
+    //
+    //  결과가 없을 때와 찾는 중일 때만 남깁니다.
+    //  그때는 화면이 비어 있어서, 왜 비었는지 말해주지 않으면
+    //  고장으로 읽힙니다.
+    // ═══════════════════════════════════════════════════════════════
     private var statusText: String? {
         if isRecommendationLoading {
             return "주변 출사지 찾는 중"
         }
-        if let emptyRecommendationMessage {
-            return emptyRecommendationMessage
-        }
-        guard !spots.isEmpty else { return nil }
-        if isMapSavedFilterEnabled {
-            return "저장한 출사지 \(spots.count)곳"
-        }
-        // "이 지역" 이라고 말하지 않습니다.
-        // 핀은 지도에 보이는 영역이 아니라 "내 위치" 기준으로 계산됩니다.
-        // 지도를 부산으로 끌어도 핀은 서울 것 그대로입니다.
-        // 영역 기준 재검색을 넣기 전까지는 문구가 사실을 말해야 합니다.
-        return "내 주변 출사지 \(spots.count)곳"
+        return emptyRecommendationMessage
     }
 
     private var trimmedQuery: String {
@@ -188,17 +193,6 @@ struct MapTabView: View {
                 onShowDetail(spot)
             }
         }
-    }
-
-    /// 핀이 많으면 겹침 때문에 일부가 숨습니다. 그 차이를 설명합니다.
-    /// 12곳은 기본 줌(12.2)에서 54pt 핀이 서로 붙기 시작하는 대략의 개수입니다.
-    private var statusHint: String? {
-        guard !isRecommendationLoading,
-              emptyRecommendationMessage == nil,
-              spots.count >= 12
-        else { return nil }
-
-        return "확대하면 더 보여요"
     }
 
     var body: some View {
@@ -363,7 +357,7 @@ struct MapTabView: View {
                             }
                     )
                 } else if let statusText, !isSearching {
-                    MapStatusPill(text: statusText, hint: statusHint)
+                    MapStatusPill(text: statusText)
                         .padding(.horizontal, 4)
                         .transition(.opacity)
                 }

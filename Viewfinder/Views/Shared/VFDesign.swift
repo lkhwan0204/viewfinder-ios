@@ -37,6 +37,18 @@ enum VFPalette {
     /// surface1 위에 올라가는 요소. 칩, 아이콘 배경.
     static let surface2 = dynamic(dark: 0x1C1C1F, light: 0xEBEBF0)
 
+    /// 지도 위 컨트롤 표면. 라이트/다크에 따라 바뀌지 않습니다.
+    ///
+    /// 네이버 지도는 앱 모드와 무관하게 항상 밝습니다.
+    /// 그래서 지도 위 컨트롤은 다이내믹 컬러를 쓸 수 없습니다.
+    /// surface2 를 쓰면 라이트 모드에서 밝은 회색 칩 + 흰 글자가 되어
+    /// 아무것도 읽히지 않습니다.
+    ///
+    /// 값은 surface2 의 다크 값과 같습니다.
+    /// 탭바(다크에서 surface2)와 지도 컨트롤이 같은 색으로 보이게
+    /// 맞춘 것입니다.
+    static let mapChrome = uiColor(hex: 0x1C1C1F)
+
     // MARK: Ink — 텍스트
     static let ink1 = dynamic(dark: 0xFFFFFF, light: 0x111111)
     static let ink2 = dynamic(dark: 0x98989D, light: 0x6E6E73)
