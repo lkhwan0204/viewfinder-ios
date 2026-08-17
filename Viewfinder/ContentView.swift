@@ -680,10 +680,59 @@ struct ContentView: View {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  할 수 없는 일을 제안하지 않습니다.
+    //
+    //  [문제였던 상황]
+    //  장소 제보는 서버에 저장됩니다. 릴리스 빌드에서
+    //  VIEWFINDER_RECOMMENDATION_ENDPOINT 가 비어 있으면(지금 상태입니다)
+    //  이 기능은 동작하지 않습니다.
+    //
+    //  그런데 앱은 제보 양식을 그대로 열어줬습니다. 사용자는 장소를
+    //  검색하고, 사진을 고르고, 태그를 넣고, 제출을 누른 뒤에야
+    //  실패했습니다. 그리고 받는 문구가
+    //  "장소 등록 서버 주소가 설정되지 않았어요" 였습니다.
+    //
+    //  문구를 다듬는 것으로는 부족합니다. 문구가 아무리 좋아도 작업을
+    //  다 시킨 뒤에 버리는 것은 같습니다.
+    //
+    //  [지금]
+    //  서버를 부를 수 없으면 양식을 열지 않고 먼저 말합니다.
+    //  현장 정보(fieldReport)는 서버가 필요 없으므로 막지 않습니다.
+    //  커뮤니티 글은 기기 안에서 관리됩니다.
+    // ═══════════════════════════════════════════════════════════════
     private func presentComposer(_ purpose: CommunityComposerPurpose, spot: PhotoSpot? = nil) {
+        if purpose == .addSpot, !AppBackendConfiguration.current.isConfigured {
+            appErrorMessage = "장소 등록은 아직 준비 중이에요. 조금만 기다려주세요."
+            return
+        }
+
         setHomeTabBarHidden(false)
         composerPurpose = purpose
         communityViewModel.beginComposing(spot: spot)
+    }
+
+    /// 장소 제보가 실패했을 때 사용자에게 할 말.
+    ///
+    /// 전에는 error.localizedDescription 을 그대로 띄웠습니다.
+    /// PhotoSpotSearchError 가 문자열을 들고 있었고 그 문자열이 서버
+    /// 응답이었기 때문에, 서버가 보낸 영문 메시지가 그대로 보일 수
+    /// 있었습니다. 이제 그 타입은 문자열을 들고 있지 않지만, 남은 문제가
+    /// 하나 있습니다. 그 타입은 자기가 검색에서 났는지 제보에서 났는지
+    /// 모르므로 문구에 기능 이름을 넣을 수 없습니다.
+    /// 그래서 기능 이름은 이 자리에서 붙입니다.
+    private func submissionFailureMessage(for error: Error) -> String {
+        guard let searchError = error as? PhotoSpotSearchError else {
+            return "장소를 등록하지 못했어요. 잠시 후 다시 시도해주세요."
+        }
+
+        switch searchError {
+        case .notConfigured:
+            // 다시 시도를 권하지 않습니다. 주소가 없는 상태는 반복해도 같습니다.
+            return "장소 등록은 아직 준비 중이에요. 조금만 기다려주세요."
+        case .server, .malformedResponse, .empty:
+            return "장소를 등록하지 못했어요. 잠시 후 다시 시도해주세요."
+        }
     }
 
     private func requestAuthentication(afterLogin action: ((AuthUser) -> Void)? = nil) {
@@ -920,11 +969,14 @@ struct ContentView: View {
                     submissionConfirmation = receipt
                 }
             } catch {
+                // 원인은 로그로, 사용자에게는 사용자 문구로.
+                let diagnostic = (error as? PhotoSpotSearchError)?.diagnosticDescription
+                    ?? error.localizedDescription
                 AppLog.network.error(
-                    "Place submission failed: \(error.localizedDescription, privacy: .public)"
+                    "Place submission failed: \(diagnostic, privacy: .public)"
                 )
                 await MainActor.run {
-                    appErrorMessage = error.localizedDescription
+                    appErrorMessage = submissionFailureMessage(for: error)
                 }
             }
         }
@@ -944,10 +996,15 @@ struct ContentView: View {
             placeSubmissionStore.markApproved(spotIDs: Set(submittedSpots.map(\.id)))
             submittedSpotsState = .loaded
         } catch {
+            // 승인된 제보 장소를 가져오는 것은 배경 작업입니다.
+            // 실패해도 앱은 시드 131곳으로 정상 동작하므로, 사용자에게
+            // 서버 사정을 알릴 이유가 없습니다. 원인은 로그로만 갑니다.
+            let diagnostic = (error as? PhotoSpotSearchError)?.diagnosticDescription
+                ?? error.localizedDescription
             AppLog.network.error(
-                "Submitted spots fetch failed: \(error.localizedDescription, privacy: .public)"
+                "Submitted spots fetch failed: \(diagnostic, privacy: .public)"
             )
-            submittedSpotsState = .failed(message: error.localizedDescription)
+            submittedSpotsState = .failed(message: "등록된 장소를 불러오지 못했어요")
         }
     }
 

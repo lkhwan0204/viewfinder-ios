@@ -48,6 +48,7 @@
 		CD3000000000000000000200 /* SearchProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3000000000000000000100 /* SearchProvider.swift */; };
 		CD3000000000000000000201 /* CafeRecommendationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3000000000000000000101 /* CafeRecommendationPolicy.swift */; };
 		CD3000000000000000000202 /* PlaceSubmissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3000000000000000000102 /* PlaceSubmissionService.swift */; };
+		CD100000000000000000029A /* RecommendationLocationReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD100000000000000000019A /* RecommendationLocationReader.swift */; };
 		CD4000000000000000000200 /* AppDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4000000000000000000100 /* AppDesignSystem.swift */; };
 		CD5000000000000000000200 /* AppInfrastructure.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5000000000000000000100 /* AppInfrastructure.swift */; };
 		CD5000000000000000000201 /* WeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5000000000000000000101 /* WeatherService.swift */; };
@@ -96,6 +97,7 @@
 		CD3000000000000000000100 /* SearchProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchProvider.swift; sourceTree = "<group>"; };
 		CD3000000000000000000101 /* CafeRecommendationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CafeRecommendationPolicy.swift; sourceTree = "<group>"; };
 		CD3000000000000000000102 /* PlaceSubmissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceSubmissionService.swift; sourceTree = "<group>"; };
+		CD100000000000000000019A /* RecommendationLocationReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationLocationReader.swift; sourceTree = "<group>"; };
 		CD4000000000000000000100 /* AppDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDesignSystem.swift; sourceTree = "<group>"; };
 		CD5000000000000000000100 /* AppInfrastructure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInfrastructure.swift; sourceTree = "<group>"; };
 		CD5000000000000000000101 /* WeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherService.swift; sourceTree = "<group>"; };
@@ -223,6 +225,7 @@
 				CD3000000000000000000100 /* SearchProvider.swift */,
 				CD3000000000000000000101 /* CafeRecommendationPolicy.swift */,
 				CD3000000000000000000102 /* PlaceSubmissionService.swift */,
+				CD100000000000000000019A /* RecommendationLocationReader.swift */,
 			);
 			name = Services;
 			path = Viewfinder/Services;
@@ -430,6 +433,7 @@
 				CD3000000000000000000200 /* SearchProvider.swift in Sources */,
 				CD3000000000000000000201 /* CafeRecommendationPolicy.swift in Sources */,
 				CD3000000000000000000202 /* PlaceSubmissionService.swift in Sources */,
+				CD100000000000000000029A /* RecommendationLocationReader.swift in Sources */,
 				CD5000000000000000000200 /* AppInfrastructure.swift in Sources */,
 				CD5000000000000000000201 /* WeatherService.swift in Sources */,
 				CD5000000000000000000202 /* MapExperienceState.swift in Sources */,

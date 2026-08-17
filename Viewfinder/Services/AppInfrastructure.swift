@@ -53,6 +53,19 @@ struct AppBackendConfiguration {
 #endif
     }
 
+    /// 서버를 부를 수 있는 상태인지.
+    ///
+    /// 이 값이 false 면 장소 검색과 장소 제보가 동작하지 않습니다.
+    /// 릴리스 빌드에서 VIEWFINDER_RECOMMENDATION_ENDPOINT 가 비어 있으면
+    /// (지금 상태입니다) 여기가 false 입니다.
+    ///
+    /// 화면에서 이 값을 보고 "할 수 없는 일을 제안하지 않는" 판단을
+    /// 합니다. 사용자가 제보 양식을 다 채운 뒤에 실패하는 것보다,
+    /// 처음부터 아직 준비되지 않았다고 말하는 편이 낫습니다.
+    var isConfigured: Bool {
+        recommendationURL != nil
+    }
+
     func endpoint(named path: String) -> URL? {
         recommendationURL?
             .deletingLastPathComponent()

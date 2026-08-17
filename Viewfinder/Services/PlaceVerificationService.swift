@@ -28,7 +28,7 @@ struct PlaceVerificationService {
         userLocation: CLLocationCoordinate2D?
     ) async throws -> [VerifiedPhotoSpot] {
         guard let endpointURL else {
-            throw PhotoSpotSearchError.configuration("장소 검증 서버 주소가 설정되지 않았어요")
+            throw PhotoSpotSearchError.notConfigured
         }
 
         var request = URLRequest(url: endpointURL)
@@ -53,11 +53,11 @@ struct PlaceVerificationService {
 
         let (data, response) = try await BackendClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw PhotoSpotSearchError.server("장소 검증 서버 응답을 읽지 못했어요")
+            throw PhotoSpotSearchError.malformedResponse
         }
 
         guard 200..<300 ~= httpResponse.statusCode else {
-            throw PhotoSpotSearchError.server(statusMessage(from: data, statusCode: httpResponse.statusCode))
+            throw Self.serverError(from: data, statusCode: httpResponse.statusCode)
         }
 
         let decoded = try JSONDecoder().decode(ResponseBody.self, from: data)
@@ -71,18 +71,24 @@ struct PlaceVerificationService {
         AppBackendConfiguration.current.endpoint(named: "verify-spots")
     }
 
-    private func statusMessage(from data: Data, statusCode: Int) -> String {
-        if let errorBody = try? JSONDecoder().decode(ErrorBody.self, from: data) {
-            let lowercasedError = errorBody.error.lowercased()
-
-            if lowercasedError.contains("kakao") || lowercasedError.contains("naver") {
-                return "카카오 또는 네이버 장소검색 API 키를 확인해야 해요"
-            }
-
-            return errorBody.error
-        }
-
-        return "장소 검증 서버 오류가 발생했어요 (\(statusCode))"
+    /// 서버 실패를 진단 정보와 함께 감싸고 로그를 남깁니다.
+    ///
+    /// 전에는 이 함수가 사용자에게 보여줄 문장을 만들었습니다.
+    /// 그 과정에서 서버 응답의 error 필드를 그대로 반환하는 경로가 있어서,
+    /// 서버가 보낸
+    ///   KAKAO_REST_API_KEY or NAVER_CLIENT_ID/NAVER_CLIENT_SECRET is required
+    /// 같은 영문 환경변수 이름이 사용자 화면에 닿을 수 있었습니다.
+    /// 키를 확인하라는 말을 들어야 하는 사람은 사용자가 아니라 저희입니다.
+    ///
+    /// 지금은 사용자 문구를 만들지 않습니다. 원인은 로그로 보내고,
+    /// 화면 문구는 PhotoSpotSearchError 가 혼자 정합니다.
+    static func serverError(from data: Data, statusCode: Int) -> PhotoSpotSearchError {
+        let diagnostic = (try? JSONDecoder().decode(ErrorBody.self, from: data).error)
+            ?? String(data: data.prefix(200), encoding: .utf8)
+            ?? "no body"
+        let error = PhotoSpotSearchError.server(statusCode: statusCode, diagnostic: diagnostic)
+        AppLog.network.error("Place backend failed: \(error.diagnosticDescription, privacy: .public)")
+        return error
     }
 }
 
@@ -124,7 +130,7 @@ struct PlaceSearchService {
         userLocation: CLLocationCoordinate2D?
     ) async throws -> [VerifiedPhotoSpot] {
         guard let endpointURL else {
-            throw PhotoSpotSearchError.configuration("장소 검색 서버 주소가 설정되지 않았어요")
+            throw PhotoSpotSearchError.notConfigured
         }
 
         var request = URLRequest(url: endpointURL)
@@ -142,20 +148,21 @@ struct PlaceSearchService {
 
         let (data, response) = try await BackendClient.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw PhotoSpotSearchError.server("장소 검색 서버 응답을 읽지 못했어요")
+            throw PhotoSpotSearchError.malformedResponse
         }
 
         guard 200..<300 ~= httpResponse.statusCode else {
             let errorBody = try? JSONDecoder().decode(ErrorBody.self, from: data)
 
+            // 서버가 네이버 키 없이 떠 있는 상태입니다. 다시 시도해도 같습니다.
+            // 사용자에게는 "지금은 쓸 수 없다" 로 전달되어야 하고,
+            // 키가 없다는 사실은 로그로 갑니다.
             if errorBody?.code == "naver_place_search_unconfigured" {
-                throw PhotoSpotSearchError.configuration(
-                    "네이버 실제 장소검색 설정이 아직 완료되지 않았어요"
-                )
+                AppLog.network.error("Place search backend is missing Naver credentials")
+                throw PhotoSpotSearchError.notConfigured
             }
 
-            let message = errorBody?.error ?? "장소 검색 중 오류가 발생했어요"
-            throw PhotoSpotSearchError.server(message)
+            throw PlaceVerificationService.serverError(from: data, statusCode: httpResponse.statusCode)
         }
 
         return try JSONDecoder().decode(ResponseBody.self, from: data).spots
@@ -358,13 +365,23 @@ final class PlaceFinder: ObservableObject {
     ///     설정되지 않았거나 서버가 꺼져 있으면 다시 시도해도 같습니다.
     ///
     /// 무엇을 찾았는지를 먼저 말하고, 닿지 않은 범위를 설명합니다.
+    ///
+    /// 서버가 준 문자열은 여기서 쓰지 않습니다.
+    /// 전에는 .server(let message) 에서 그 message 를 그대로 돌려줬고,
+    /// 그 값이 서버 응답의 error 필드였습니다. 그래서
+    ///   KAKAO_REST_API_KEY or NAVER_CLIENT_ID/... is required
+    /// 같은 영문 환경변수 이름이 사용자에게 표시될 수 있었습니다.
+    /// 지금은 PhotoSpotSearchError 가 문자열을 들고 있지 않으므로
+    /// 그런 실수를 하려고 해도 할 수 없습니다.
     private static func failureMessage(for error: Error) -> String {
         if let searchError = error as? PhotoSpotSearchError {
             switch searchError {
-            case .configuration:
-                return "등록된 출사지에서만 찾았어요. 실제 장소 검색이 아직 연결되지 않았어요."
-            case .server(let message):
-                return message
+            case .notConfigured:
+                // 다시 시도를 권하지 않습니다. 주소가 없는 상태는
+                // 몇 번을 해도 같습니다.
+                return "등록된 출사지에서만 찾았어요. 장소 검색은 아직 준비 중이에요."
+            case .server, .malformedResponse:
+                return "등록된 출사지에서만 찾았어요. 잠시 후 다시 시도해주세요."
             case .empty:
                 return "장소 이름에 지역을 함께 넣어보세요."
             }
@@ -372,7 +389,7 @@ final class PlaceFinder: ObservableObject {
 
         // URLError. 서버가 꺼져 있거나 같은 네트워크에 없을 때입니다.
         if error is URLError {
-            return "등록된 출사지에서만 찾았어요. 장소 검색 서버에 연결할 수 없어요."
+            return "등록된 출사지에서만 찾았어요. 장소 검색에 연결할 수 없어요."
         }
 
         return "장소 이름에 지역을 함께 넣어보세요."
