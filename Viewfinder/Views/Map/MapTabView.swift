@@ -252,42 +252,8 @@ struct MapTabView: View {
                         }
                     )
 
-                    // ═══════════════════════════════════════════════
-                    //  저장 버튼을 칩 줄에서 검색 줄로 옮겼습니다.
-                    //
-                    //  [문제 1] 칩 줄이 옆으로 스크롤됐습니다.
-                    //  칩 6개(약 342pt)와 저장 버튼 44pt 가 한 줄에 있어서
-                    //  393pt 화면 폭을 넘었습니다. 마지막 칩이 잘리고
-                    //  스크롤이 생겼습니다.
-                    //  저장 버튼을 빼면 칩만 남아 스크롤 없이 들어옵니다.
-                    //
-                    //  [문제 2] 저장 버튼 위치가 애매했습니다.
-                    //  스크롤되는 칩 줄의 끝에 고정되어 있어서, 칩과
-                    //  한 묶음인지 별개인지 알 수 없었습니다.
-                    //  게다가 칩은 필터인데 저장은 목록을 여는 이동이라
-                    //  성격도 다릅니다.
-                    //
-                    //  검색 줄에 두면 "찾기 / 저장한 것 보기" 로 성격이
-                    //  맞고, 위치가 고정되어 항상 같은 자리에 있습니다.
-                    // ═══════════════════════════════════════════════
-                    if !isSearching {
-                        Button {
-                            if isMapSavedFilterEnabled {
-                                onToggleRecommendations()
-                            } else {
-                                onToggleSavedFilter()
-                                isSavedListPresented = true
-                            }
-                        } label: {
-                            MapCircleButton(
-                                symbolName: isMapSavedFilterEnabled ? "bookmark.fill" : "bookmark",
-                                isActive: isMapSavedFilterEnabled
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(isMapSavedFilterEnabled ? "저장 목록 끄기" : "저장한 출사지 보기")
-                    }
-
+                    // 검색 중에만 나오는 취소.
+                    // 저장 버튼이 있던 자리를 그대로 씁니다.
                     if isSearching {
                         Button {
                             searchQuery = ""
@@ -304,6 +270,7 @@ struct MapTabView: View {
                         .buttonStyle(.plain)
                         .transition(.opacity)
                     }
+
                 }
 
                 // 검색 중에는 칩 줄을 숨깁니다.
@@ -339,15 +306,53 @@ struct MapTabView: View {
                 //  지금은 내 위치 버튼이 카드 바로 위에 쌓입니다.
                 //  같은 좌우 여백(16), 같은 컨테이너.
                 // ═══════════════════════════════════════════════════
+                // ═══════════════════════════════════════════════════
+                //  지도 컨트롤을 우측 하단에 모았습니다.
+                //
+                //  저장 버튼이 세 번 자리를 옮겼습니다.
+                //   1차 칩 줄 끝 -> 스크롤되는 줄에 붙어 소속이 불분명하고,
+                //        칩(필터)과 성격이 다른데 나란히 있었습니다.
+                //   2차 검색바 옆 -> 검색바가 전체 폭을 못 쓰고, 북마크가
+                //        검색 필드에 붙어 "저장한 것 안에서 검색" 으로
+                //        읽혔습니다.
+                //   3차 우측 하단, 내 위치 버튼 위.
+                //
+                //  둘 다 44pt 원형이고, 둘 다 "보는 것을 바꾸는" 컨트롤
+                //  입니다. 필터도 콘텐츠도 아닙니다.
+                //  지도 앱들이 이 위치에 컨트롤을 쌓는 이유이기도 합니다.
+                //  엄지가 닿고, 지도 콘텐츠 위지만 상단 정보와 겹치지
+                //  않습니다.
+                //
+                //  검색 중에는 둘 다 숨깁니다. 제안 목록이 지도를 덮고
+                //  있으므로 지도를 조작할 이유가 없습니다.
+                // ═══════════════════════════════════════════════════
                 if !isSearching {
                     HStack {
                         Spacer(minLength: 0)
 
-                        Button(action: onFocusUserLocation) {
-                            MapCircleButton(symbolName: "location.fill", tint: AppColors.accent)
+                        VStack(spacing: VFSpace.sm) {
+                            Button {
+                                if isMapSavedFilterEnabled {
+                                    onToggleRecommendations()
+                                } else {
+                                    onToggleSavedFilter()
+                                    isSavedListPresented = true
+                                }
+                            } label: {
+                                MapCircleButton(
+                                    symbolName: isMapSavedFilterEnabled ? "bookmark.fill" : "bookmark",
+                                    isActive: isMapSavedFilterEnabled
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(isMapSavedFilterEnabled ? "저장 목록 끄기" : "저장한 출사지 보기")
+
+                            Button(action: onFocusUserLocation) {
+                                MapCircleButton(symbolName: "location.fill", tint: AppColors.accent)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("내 위치로 이동")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("내 위치로 이동")
                     }
                     .padding(.horizontal, 4)
                     .padding(.bottom, 2)
