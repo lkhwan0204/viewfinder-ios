@@ -928,15 +928,12 @@ struct WeatherSunSection: View {
 
     var body: some View {
         if hasAnyTime {
-            VStack(alignment: .leading, spacing: VFSpace.md) {
-                // 카운트다운은 3시간 이내일 때만 나옵니다.
-                // 그보다 멀면 SunEvent.countdownLabel 이 nil 이고,
-                // 아래 일출·일몰 시각이 같은 정보를 이미 말합니다.
-                if let countdown = snapshot.nextSunEvent?.countdownLabel,
-                   let event = snapshot.nextSunEvent {
-                    HStack(spacing: VFSpace.sm) {
+            VStack(alignment: .leading, spacing: VFSpace.sm) {
+                if let event = snapshot.nextSunEvent,
+                   let countdown = event.countdownLabel {
+                    HStack(spacing: 6) {
                         Image(systemName: event.symbolName)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 15, weight: .semibold))
 
                         Text(countdown)
                             .vfText(.headline)
@@ -947,35 +944,36 @@ struct WeatherSunSection: View {
                 }
 
                 // ═══════════════════════════════════════════════════
-                //  두 값을 내용 크기대로 나란히 둡니다.
+                //  라벨과 시각을 한 줄에 둡니다.
                 //
-                //  [처음 만들었을 때]
-                //  두 칸을 maxWidth: .infinity 로 화면 절반씩 늘리고
-                //  각각 leading 정렬했습니다. 그래서 내용이 칸 왼쪽에
-                //  붙고 오른쪽에 100pt 넘는 빈 공간이 남아, 두 덩어리가
-                //  왼쪽으로 쏠려 보였습니다.
+                //  [세 번 고친 기록]
+                //  1차: 두 칸을 maxWidth .infinity 로 화면 절반씩 늘리고
+                //       각각 leading 정렬 -> 내용이 칸 왼쪽에 붙고
+                //       오른쪽에 빈 공간이 남아 왼쪽으로 쏠려 보임.
+                //  2차: 일출은 왼쪽 끝, 일몰은 오른쪽 끝 -> 한 쌍인데
+                //       200pt 로 벌어져 관련 없는 두 항목처럼 읽히고,
+                //       오른쪽 블록만 우측 정렬이 되어 정렬이 섞임.
+                //  3차: 내용 크기대로 나란히 + 세로 스택 -> 각 덩어리가
+                //       좁고 길어져 카드 왼쪽에 뭉쳤음.
                 //
-                //  [그다음 시도 — 되돌림]
-                //  일출을 왼쪽 끝, 일몰을 오른쪽 끝으로 벌렸습니다.
-                //  빈 공간은 사라졌지만 세 가지가 나빠졌습니다.
-                //   1. 일출과 일몰은 한 쌍인데, 200pt 로 벌리면
-                //      관련 없는 두 항목처럼 읽힙니다.
-                //   2. 오른쪽 블록이 우측 정렬이 되어, 앱 전체가 좌측
-                //      정렬인데 카드 하나에 두 정렬이 섞였습니다.
-                //   3. 가운데 여백이 아무것도 뜻하지 않습니다.
-                //      여백은 묶거나 나눠야 합니다.
+                //  [원인]
+                //  계속 "넓은 카드 안의 두 칸" 으로 접근했습니다.
+                //  카드는 약 330pt 인데 내용은 130pt 뿐이어서, 두 칸으로
+                //  나누는 어떤 배치도 뭉치거나 벌어집니다.
+                //  진짜 원인은 칸 나누기가 아니라 세로로 쌓은 것입니다.
                 //
                 //  [지금]
-                //  칸을 늘리지 않습니다. 원래 문제는 정렬이 아니라
-                //  칸을 화면 절반으로 강제한 것이었습니다.
-                //  내용 크기대로 두고 사이를 32pt 로 띄우면, 한 쌍으로
-                //  읽히면서 각 값 오른쪽의 죽은 공간도 없습니다.
-                //  카드 오른쪽에 남는 여백은 앱의 다른 좌측 정렬 블록과
-                //  같은 성질이라 어색하지 않습니다.
+                //  바로 위 히어로의 "최고 28°  최저 23°  체감 34°" 줄과
+                //  같은 구조를 씁니다. 라벨과 값을 한 줄에 두면
+                //   - "일출 05:50" 이 하나의 구절로 읽히고
+                //   - 각 덩어리가 가로로 넓어져 카드를 채우고
+                //   - 세로 정렬이 하나뿐이라 뭉칠 곳이 없습니다.
+                //  같은 화면에서 이미 잘 읽히는 패턴을 따르는 것이
+                //  새 배치를 발명하는 것보다 안전합니다.
                 // ═══════════════════════════════════════════════════
-                HStack(alignment: .firstTextBaseline, spacing: VFSpace.xl) {
+                HStack(spacing: VFSpace.lg) {
                     if let sunrise = snapshot.sunrise {
-                        timeBlock(
+                        sunTime(
                             symbol: "sunrise.fill",
                             title: "일출",
                             date: sunrise,
@@ -984,7 +982,7 @@ struct WeatherSunSection: View {
                     }
 
                     if let sunset = snapshot.sunset {
-                        timeBlock(
+                        sunTime(
                             symbol: "sunset.fill",
                             title: "일몰",
                             date: sunset,
@@ -994,6 +992,8 @@ struct WeatherSunSection: View {
 
                     Spacer(minLength: 0)
                 }
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
             }
             .padding(VFSpace.md)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1004,31 +1004,28 @@ struct WeatherSunSection: View {
         }
     }
 
-    /// 다음에 올 쪽만 앰버입니다.
+    /// 다음에 올 쪽은 아이콘·라벨·시각을 통째로 앰버로 칠합니다.
     ///
-    /// 카운트다운 줄이 없을 때도 "지금 기준으로 다음은 일몰" 이라는
-    /// 정보가 색으로 남습니다. 두 시각을 나란히 두면 어느 쪽이
-    /// 다가오는 것인지 알 수 없었습니다.
-    private func timeBlock(
+    /// 전에는 라벨만 앰버였습니다. 작은 글자 하나만 주황색이면
+    /// 강조가 아니라 오류처럼 보입니다.
+    private func sunTime(
         symbol: String,
         title: String,
         date: Date,
         isNext: Bool
     ) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 5) {
-                Image(systemName: symbol)
-                    .font(.system(size: 11, weight: .semibold))
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .semibold))
 
-                Text(title)
-                    .vfText(.caption)
-            }
-            .foregroundStyle(isNext ? AppColors.accent : theme.secondaryText)
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(isNext ? AppColors.accent : theme.secondaryText)
 
             Text(Self.timeFormatter.string(from: date))
-                .vfText(.title2)
-                .foregroundStyle(isNext ? AppColors.primary : theme.secondaryText)
+                .font(.system(size: 17, weight: .semibold))
         }
+        .foregroundStyle(isNext ? AppColors.accent : theme.primaryText)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title) \(Self.timeFormatter.string(from: date))")
         .accessibilityValue(isNext ? "다음 이벤트" : "")
