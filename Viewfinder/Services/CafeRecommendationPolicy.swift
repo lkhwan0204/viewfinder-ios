@@ -23,12 +23,6 @@ enum CafeRecommendationPolicy {
         "학림다방"
     ]
 
-    static let geminiInstruction = """
-    감성 카페를 추천해야 하는 경우 프랜차이즈, 대형 체인, 유명 지점형 카페는 제외한다.
-    제외 예시: 런던베이글뮤지엄, 스타벅스, 투썸, 이디야, 메가커피, 컴포즈, 블루보틀, 노티드, 랜디스도넛, 아우어베이커리, 파리바게뜨, 뚜레쥬르, 을지로 카페골목, 인왕산 대충유원지, 학림다방.
-    감성 카페는 독립 카페, 로컬 카페, 뷰 좋은 카페, 공간이 독특한 카페만 추천한다.
-    응답 JSON에는 각 추천 항목마다 isFranchise를 반드시 포함하고, 프랜차이즈/체인/유명 지점형 카페라면 true로 표시한다.
-    """
 
     static func isIndependentCafeCandidate(_ spot: PhotoSpot) -> Bool {
         normalized(spot.category) == "cafe" && !isBlacklistedCafe(spot)
@@ -109,12 +103,6 @@ enum RecommendationBlacklist {
         "학림다방"
     ]
 
-    static let geminiInstruction = """
-    사진 출사지 추천에서 아래 장소와 유형은 제외한다: 오류동역 주변 골목, 고척 스카이돔, 고척스카이돔, 안양천 구로구간, 일반 역 주변 골목, 역 주변 골목, 을지로 카페골목, 인왕산 대충유원지, 학림다방.
-    단순 역 주변, 일반 골목, 대형 경기장은 추천하지 않는다.
-    공원, 숲길, 한강, 골목감성, 필름감성, 노을, 야경, 카페거리처럼 사진 구도와 분위기가 명확한 출사지 중심으로 추천한다.
-    데이터가 부족하면 억지로 일반 장소를 채우지 말고 추천 수를 줄인다.
-    """
 
     private static let weakRecommendationSignals: [String] = [
         "단순역주변",
