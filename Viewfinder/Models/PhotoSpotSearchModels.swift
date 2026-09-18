@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 
 struct PhotoSpotRecommendation: Identifiable, Codable, Equatable {
@@ -38,11 +39,17 @@ struct VerifiedPhotoSpot: Identifiable, Codable, Equatable {
     let bestTime: String
     let reason: String
     let tags: [String]
+    /// 네이버 지역 검색이 돌려준 원본 분류입니다.
+    /// 기존 검증 응답과 시드 데이터에는 없을 수 있으므로 optional 로 둡니다.
+    let category: String?
     let address: String
     let latitude: Double
     let longitude: Double
     let source: String
     let imageURL: URL?
+    /// 외부 검색 공급자와 안정적인 장소 ID입니다. 이전 응답에는 없을 수 있습니다.
+    let provider: String?
+    let providerPlaceID: String?
 
     var photoSpot: PhotoSpot {
         PhotoSpot(
@@ -71,7 +78,19 @@ struct VerifiedPhotoSpot: Identifiable, Codable, Equatable {
             category: inferredCategory,
             weather: inferredWeather,
             mood: normalizedTags,
-            crowdLevelCode: "normal"
+            crowdLevelCode: "normal",
+            provider: provider ?? source,
+            providerPlaceID: providerPlaceID,
+            galleryPhotos: imageURL.map { url in
+                [
+                    PlacePhoto(
+                        id: "verified-\(source)-\(id)-cover",
+                        placeID: source == "local" ? id : "verified-\(source)-\(id)",
+                        imageURL: url,
+                        source: .seed
+                    )
+                ]
+            } ?? []
         )
     }
 
@@ -81,6 +100,22 @@ struct VerifiedPhotoSpot: Identifiable, Codable, Equatable {
             .filter { !$0.isEmpty }
 
         return cleaned.isEmpty ? ["출사지", "AI추천"] : Array(cleaned.prefix(4))
+    }
+
+    /// 결과 목록에서 보여 줄 한 줄 분류입니다.
+    /// 네이버의 `카페,디저트>커피전문점` 같은 경로는 읽기 쉬운 구분자로
+    /// 바꾸고, 이전 응답처럼 원본 분류가 없을 때만 태그를 보조값으로 씁니다.
+    var displayCategory: String {
+        let trimmedCategory = category?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmedCategory.isEmpty {
+            return trimmedCategory
+                .components(separatedBy: CharacterSet(charactersIn: ">,/"))
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " · ")
+        }
+
+        return normalizedTags.prefix(2).joined(separator: " · ")
     }
 
     private var lensSuggestion: String {
@@ -96,29 +131,12 @@ struct VerifiedPhotoSpot: Identifiable, Codable, Equatable {
     }
 
     private var inferredTheme: SpotTheme {
-        let text = ([name, description, reason, address] + normalizedTags).joined(separator: " ")
-
-        if text.contains("야경") || text.contains("밤") || text.contains("조명") {
-            return .night
-        }
-
-        if text.contains("카페") || text.contains("실내") || text.contains("미술관") {
-            return .indoor
-        }
-
-        if text.contains("꽃") || text.contains("정원") || text.contains("식물") {
-            return .flower
-        }
-
-        if text.contains("한강") || text.contains("호수") || text.contains("바다") || text.contains("물") {
-            return .water
-        }
-
-        if text.contains("공원") || text.contains("숲") || text.contains("산책") {
-            return .healing
-        }
-
-        return .city
+        SpotTheme.resolve(
+            name: name,
+            description: description,
+            tags: normalizedTags,
+            category: category
+        )
     }
 
     private var inferredCategory: String {
@@ -143,6 +161,141 @@ struct VerifiedPhotoSpot: Identifiable, Codable, Equatable {
         let text = ([name, description, reason, address] + normalizedTags).joined(separator: " ")
         guard text.contains("비") || text.lowercased().contains("rain") else { return [] }
         return ["rain"]
+    }
+}
+
+enum PlaceSubmissionAvailability: String, Equatable, Sendable {
+    case registered
+    case new
+
+    var badgeTitle: String? {
+        switch self {
+        case .registered:
+            return "등록됨"
+        case .new:
+            return nil
+        }
+    }
+}
+
+/// 장소 중복 검사의 공통 비교 단위입니다.
+/// 기존 장소에는 provider ID가 없을 수 있으므로 모든 보조 식별자를 함께 보관합니다.
+struct PlaceIdentity: Equatable, Sendable {
+    let id: String?
+    let provider: String?
+    let providerPlaceID: String?
+    let name: String
+    let address: String
+    let mapQuery: String
+    let latitude: Double?
+    let longitude: Double?
+
+    init(
+        id: String? = nil,
+        provider: String? = nil,
+        providerPlaceID: String? = nil,
+        name: String,
+        address: String,
+        mapQuery: String,
+        latitude: Double? = nil,
+        longitude: Double? = nil
+    ) {
+        self.id = id
+        self.provider = provider
+        self.providerPlaceID = providerPlaceID
+        self.name = name
+        self.address = address
+        self.mapQuery = mapQuery
+        self.latitude = latitude
+        self.longitude = longitude
+    }
+
+    init(spot: PhotoSpot) {
+        self.init(
+            id: spot.id,
+            provider: spot.provider,
+            providerPlaceID: spot.providerPlaceID,
+            name: spot.name,
+            address: spot.region,
+            mapQuery: spot.mapQuery,
+            latitude: spot.latitude,
+            longitude: spot.longitude
+        )
+    }
+}
+
+enum PlaceIdentityMatcher {
+    /// 같은 건물 안의 다른 POI를 합치지 않도록 수십 미터 수준으로 제한합니다.
+    static let coordinateThresholdMeters: CLLocationDistance = 60
+
+    static func matches(_ lhs: PlaceIdentity, _ rhs: PlaceIdentity) -> Bool {
+        let lhsProviderID = normalized(lhs.providerPlaceID)
+        let rhsProviderID = normalized(rhs.providerPlaceID)
+        let lhsProvider = normalized(lhs.provider)
+        let rhsProvider = normalized(rhs.provider)
+
+        if !lhsProviderID.isEmpty, !rhsProviderID.isEmpty,
+           !lhsProvider.isEmpty, lhsProvider == rhsProvider {
+            if lhsProviderID == rhsProviderID {
+                return true
+            }
+        }
+
+        let lhsID = normalized(lhs.id)
+        let rhsID = normalized(rhs.id)
+        if !lhsID.isEmpty, lhsID == rhsID {
+            return true
+        }
+
+        let nameMatches = textMatches(lhs.name, rhs.name)
+        let addressMatches = textMatches(lhs.address, rhs.address)
+        let mapQueryMatches = textMatches(lhs.mapQuery, rhs.mapQuery)
+
+        // 이름과 주소(또는 검색 query)가 함께 맞으면 provider ID가 없는
+        // 기존 121개 장소도 안정적으로 등록됨으로 분류합니다.
+        if nameMatches && (addressMatches || mapQueryMatches) {
+            return true
+        }
+
+        guard let lhsCoordinate = coordinate(for: lhs),
+              let rhsCoordinate = coordinate(for: rhs),
+              lhsCoordinate.distance(from: rhsCoordinate) <= coordinateThresholdMeters else {
+            return false
+        }
+
+        // 좌표만으로는 같은 건물 안의 서로 다른 장소를 합치지 않습니다.
+        return nameMatches || addressMatches
+    }
+
+    static func normalized(_ value: String?) -> String {
+        guard let value else { return "" }
+        let normalized = value
+            .precomposedStringWithCanonicalMapping
+            .folding(options: [.diacriticInsensitive, .widthInsensitive], locale: .current)
+            .lowercased()
+
+        return String(normalized.unicodeScalars.filter {
+            CharacterSet.alphanumerics.contains($0)
+        })
+    }
+
+    private static func textMatches(_ lhs: String, _ rhs: String) -> Bool {
+        let left = normalized(lhs)
+        let right = normalized(rhs)
+        guard !left.isEmpty, !right.isEmpty else { return false }
+        return left == right || left.contains(right) || right.contains(left)
+    }
+
+    private static func coordinate(for identity: PlaceIdentity) -> CLLocation? {
+        guard let latitude = identity.latitude,
+              let longitude = identity.longitude,
+              (-90...90).contains(latitude),
+              (-180...180).contains(longitude),
+              abs(latitude) > 0.000001 || abs(longitude) > 0.000001 else {
+            return nil
+        }
+
+        return CLLocation(latitude: latitude, longitude: longitude)
     }
 }
 

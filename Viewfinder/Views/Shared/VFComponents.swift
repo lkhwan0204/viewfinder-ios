@@ -16,6 +16,93 @@
 import CoreLocation
 import SwiftUI
 
+enum VFSearchFieldStyle: Equatable {
+    case map
+    case surface
+}
+
+struct VFSearchField: View {
+    @Binding var text: String
+    @FocusState.Binding var isFocused: Bool
+    let onSubmit: () -> Void
+    var onClear: (() -> Void)? = nil
+    var style: VFSearchFieldStyle = .surface
+
+    private let placeholder = "출사지, 지역, 분위기 검색"
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(iconTint)
+
+            TextField(
+                placeholder,
+                text: $text,
+                prompt: Text(placeholder).foregroundStyle(promptTint)
+            )
+                .font(AppTypography.bodyStrong)
+                .foregroundStyle(textTint)
+                .tint(AppColors.accent)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($isFocused)
+                .onSubmit(onSubmit)
+                .accessibilityLabel(placeholder)
+
+            if !text.isEmpty {
+                Button {
+                    if let onClear {
+                        onClear()
+                    } else {
+                        text = ""
+                        isFocused = true
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(clearTint)
+                }
+                .buttonStyle(.plain)
+                .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
+                .accessibilityLabel("검색어 지우기")
+            }
+        }
+        .padding(.horizontal, 18)
+        .frame(height: 56)
+        .frame(maxWidth: .infinity)
+        .background {
+            let shape = RoundedRectangle(cornerRadius: 28, style: .continuous)
+            switch style {
+            case .map:
+                Color.clear.mapChromeSurface(shape)
+            case .surface:
+                AppColors.mutedSurface
+                    .clipShape(shape)
+            }
+        }
+        .overlay {
+            if style == .surface {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .strokeBorder(AppColors.accent.opacity(isFocused ? 0.45 : 0), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private var iconTint: Color {
+        switch style {
+        case .map: return isFocused || !text.isEmpty ? MapChrome.ink : MapChrome.inkDim
+        case .surface: return isFocused ? AppColors.accent : AppColors.secondaryText
+        }
+    }
+
+    private var textTint: Color { style == .map ? MapChrome.ink : AppColors.primary }
+    private var promptTint: Color { style == .map ? MapChrome.inkDim : AppColors.secondaryText }
+    private var clearTint: Color { style == .map ? MapChrome.inkDim : AppColors.secondaryText }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // MARK: - VFPhotoTile
 //
@@ -35,6 +122,8 @@ enum VFPhotoDetail {
     case card
     /// full-bleed Hero, 상세 화면 대표 사진 (화면 폭)
     case hero
+    /// 전체 화면 확대 뷰. 원본 전체를 즉시 디코딩하지 않도록 상한만 둡니다.
+    case fullscreen
 
     var pixelWidth: Int {
         switch self {
@@ -44,6 +133,8 @@ enum VFPhotoDetail {
             return 900
         case .hero:
             return 1600
+        case .fullscreen:
+            return 3200
         }
     }
 }
@@ -107,6 +198,52 @@ struct VFPhotoTile: View {
             symbolSize: 32,
             targetPixelWidth: imageDetail.pixelWidth
         )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - VFCrowdLevelButton
+//
+//  Community 작성 화면과 Place Detail에서 같은 혼잡도 선택 상태를
+//  사용합니다. 선택 상태는 색상 + 체크 표시 + 텍스트 대비로 전달합니다.
+// ═══════════════════════════════════════════════════════════════════
+
+struct VFCrowdLevelButton: View {
+    let crowd: CommunityPost.Crowd
+    let isSelected: Bool
+    var isDisabled: Bool = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Text(crowd.displayName)
+                    .vfText(.headline)
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                }
+            }
+            .foregroundStyle(isSelected ? Color.white : AppColors.primary)
+            .frame(maxWidth: .infinity, minHeight: AppLayout.touchTarget)
+            .background(
+                isSelected ? crowd.buttonFill : AppColors.mutedSurface,
+                in: Capsule()
+            )
+            .overlay {
+                Capsule()
+                    .stroke(
+                        isSelected ? crowd.buttonFill.opacity(0.9) : AppColors.divider,
+                        lineWidth: 1
+                    )
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .accessibilityLabel("혼잡도 \(crowd.displayName)")
+        .accessibilityValue(isSelected ? "선택됨" : "선택 안 됨")
     }
 }
 
@@ -218,13 +355,14 @@ struct VFMetaLine: View {
     let items: [String]
     var color: Color = AppColors.secondaryText
     var alignment: HorizontalAlignment = .leading
+    var textStyle: VFTextStyle = .mono
 
     var body: some View {
         let visible = items.filter { !$0.isEmpty }
 
         if !visible.isEmpty {
             Text(visible.joined(separator: "  ·  "))
-                .vfText(.mono)
+                .vfText(textStyle)
                 .foregroundStyle(color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
@@ -357,7 +495,6 @@ enum VFSpotDistance {
     .vfScreenMargin()
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(Color(uiColor: VFPalette.canvas))
-    .preferredColorScheme(.dark)
 }
 #endif
 
@@ -439,6 +576,18 @@ extension View {
 
 enum VFLiveCrowd {
 
+    /// 현재 상태로 인정하는 시간 창입니다. 저장소의 사용자별 제보
+    /// upsert 기준과 화면 집계 기준을 하나로 맞춥니다.
+    static let freshnessWindow: TimeInterval = 60 * 60
+    private static let defaultFreshnessHours = freshnessWindow / (60 * 60)
+
+    private struct Signal {
+        let crowd: CommunityPost.Crowd
+        let date: Date
+        let authorID: String
+        let fallbackID: String
+    }
+
     /// 최근 제보에서 계산한 혼잡도. 제보가 없으면 nil 입니다.
     ///
     /// 제보가 없을 때 시드 데이터(spot.crowdLevel)로 채우지 않는 것이 중요합니다.
@@ -451,22 +600,123 @@ enum VFLiveCrowd {
     /// - Parameters:
     ///   - spot: 대상 장소
     ///   - posts: 전체 커뮤니티 글. 내부에서 spotID 로 걸러냅니다.
-    ///   - hours: 제보를 유효하게 볼 시간 창. 기본 3시간.
-    static func resolve(
+    ///   - hours: 제보를 유효하게 볼 시간 창. 기본 1시간.
+    static func summary(
         spot: PhotoSpot,
-        posts: [CommunityPost],
-        within hours: Double = 3
-    ) -> VFCrowdLevel? {
+        reports: [CrowdReport],
+        legacyPosts: [CommunityPost] = [],
+        within hours: Double = VFLiveCrowd.defaultFreshnessHours
+    ) -> CrowdReportSummary? {
         let cutoff = Date().addingTimeInterval(-hours * 60 * 60)
 
-        let recent = posts.filter { post in
-            post.spotID == spot.id && post.createdAt >= cutoff
+        let reportSignals = reports.compactMap { report -> Signal? in
+            guard report.placeID == spot.id, report.updatedAt >= cutoff else { return nil }
+            return Signal(
+                crowd: report.crowd,
+                date: report.updatedAt,
+                authorID: report.authorID,
+                fallbackID: "report-\(report.id)"
+            )
         }
+        let communityReportPostIDs = Set(reports.compactMap(\.communityPostID))
+        let legacySignals = legacyPosts.compactMap { post -> Signal? in
+            let reportDate = post.updatedAt ?? post.createdAt
+            guard post.spotID == spot.id,
+                  post.hasStatusInfo,
+                  // 새 Community 혼잡도는 crowdReports에 이미 저장되므로
+                  // 게시글과 보고서를 함께 세어 한 건을 두 번 반영하지 않습니다.
+                  !communityReportPostIDs.contains(post.id),
+                  reportDate >= cutoff else {
+                return nil
+            }
+            return Signal(
+                crowd: post.crowd,
+                date: reportDate,
+                authorID: post.authorID,
+                fallbackID: "post-\(post.id)"
+            )
+        }
+        let signals = uniqueSignals(reportSignals + legacySignals)
 
-        guard let latest = recent.max(by: { $0.createdAt < $1.createdAt }) else {
+        guard let latest = signals.max(by: { $0.date < $1.date }) else {
             return nil
         }
 
-        return VFCrowdLevel.from(latest.crowd.rawValue)
+        let counts = Dictionary(grouping: signals, by: \.crowd).mapValues(\.count)
+        let mostReportedCrowd = CommunityPost.Crowd.allCases.max { left, right in
+            let leftCount = counts[left, default: 0]
+            let rightCount = counts[right, default: 0]
+
+            if leftCount == rightCount {
+                let leftLatest = signals
+                    .filter { $0.crowd == left }
+                    .map(\.date)
+                    .max() ?? .distantPast
+                let rightLatest = signals
+                    .filter { $0.crowd == right }
+                    .map(\.date)
+                    .max() ?? .distantPast
+                return leftLatest < rightLatest
+            }
+
+            return leftCount < rightCount
+        }
+
+        guard let mostReportedCrowd else { return nil }
+        return CrowdReportSummary(
+            crowd: mostReportedCrowd,
+            reportCount: signals.count,
+            latestDate: latest.date
+        )
+    }
+
+    /// 같은 사용자가 같은 장소에 남긴 최신 상태만 집계합니다.
+    /// authorID가 없는 아주 오래된 문서는 기존 제보를 서로 합치지 않고
+    /// 문서별로 유지해, 익명/레거시 데이터가 전부 한 표로 뭉개지지 않게 합니다.
+    private static func uniqueSignals(_ signals: [Signal]) -> [Signal] {
+        var latestByVoter: [String: Signal] = [:]
+
+        for signal in signals.sorted(by: { $0.date > $1.date }) {
+            let voterKey = signal.authorID.isEmpty ? signal.fallbackID : signal.authorID
+            guard let existing = latestByVoter[voterKey] else {
+                latestByVoter[voterKey] = signal
+                continue
+            }
+
+            if signal.date > existing.date {
+                latestByVoter[voterKey] = signal
+            }
+        }
+
+        return latestByVoter.values.sorted { $0.date > $1.date }
+    }
+
+    static func resolve(
+        spot: PhotoSpot,
+        reports: [CrowdReport],
+        legacyPosts: [CommunityPost] = [],
+        within hours: Double = 3
+    ) -> VFCrowdLevel? {
+        summary(
+            spot: spot,
+            reports: reports,
+            legacyPosts: legacyPosts,
+            within: hours
+        )
+        .flatMap { VFCrowdLevel.from($0.crowd.displayName) }
+    }
+
+    /// 이전 호출부와 기존 테스트를 위한 호환 오버로드입니다.
+    static func resolve(
+        spot: PhotoSpot,
+        posts: [CommunityPost],
+        within hours: Double = VFLiveCrowd.defaultFreshnessHours
+    ) -> VFCrowdLevel? {
+        resolve(
+            spot: spot,
+            reports: [],
+            legacyPosts: posts,
+            within: hours
+        )
     }
 }

@@ -10,6 +10,10 @@ struct MapRecommendationResult {
 
 struct MapRecommendationEngine {
     private let localSeedDataService: LocalSeedDataService
+    /// 위치 권한을 아직 받지 못했을 때의 탐색 시작점입니다.
+    /// 전국 추천을 한 화면에 모두 맞추면 핀이 지나치게 멀어져 발견할 수 없으므로,
+    /// 앱의 기본 탐색 도시인 서울 중심에서 시작합니다.
+    private let fallbackCoordinate = CLLocationCoordinate2D(latitude: 37.5665, longitude: 126.9780)
 
     init(localSeedDataService: LocalSeedDataService = LocalSeedDataService()) {
         self.localSeedDataService = localSeedDataService
@@ -20,24 +24,17 @@ struct MapRecommendationEngine {
         from recommendedSpots: [PhotoSpot],
         categoryFilter: MapCategoryFilter
     ) -> MapRecommendationResult {
-        guard let coordinate else {
-            let fallbackSpots = filtered(recommendedSpots, categoryFilter: categoryFilter)
-            return MapRecommendationResult(
-                spots: fallbackSpots,
-                radius: nil,
-                candidateCount: fallbackSpots.count,
-                fallbackUsed: true
-            )
-        }
+        let searchCoordinate = coordinate ?? fallbackCoordinate
+        let usesFallbackLocation = coordinate == nil
 
         for radius in [10_000.0, 20_000.0, 30_000.0] {
             let nearbyLocalSpots = localSeedDataService.photoSpots(
-                near: coordinate,
+                near: searchCoordinate,
                 within: radius,
                 limit: 36
             )
             let nearbyGeneratedSpots = recommendedSpots.filter {
-                distance(from: coordinate, to: $0) <= radius
+                distance(from: searchCoordinate, to: $0) <= radius
             }
             let candidates = filtered(
                 unique(nearbyLocalSpots + nearbyGeneratedSpots),
@@ -49,7 +46,7 @@ struct MapRecommendationEngine {
                     spots: Array(candidates.prefix(6)),
                     radius: radius,
                     candidateCount: candidates.count,
-                    fallbackUsed: false
+                    fallbackUsed: usesFallbackLocation
                 )
             }
         }
@@ -58,7 +55,7 @@ struct MapRecommendationEngine {
             spots: [],
             radius: 30_000,
             candidateCount: 0,
-            fallbackUsed: false
+            fallbackUsed: usesFallbackLocation
         )
     }
 

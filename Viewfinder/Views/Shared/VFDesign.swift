@@ -32,22 +32,20 @@ enum VFPalette {
 
     /// 루트 배경. 사진 대비를 최대화하는 순수 검정.
     static let canvas = dynamic(dark: 0x000000, light: 0xFFFFFF)
+    /// 홈 피드 전용 캔버스. 사진 주변이 순백으로 튀지 않도록 라이트에서
+    /// 아주 옅은 웜 오프화이트를 사용합니다.
+    static let feedCanvas = dynamic(dark: 0x000000, light: 0xFAF9F7)
+    /// 사진 밖 보조 표면에만 사용하는 홈 피드 표면 색입니다.
+    static let feedSurface = dynamic(dark: 0x121214, light: 0xF2F1EF)
     /// 카드, 리스트 그룹 등 한 단계 올라온 표면.
     static let surface1 = dynamic(dark: 0x121214, light: 0xF5F5F7)
     /// surface1 위에 올라가는 요소. 칩, 아이콘 배경.
     static let surface2 = dynamic(dark: 0x1C1C1F, light: 0xEBEBF0)
 
-    /// 지도 위 컨트롤 표면. 라이트/다크에 따라 바뀌지 않습니다.
-    ///
-    /// 네이버 지도는 앱 모드와 무관하게 항상 밝습니다.
-    /// 그래서 지도 위 컨트롤은 다이내믹 컬러를 쓸 수 없습니다.
-    /// surface2 를 쓰면 라이트 모드에서 밝은 회색 칩 + 흰 글자가 되어
-    /// 아무것도 읽히지 않습니다.
-    ///
-    /// 값은 surface2 의 다크 값과 같습니다.
-    /// 탭바(다크에서 surface2)와 지도 컨트롤이 같은 색으로 보이게
-    /// 맞춘 것입니다.
-    static let mapChrome = uiColor(hex: 0x1C1C1F)
+    /// 지도 위 컨트롤 표면. 지도 타일은 앱 모드에 맞춰 전환되므로
+    /// 컨트롤도 라이트에서는 흰 표면, 다크에서는 surface2를 씁니다.
+    /// 둘 다 얇은 경계선과 충분한 대비를 함께 적용해 지도 위에서 읽힙니다.
+    static let mapChrome = dynamic(dark: 0x1C1C1F, light: 0xFFFFFF)
 
     // MARK: Ink — 텍스트
     static let ink1 = dynamic(dark: 0xFFFFFF, light: 0x111111)
@@ -100,6 +98,13 @@ enum VFPalette {
     static let crowdNormal = dynamic(dark: 0xF2B02E, light: 0xB07A10)
     static let crowdBusy = dynamic(dark: 0xF0453A, light: 0xC62A20)
 
+    /// 흰색 라벨을 올리는 선택 버튼용 색상입니다.
+    /// 일반 혼잡도 텍스트 색상보다 어둡게 잡아 다크 모드에서도
+    /// 불투명한 배경 위의 흰색 라벨 대비를 확보합니다.
+    static let crowdCalmButton = dynamic(dark: 0x23724F, light: 0x2E8F63)
+    static let crowdNormalButton = dynamic(dark: 0x956000, light: 0xB07A10)
+    static let crowdBusyButton = dynamic(dark: 0xA92720, light: 0xC62A20)
+
     // MARK: Avatar
     //
     // 사용자별 아바타 배경. 이전에는 파랑/갈색/초록/보라/빨강/청록 6색이었습니다.
@@ -138,6 +143,66 @@ enum VFPalette {
             blue: CGFloat(hex & 0xFF) / 255.0,
             alpha: alpha
         )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MARK: - Appearance
+// ═══════════════════════════════════════════════════════════════════
+
+/// 앱 전체에 적용되는 화면 모드입니다.
+/// 기본값은 기기 설정을 따르며, 사용자가 마이 탭에서 언제든 덮어쓸 수 있습니다.
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    static let storageKey = "viewfinder.appAppearance"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system:
+            return "시스템 설정"
+        case .light:
+            return "라이트"
+        case .dark:
+            return "다크"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .system:
+            return "기기 설정을 따름"
+        case .light:
+            return "밝은 화면"
+        case .dark:
+            return "어두운 화면"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .system:
+            return "circle.lefthalf.filled"
+        case .light:
+            return "sun.max"
+        case .dark:
+            return "moon"
+        }
+    }
+
+    var preferredColorScheme: ColorScheme? {
+        switch self {
+        case .system:
+            return nil
+        case .light:
+            return .light
+        case .dark:
+            return .dark
+        }
     }
 }
 
@@ -630,9 +695,9 @@ enum VFCrowdLevel: Int, CaseIterable {
         case .normal:
             return "보통"
         case .busy:
-            return "붐빔"
+            return "혼잡"
         case .veryBusy:
-            return "매우 붐빔"
+            return "혼잡"
         }
     }
 

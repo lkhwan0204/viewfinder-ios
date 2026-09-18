@@ -41,16 +41,25 @@ struct SeedPhotoSpot: Decodable, Identifiable {
             bestTime: bestTime,
             reason: reason,
             tags: tags,
+            category: nil,
             address: address,
             latitude: latitude,
             longitude: longitude,
             source: source,
-            imageURL: imageURL
+            imageURL: imageURL,
+            provider: source == "local" ? nil : source,
+            providerPlaceID: nil
         )
     }
 
     var photoSpot: PhotoSpot {
-        let resolvedTheme = SpotTheme(rawValue: theme) ?? verifiedSpot.photoSpot.theme
+        let resolvedTheme = SpotTheme.resolve(
+            legacyValue: theme,
+            name: name,
+            description: description,
+            tags: tags,
+            category: category
+        )
 
         return PhotoSpot(
             id: id,
@@ -85,8 +94,23 @@ struct SeedPhotoSpot: Decodable, Identifiable {
             imageLicense: imageLicense?.nilIfBlank,
             imageSourceURL: imageSourceURL,
             recommendationRegions: recommendationRegions,
-            isHiddenSpot: resolvedIsHiddenSpot
+            isHiddenSpot: resolvedIsHiddenSpot,
+            galleryPhotos: seedGalleryPhotos
         )
+    }
+
+    private var seedGalleryPhotos: [PlacePhoto] {
+        guard imageName?.nilIfBlank != nil || imageURL != nil else { return [] }
+
+        return [
+            PlacePhoto(
+                id: "seed-\(id)-cover",
+                placeID: id,
+                imageURL: imageURL,
+                imageName: imageName?.nilIfBlank,
+                source: .seed
+            )
+        ]
     }
 
     private var recommendationRegions: [String] {
@@ -129,7 +153,7 @@ struct SeedPhotoSpot: Decodable, Identifiable {
             return "walk"
         }
 
-        if theme == "indoor" {
+        if theme == "indoor" || theme == "cafeIndoor" {
             return "indoor"
         }
 
@@ -174,28 +198,28 @@ struct SeedPhotoSpot: Decodable, Identifiable {
 
     private func lensSuggestion(for theme: SpotTheme) -> String {
         switch theme {
-        case .night, .city, .water:
+        case .cityArchitecture, .retroAlley, .historyTradition, .viewpoint:
             return "24-70mm 줌, 야경은 밝은 단렌즈"
-        case .flower:
+        case .landscape:
             return "50mm 단렌즈 또는 접사 가능한 표준 줌"
-        case .indoor:
+        case .cafeIndoor:
             return "35mm 밝은 단렌즈"
-        case .healing:
-            return "35mm 또는 50mm 단렌즈"
         }
     }
 
     private func weatherFit(for theme: SpotTheme) -> String {
         switch theme {
-        case .night:
+        case .retroAlley:
             return "맑은 밤과 비 온 뒤 반사 컷에 좋아요"
-        case .flower, .healing:
+        case .historyTradition:
+            return "맑은 날 건축 디테일과 차분한 색감이 좋아요"
+        case .landscape:
             return "맑거나 얇게 흐린 날 색감이 부드러워요"
-        case .indoor:
+        case .cafeIndoor:
             return "비 오는 날에도 촬영하기 좋아요"
-        case .water:
+        case .viewpoint:
             return "바람 적은 날 반영이 깔끔해요"
-        case .city:
+        case .cityArchitecture:
             return "맑은 날 선명하고 흐린 날은 차분한 색감이 좋아요"
         }
     }
@@ -247,7 +271,7 @@ struct LocalSeedDataService {
         let origin = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         return loadSpots()
             .filter {
-                $0.imageURL != nil
+                $0.photoSpot.hasReliableDisplayImage
                     && !RecommendationBlacklist.isBlacklistedRecommendation($0.photoSpot)
             }
             .map { spot in
@@ -525,6 +549,7 @@ struct RecommendationWeatherContext: Equatable, Sendable {
     let windSpeed: Double
     let pm10: Double?
     let pm25: Double?
+    var timeZoneIdentifier: String = TimeZone.current.identifier
 
     var isRainy: Bool {
         condition.contains("비") || condition.contains("천둥") || precipitation > 0.1
@@ -575,9 +600,9 @@ struct RecommendationTimeContext: Equatable, Sendable {
 
     let phase: Phase
 
-    init(referenceDate: Date) {
+    init(referenceDate: Date, timeZone: TimeZone = .current) {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Asia/Seoul") ?? .current
+        calendar.timeZone = timeZone
         let hour = calendar.component(.hour, from: referenceDate)
 
         switch hour {
@@ -594,6 +619,38 @@ struct RecommendationTimeContext: Equatable, Sendable {
         default:
             phase = .night
         }
+    }
+}
+
+/// Pure, testable policy for Home's city-scale recommendation scope.
+/// Map never consumes this type and continues to own its global/viewport dataset.
+struct RecommendationGeographicPolicy: Sendable {
+    static let candidateRadiusMeters = HomeGeographicContext.candidateRadiusMeters
+
+    static func candidateSpots(
+        from spots: [PhotoSpot],
+        near coordinate: CLLocationCoordinate2D
+    ) -> [PhotoSpot] {
+        spots
+            .map { spot in
+                (spot, distance(from: coordinate, to: spot.coordinate))
+            }
+            .filter { $0.1 <= candidateRadiusMeters }
+            .sorted { left, right in
+                if left.1 == right.1 {
+                    return left.0.id < right.0.id
+                }
+                return left.1 < right.1
+            }
+            .map(\.0)
+    }
+
+    private static func distance(
+        from source: CLLocationCoordinate2D,
+        to destination: CLLocationCoordinate2D
+    ) -> CLLocationDistance {
+        CLLocation(latitude: source.latitude, longitude: source.longitude)
+            .distance(from: CLLocation(latitude: destination.latitude, longitude: destination.longitude))
     }
 }
 
@@ -635,16 +692,30 @@ struct HomeRecommendationService: Sendable {
         baseSpots = seedService.allPhotoSpots()
     }
 
+    func regionCandidateSpots(
+        from spots: [PhotoSpot],
+        near coordinate: CLLocationCoordinate2D?
+    ) -> [PhotoSpot] {
+        guard let coordinate else { return [] }
+
+        let eligible = spots
+            .filter { !CafeRecommendationPolicy.isBlacklistedCafe($0) }
+            .filter { !RecommendationBlacklist.isBlacklistedRecommendation($0) }
+        return RecommendationGeographicPolicy.candidateSpots(from: eligible, near: coordinate)
+    }
+
     func makeSnapshot(
         communityPosts: [CommunityPost] = [],
+        availableSpots: [PhotoSpot]? = nil,
         userLocation: CLLocationCoordinate2D? = nil,
         weatherContext: RecommendationWeatherContext? = nil,
+        timeZone: TimeZone = .current,
         referenceDate: Date = Date(),
         variationSeed: Int = 0
     ) -> HomeRecommendationSnapshot {
         let communitySignal = HomeCommunitySignal(posts: communityPosts)
-        let timeContext = RecommendationTimeContext(referenceDate: referenceDate)
-        let baseCandidates = baseSpots
+        let timeContext = RecommendationTimeContext(referenceDate: referenceDate, timeZone: timeZone)
+        let baseCandidates = (availableSpots ?? baseSpots)
             .filter { !CafeRecommendationPolicy.isBlacklistedCafe($0) }
             .filter { !RecommendationBlacklist.isBlacklistedRecommendation($0) }
             .shuffled()
@@ -708,7 +779,7 @@ struct HomeRecommendationService: Sendable {
             let expandedStrictCandidates = expandedSectionCandidates(
                 for: kind,
                 strictCandidates: strictCandidates,
-                allCandidates: baseCandidates,
+                allCandidates: candidates,
                 usedSpotIDs: usedSpotIDs
             )
             let candidatePool = expandedStrictCandidates.isEmpty
@@ -755,10 +826,10 @@ struct HomeRecommendationService: Sendable {
         for kind in assignmentOrder {
             let featuredRecommendations = sections[kind] ?? []
             let featuredIDs = Set(featuredRecommendations.map(\.spot.id))
-            let strictCandidates = baseCandidates
+            let strictCandidates = candidates
                 .filter { !featuredIDs.contains($0.id) }
                 .filter { matches($0, kind: kind) }
-            let relaxedCandidates = baseCandidates
+            let relaxedCandidates = candidates
                 .filter { !featuredIDs.contains($0.id) }
                 .filter { relaxedMatches($0, kind: kind) }
             let strictExtraSpots = Array(ranked(
@@ -874,45 +945,8 @@ struct HomeRecommendationService: Sendable {
         from candidates: [PhotoSpot],
         userLocation: CLLocationCoordinate2D?
     ) -> (spots: [PhotoSpot], radius: CLLocationDistance?, fallbackUsed: Bool) {
-        guard let userLocation else {
-            let defaultSeoulCandidates = candidates.filter {
-                containsAny(searchableValues(for: $0), ["서울", "한강", "성수", "문래", "을지로", "연남", "선유도", "망원", "서촌", "해방촌", "북촌"])
-            }
-            return (defaultSeoulCandidates.isEmpty ? candidates : defaultSeoulCandidates, nil, true)
-        }
-
-        var nearestNonEmpty: (spots: [PhotoSpot], radius: CLLocationDistance)?
-
-        for radius in [10_000.0, 20_000.0, 30_000.0] {
-            let nearby = candidates.filter {
-                distance(from: userLocation, to: $0) <= radius
-            }
-            let nearestSpots = nearby.sorted {
-                distance(from: userLocation, to: $0) < distance(from: userLocation, to: $1)
-            }
-
-            if !nearestSpots.isEmpty, nearestNonEmpty == nil {
-                nearestNonEmpty = (nearestSpots, radius)
-            }
-
-            if nearestSpots.count >= 18 {
-                return (
-                    Array(nearestSpots.prefix(42)),
-                    radius,
-                    false
-                )
-            }
-        }
-
-        if let nearestNonEmpty {
-            return (
-                Array(nearestNonEmpty.spots.prefix(42)),
-                nearestNonEmpty.radius,
-                false
-            )
-        }
-
-        return ([], 30_000, false)
+        let scoped = regionCandidateSpots(from: candidates, near: userLocation)
+        return (scoped, RecommendationGeographicPolicy.candidateRadiusMeters, false)
     }
 
     private func ranked(
@@ -1178,45 +1212,10 @@ struct HomeRecommendationService: Sendable {
             weatherContext: weatherContext,
             timeContext: timeContext
         )
-        let contextualLabel = contextualLabel(
-            for: spot,
-            label: label,
-            weatherContext: weatherContext,
-            timeContext: timeContext
-        )
-
         return RecommendedSpot(
             spot: spot,
             reason: communitySignal.highlightReason(for: spot) ?? contextualReason ?? spot.eventPeriod
         )
-    }
-
-    private func contextualLabel(
-        for spot: PhotoSpot,
-        label: String,
-        weatherContext: RecommendationWeatherContext?,
-        timeContext: RecommendationTimeContext
-    ) -> String {
-        guard label == "오늘 추천" else { return label }
-
-        if weatherContext?.hasBadAirQuality == true, isIndoorFriendly(spot) {
-            return "미세먼지 실내 추천"
-        }
-
-        if weatherContext?.isRainy == true, isIndoorFriendly(spot) {
-            return "비 오는 날 추천"
-        }
-
-        switch timeContext.phase {
-        case .goldenHour where isSunsetFriendly(spot):
-            return "노을 시간 추천"
-        case .evening, .night:
-            return isNightFriendly(spot) ? "야경 시간 추천" : label
-        case .dawn, .morning:
-            return isWalkFriendly(spot) ? "오전 산책 추천" : label
-        default:
-            return label
-        }
     }
 
     private func contextualReason(
@@ -1272,7 +1271,7 @@ struct HomeRecommendationService: Sendable {
             return eligible
         }
 
-        for radius in [10_000.0, 20_000.0, 30_000.0] {
+        for radius in [20_000.0, 35_000.0, RecommendationGeographicPolicy.candidateRadiusMeters] {
             let nearby = eligible.filter { distance(from: userLocation, to: $0) <= radius }
             if !nearby.isEmpty {
                 return nearby
@@ -1302,7 +1301,7 @@ struct HomeRecommendationService: Sendable {
         }
 
         if let userLocation {
-            return distance(from: userLocation, to: spot) > 30_000
+            return distance(from: userLocation, to: spot) > RecommendationGeographicPolicy.candidateRadiusMeters
         }
 
         return containsAny(searchableValues(for: spot), ["부산", "강원", "강원도", "제주", "제주도"])
@@ -1321,6 +1320,8 @@ struct HomeRecommendationService: Sendable {
             return 18
         case ...30_000:
             return 8
+        case ...RecommendationGeographicPolicy.candidateRadiusMeters:
+            return -12
         default:
             return -80
         }

@@ -208,18 +208,31 @@ struct PlaceSearchService {
 
 struct PlaceSearchResult: Identifiable, Equatable {
     let spot: PhotoSpot
+    /// 네이버 지역 검색의 장소 분류. 로컬 결과는 앱 태그를 보조로 표시합니다.
+    let category: String
     let address: String
-    /// 앱에 이미 등록된 장소인지. UI 에서 구분 표시에 쓸 수 있습니다.
-    let isKnown: Bool
+    /// 검색 결과가 새 제보로 이어질 수 있는지 나타냅니다.
+    let availability: PlaceSubmissionAvailability
 
     var id: String { spot.id }
     var name: String { spot.name }
+    var isKnown: Bool { availability == .registered }
 }
 
 @MainActor
 final class PlaceFinder: ObservableObject {
+    private struct RemoteSearchCacheEntry {
+        let spots: [VerifiedPhotoSpot]
+        let storedAt: Date
+    }
+
+    private static let remoteSearchCacheTTL: TimeInterval = 2 * 60
+    private static let remoteSearchCacheLimit = 20
+    private static var remoteSearchCache: [String: RemoteSearchCacheEntry] = [:]
+
     @Published private(set) var results: [PlaceSearchResult] = []
     @Published private(set) var isSearching = false
+    @Published private(set) var hasNoResults = false
     @Published private(set) var message: String?
 
     /// 한 번에 보여줄 결과 개수.
@@ -246,6 +259,7 @@ final class PlaceFinder: ObservableObject {
     func clear() {
         task?.cancel()
         results = []
+        hasNoResults = false
         message = nil
         isSearching = false
     }
@@ -264,15 +278,33 @@ final class PlaceFinder: ObservableObject {
 
         guard query.count >= minimumQueryLength else {
             results = []
+            hasNoResults = false
             message = nil
             isSearching = false
             return
         }
 
-        let localResults = localMatches(for: query, in: knownSpots)
+        let localResults = localMatches(
+            for: query,
+            in: knownSpots
+        )
         results = Array(localResults.prefix(resultLimit))
+        hasNoResults = false
         message = nil
         isSearching = true
+
+        let requestKey = Self.requestKey(query: query, userLocation: userLocation)
+        if let cachedRemoteSpots = Self.cachedRemoteSpots(for: requestKey) {
+            let remoteResults = Self.placeSearchResults(
+                from: cachedRemoteSpots,
+                knownSpots: knownSpots
+            )
+            let merged = Self.deduplicated(localResults + remoteResults)
+            results = Array(merged.prefix(resultLimit))
+            hasNoResults = merged.isEmpty
+            isSearching = false
+            return
+        }
 
         task = Task { [weak self] in
             guard let self else { return }
@@ -287,21 +319,23 @@ final class PlaceFinder: ObservableObject {
                 )
                 guard !Task.isCancelled else { return }
 
-                let remoteResults = remote.map {
-                    PlaceSearchResult(spot: $0.photoSpot, address: $0.address, isKnown: false)
-                }
+                Self.storeRemoteSpots(remote, for: requestKey)
+                let remoteResults = Self.placeSearchResults(
+                    from: remote,
+                    knownSpots: knownSpots
+                )
 
                 let merged = Self.deduplicated(localResults + remoteResults)
 
                 self.results = Array(merged.prefix(self.resultLimit))
-                self.message = merged.isEmpty
-                    ? "‘\(query)’ 검색 결과가 없어요. 장소명에 지역을 함께 넣어보세요."
-                    : nil
+                self.hasNoResults = merged.isEmpty
+                self.message = nil
                 self.isSearching = false
             } catch {
                 guard !Task.isCancelled else { return }
 
                 // 로컬 결과가 있으면 원격 실패를 알리지 않습니다.
+                self.hasNoResults = false
                 self.message = localResults.isEmpty ? Self.failureMessage(for: error) : nil
                 self.isSearching = false
             }
@@ -310,13 +344,23 @@ final class PlaceFinder: ObservableObject {
 
     // MARK: 로컬
 
-    private func localMatches(for query: String, in knownSpots: [PhotoSpot]) -> [PlaceSearchResult] {
+    private func localMatches(
+        for query: String,
+        in knownSpots: [PhotoSpot]
+    ) -> [PlaceSearchResult] {
         let fromKnown = knownSpots
             .filter { spot in
                 let fields = [spot.name, spot.region, spot.mapQuery] + spot.recommendationRegions
                 return fields.contains { $0.localizedCaseInsensitiveContains(query) }
             }
-            .map { PlaceSearchResult(spot: $0, address: $0.region, isKnown: true) }
+            .map {
+                PlaceSearchResult(
+                    spot: $0,
+                    category: Self.localCategory(for: $0),
+                    address: $0.region,
+                    availability: .registered
+                )
+            }
 
         // 시드 조회도 함께 씁니다. verifiedSpots 는 위 필터가 보지 않는
         // 필드(설명·태그)까지 훑기 때문에 놓치는 장소가 줄어듭니다.
@@ -329,30 +373,137 @@ final class PlaceFinder: ObservableObject {
             .verifiedSpots(matching: query, limit: resultLimit)
             .map(\.photoSpot)
             .filter { !RecommendationBlacklist.isBlacklistedRecommendation($0) }
-            .map { PlaceSearchResult(spot: $0, address: $0.region, isKnown: true) }
+            .map {
+                PlaceSearchResult(
+                    spot: $0,
+                    category: Self.localCategory(for: $0),
+                    address: $0.region,
+                    availability: .registered
+                )
+            }
 
         return Self.deduplicated(fromKnown + fromSeed)
     }
 
     // MARK: 중복 제거
 
-    /// 같은 장소가 로컬과 원격에서 각각 올라오므로 이름+주소로 접습니다.
-    /// id 는 출처마다 다르게 만들어지기 때문에 id 로는 접히지 않습니다.
-    private static func deduplicated(_ values: [PlaceSearchResult]) -> [PlaceSearchResult] {
-        var seen: Set<String> = []
+    private static func placeSearchResults(
+        from remoteSpots: [VerifiedPhotoSpot],
+        knownSpots: [PhotoSpot]
+    ) -> [PlaceSearchResult] {
+        remoteSpots.map {
+            let remoteSpot = $0.photoSpot
+            let availability = availability(for: remoteSpot, knownSpots: knownSpots)
+            let displaySpot = availability == .registered
+                ? registeredSpot(matching: remoteSpot, in: knownSpots) ?? remoteSpot
+                : remoteSpot
 
-        return values.reduce(into: []) { merged, result in
-            let key = normalizedKey(name: result.name, address: result.address)
-            guard !seen.contains(key) else { return }
-            seen.insert(key)
-            merged.append(result)
+            return PlaceSearchResult(
+                spot: displaySpot,
+                category: $0.displayCategory,
+                address: $0.address,
+                availability: availability
+            )
         }
     }
 
-    private static func normalizedKey(name: String, address: String) -> String {
-        "\(name)-\(address)"
-            .replacingOccurrences(of: " ", with: "")
+    private static func requestKey(
+        query: String,
+        userLocation: CLLocationCoordinate2D?
+    ) -> String {
+        let normalizedQuery = query
+            .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
+        guard let userLocation else { return "\(normalizedQuery)|none" }
+
+        // 약 1km 단위로 묶어 같은 검색 세션의 미세한 GPS 흔들림이
+        // 동일 요청을 다시 만들지 않게 합니다.
+        let latitude = Int((userLocation.latitude * 100).rounded())
+        let longitude = Int((userLocation.longitude * 100).rounded())
+        return "\(normalizedQuery)|\(latitude)|\(longitude)"
+    }
+
+    private static func cachedRemoteSpots(for key: String) -> [VerifiedPhotoSpot]? {
+        guard let entry = remoteSearchCache[key] else { return nil }
+        guard Date().timeIntervalSince(entry.storedAt) <= remoteSearchCacheTTL else {
+            remoteSearchCache[key] = nil
+            return nil
+        }
+        return entry.spots
+    }
+
+    private static func storeRemoteSpots(_ spots: [VerifiedPhotoSpot], for key: String) {
+        remoteSearchCache[key] = RemoteSearchCacheEntry(spots: spots, storedAt: Date())
+
+        if remoteSearchCache.count > remoteSearchCacheLimit,
+           let oldestKey = remoteSearchCache.min(by: {
+               $0.value.storedAt < $1.value.storedAt
+           })?.key {
+            remoteSearchCache[oldestKey] = nil
+        }
+    }
+
+    /// 같은 장소가 로컬과 원격에서 각각 올라오므로 공통 장소 식별자로 접습니다.
+    /// 등록된 장소 결과가 새 장소 결과보다 우선합니다.
+    private static func deduplicated(_ values: [PlaceSearchResult]) -> [PlaceSearchResult] {
+        values.reduce(into: [PlaceSearchResult]()) { merged, result in
+            guard let existingIndex = merged.firstIndex(where: {
+                PlaceIdentityMatcher.matches(
+                    PlaceIdentity(spot: $0.spot),
+                    PlaceIdentity(spot: result.spot)
+                )
+            }) else {
+                merged.append(result)
+                return
+            }
+
+            if priority(result.availability) > priority(merged[existingIndex].availability) {
+                merged[existingIndex] = result
+            }
+        }
+    }
+
+    private static func availability(
+        for spot: PhotoSpot,
+        knownSpots: [PhotoSpot]
+    ) -> PlaceSubmissionAvailability {
+        if knownSpots.contains(where: {
+            PlaceIdentityMatcher.matches(
+                PlaceIdentity(spot: spot),
+                PlaceIdentity(spot: $0)
+            )
+        }) {
+            return .registered
+        }
+
+        return .new
+    }
+
+    private static func registeredSpot(matching candidate: PhotoSpot, in knownSpots: [PhotoSpot]) -> PhotoSpot? {
+        knownSpots.first {
+            PlaceIdentityMatcher.matches(
+                PlaceIdentity(spot: candidate),
+                PlaceIdentity(spot: $0)
+            )
+        }
+    }
+
+    private static func priority(_ availability: PlaceSubmissionAvailability) -> Int {
+        switch availability {
+        case .new:
+            return 0
+        case .registered:
+            return 1
+        }
+    }
+
+    private static func localCategory(for spot: PhotoSpot) -> String {
+        let tags = spot.hashtags
+            .map { $0.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let label = tags.prefix(2).joined(separator: " · ")
+        return label.isEmpty ? "등록된 출사지" : label
     }
 
     /// 원격 검색이 실패했을 때 사용자에게 할 말.

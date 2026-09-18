@@ -1,6 +1,36 @@
 import CoreLocation
 import Foundation
 
+/// Region/tag matching may broaden a query. Preserve the original place-name
+/// intent after merging results, keeping the existing order within each tier.
+enum PlaceNameSearchRanking {
+    static func ranked<Result>(
+        _ results: [Result],
+        query: String,
+        name: KeyPath<Result, String>
+    ) -> [Result] {
+        let query = normalized(query)
+        guard !query.isEmpty else { return results }
+
+        return results.enumerated().map { index, result in
+            let name = normalized(result[keyPath: name])
+            let priority = name == query ? 0 : (name.contains(query) ? 1 : 2)
+            return (result: result, priority: priority, index: index)
+        }
+        .sorted {
+            if $0.priority != $1.priority { return $0.priority < $1.priority }
+            return $0.index < $1.index
+        }
+        .map(\.result)
+    }
+
+    private static func normalized(_ value: String) -> String {
+        value.precomposedStringWithCanonicalMapping
+            .lowercased()
+            .filter { !$0.isWhitespace && $0 != "#" }
+    }
+}
+
 struct KeywordSearchResults: Equatable {
     let spots: [PhotoSpot]
     let communityPosts: [CommunityPost]
@@ -122,16 +152,25 @@ struct LocalKeywordSearchProvider: SearchProvider {
     }
 
     private func searchableCommunityFields(for post: CommunityPost) -> [String] {
-        [post.message] + post.hashtags + post.statusTags
+        [post.title, post.relatedSpotName, post.captureLocation?.name, post.captureLocation?.address, post.message]
+            .compactMap { $0 }
+            + post.hashtags
+            + post.statusTags
     }
 
     private func uniqueSpots(_ spots: [PhotoSpot]) -> [PhotoSpot] {
-        spots.reduce(into: [PhotoSpot]()) { result, spot in
-            guard !result.contains(where: { $0.id == spot.id || $0.mapQuery == spot.mapQuery }) else {
-                return
+        var seenIDs = Set<String>()
+        var seenMapQueries = Set<String>()
+
+        return spots.filter { spot in
+            guard !seenIDs.contains(spot.id),
+                  !seenMapQueries.contains(spot.mapQuery) else {
+                return false
             }
 
-            result.append(spot)
+            seenIDs.insert(spot.id)
+            seenMapQueries.insert(spot.mapQuery)
+            return true
         }
     }
 

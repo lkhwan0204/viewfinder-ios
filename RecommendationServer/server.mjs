@@ -7,14 +7,15 @@ const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? "0.0.0.0";
 const serverDirectory = dirname(fileURLToPath(import.meta.url));
 const submittedSpotsPath = join(serverDirectory, "submitted-spots.json");
+const bundledPhotoSpotsPath = join(serverDirectory, "..", "Viewfinder", "Data", "photo_spots_seed.json");
 
 loadLocalEnvironment();
 
 const kakaoRestApiKey = process.env.KAKAO_REST_API_KEY ?? process.env.KAKAO_API_KEY;
 const naverClientId = process.env.NAVER_CLIENT_ID;
 const naverClientSecret = process.env.NAVER_CLIENT_SECRET;
-const adminReviewToken = process.env.VIEWFINDER_ADMIN_REVIEW_TOKEN?.trim();
-const reviewableSubmissionStatuses = new Set(["pending_review", "approved", "rejected"]);
+const maxSubmittedPhotoCount = 5;
+const maxSubmittedPhotoBase64Length = 8_000_000;
 
 class ServiceConfigurationError extends Error {
   constructor(code, message) {
@@ -127,6 +128,31 @@ function loadSubmittedSpots() {
   }
 }
 
+function loadBundledApprovedPlaces() {
+  try {
+    const file = JSON.parse(readFileSync(bundledPhotoSpotsPath, "utf8"));
+    return (Array.isArray(file) ? file : [])
+      .map((spot) => {
+        const name = String(spot?.name ?? "").trim();
+        const region = String(spot?.address ?? spot?.region ?? "").trim();
+        return {
+          id: String(spot?.id ?? ""),
+          name,
+          region,
+          mapQuery: [name, region].filter(Boolean).join(" "),
+          latitude: Number(spot?.latitude),
+          longitude: Number(spot?.longitude),
+          status: "approved",
+          provider: typeof spot?.provider === "string" ? spot.provider : undefined,
+          providerPlaceID: typeof spot?.providerPlaceID === "string" ? spot.providerPlaceID : undefined,
+        };
+      })
+      .filter((spot) => spot.id && spot.name && coordinatesAreValid(spot));
+  } catch {
+    return [];
+  }
+}
+
 function saveSubmittedSpots(spots) {
   writeFileSync(
     submittedSpotsPath,
@@ -139,6 +165,87 @@ function saveSubmittedSpots(spots) {
       2,
     ),
   );
+}
+
+// 관리자 승인 흐름을 없애면서 기존 개발 데이터의 pending_review 레코드도
+// 삭제하지 않고 공개 상태로 한 번만 전환합니다. 사진·장소 ID·중복 검사
+// 정보는 그대로 보존하고 status만 바꿉니다.
+function migrateLegacyPendingSubmissions() {
+  const spots = loadSubmittedSpots();
+  let didMigrate = false;
+  const migratedSpots = spots.map((spot) => {
+    if (spot?.status !== "pending_review") return spot;
+
+    didMigrate = true;
+    return {
+      ...spot,
+      status: "approved",
+    };
+  });
+
+  if (didMigrate) {
+    saveSubmittedSpots(migratedSpots);
+  }
+}
+
+migrateLegacyPendingSubmissions();
+
+function normalizedIdentityText(value) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+function coordinatesAreValid(value) {
+  return Number.isFinite(Number(value?.latitude))
+    && Number.isFinite(Number(value?.longitude))
+    && Math.abs(Number(value.latitude)) <= 90
+    && Math.abs(Number(value.longitude)) <= 180
+    && (Math.abs(Number(value.latitude)) > 0.000001 || Math.abs(Number(value.longitude)) > 0.000001);
+}
+
+function distanceInMeters(lhs, rhs) {
+  if (!coordinatesAreValid(lhs) || !coordinatesAreValid(rhs)) return Infinity;
+
+  const toRadians = (value) => (Number(value) * Math.PI) / 180;
+  const latitudeDelta = toRadians(Number(rhs.latitude) - Number(lhs.latitude));
+  const longitudeDelta = toRadians(Number(rhs.longitude) - Number(lhs.longitude));
+  const lhsLatitude = toRadians(lhs.latitude);
+  const rhsLatitude = toRadians(rhs.latitude);
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(lhsLatitude) * Math.cos(rhsLatitude) * Math.sin(longitudeDelta / 2) ** 2;
+  return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function textMatches(lhs, rhs) {
+  const left = normalizedIdentityText(lhs);
+  const right = normalizedIdentityText(rhs);
+  return Boolean(left && right && (left === right || left.includes(right) || right.includes(left)));
+}
+
+function placeIdentityMatches(lhs, rhs) {
+  const lhsProvider = normalizedIdentityText(lhs?.provider);
+  const rhsProvider = normalizedIdentityText(rhs?.provider);
+  const lhsProviderID = normalizedIdentityText(lhs?.providerPlaceID);
+  const rhsProviderID = normalizedIdentityText(rhs?.providerPlaceID);
+
+  if (lhsProvider && rhsProvider && lhsProvider === rhsProvider && lhsProviderID && lhsProviderID === rhsProviderID) {
+    return true;
+  }
+
+  const lhsID = normalizedIdentityText(lhs?.id);
+  const rhsID = normalizedIdentityText(rhs?.id);
+  if (lhsID && lhsID === rhsID) return true;
+
+  const nameMatches = textMatches(lhs?.name, rhs?.name);
+  const addressMatches = textMatches(lhs?.region, rhs?.region);
+  const mapQueryMatches = textMatches(lhs?.mapQuery, rhs?.mapQuery);
+
+  if (nameMatches && (addressMatches || mapQueryMatches)) return true;
+
+  const nearby = distanceInMeters(lhs, rhs) <= 60;
+  return nearby && (nameMatches || addressMatches);
 }
 
 function normalizedSubmittedSpot(payload) {
@@ -159,10 +266,15 @@ function normalizedSubmittedSpot(payload) {
   const tags = Array.isArray(payload?.tags)
     ? uniqueValues(payload.tags.map((tag) => String(tag ?? "").replace(/^#+/, "").trim()).filter(Boolean))
     : [];
-  const photoDataBase64 =
-    typeof payload?.photoDataBase64 === "string" && payload.photoDataBase64.length < 8_000_000
-      ? payload.photoDataBase64
-      : undefined;
+  const photoDataBase64s = uniqueValues([
+    ...(Array.isArray(payload?.photoDataBase64s) ? payload.photoDataBase64s : []),
+    ...(typeof payload?.photoDataBase64 === "string" ? [payload.photoDataBase64] : []),
+  ]
+    .filter((value) => typeof value === "string")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0 && value.length < maxSubmittedPhotoBase64Length))
+    .slice(0, maxSubmittedPhotoCount);
+  const photoDataBase64 = photoDataBase64s[0];
   const submittedByID = String(payload?.submittedByID ?? "").trim().slice(0, 128) || "anonymous";
   const submittedByName = String(payload?.submittedByName ?? "").trim().slice(0, 64) || "익명";
 
@@ -177,11 +289,15 @@ function normalizedSubmittedSpot(payload) {
     longitude,
     category: String(payload?.category ?? "spot").trim() || "spot",
     imageURL: typeof payload?.imageURL === "string" ? payload.imageURL : undefined,
+    provider: typeof payload?.provider === "string" ? payload.provider.trim() : undefined,
+    providerPlaceID: typeof payload?.providerPlaceID === "string" ? payload.providerPlaceID.trim() : undefined,
     photoDataBase64,
+    photoDataBase64s,
     submittedByID,
     submittedByName,
     submittedAt: String(payload?.submittedAt ?? new Date().toISOString()),
-    status: "pending_review",
+    // 장소 제보는 제출 즉시 공개합니다.
+    status: "approved",
     source: "user-submitted",
   };
 }
@@ -189,23 +305,39 @@ function normalizedSubmittedSpot(payload) {
 function createSubmittedSpot(payload) {
   const spot = normalizedSubmittedSpot(payload);
   const spots = loadSubmittedSpots();
-  const normalizedKey = `${spot.name}-${spot.region}-${spot.mapQuery}`.replace(/\s+/g, "").toLowerCase();
-  const existingIndex = spots.findIndex((existing) => {
-    const existingKey = `${existing?.name ?? ""}-${existing?.region ?? ""}-${existing?.mapQuery ?? ""}`
-      .replace(/\s+/g, "")
-      .toLowerCase();
-    return existing?.id === spot.id || existingKey === normalizedKey;
-  });
+  const knownPlaces = [
+    ...loadBundledApprovedPlaces(),
+    ...(Array.isArray(payload?.knownPlaces) ? payload.knownPlaces : []),
+  ]
+      .map((place) => ({
+        ...place,
+        status: "approved",
+      }))
+      .filter((place) => placeIdentityMatches(spot, place));
+
+  if (knownPlaces.length > 0) {
+    return {
+      ok: false,
+      conflict: true,
+      code: "place_already_registered",
+      status: "approved",
+      spot: knownPlaces[0],
+    };
+  }
+
+  const existingIndex = spots.findIndex((existing) => placeIdentityMatches(existing, spot));
 
   if (existingIndex >= 0) {
     const existingSpot = spots[existingIndex];
 
-    if (existingSpot?.status === "approved") {
+    if (existingSpot?.status === "approved" || existingSpot?.status === "pending_review") {
       return {
-        ok: true,
+        ok: false,
+        conflict: true,
+        code: "place_already_registered",
+        status: "approved",
         spot: existingSpot,
         count: spots.length,
-        alreadyApproved: true,
       };
     }
 
@@ -215,7 +347,7 @@ function createSubmittedSpot(payload) {
       id: existingSpot.id,
       submittedAt: existingSpot.submittedAt ?? spot.submittedAt,
       resubmittedAt: new Date().toISOString(),
-      status: "pending_review",
+      status: "approved",
       reviewedAt: undefined,
       reviewNote: undefined,
       updatedAt: new Date().toISOString(),
@@ -226,36 +358,6 @@ function createSubmittedSpot(payload) {
 
   saveSubmittedSpots(spots);
   return { ok: true, spot, count: spots.length };
-}
-
-function hasAdminReviewAccess(request) {
-  if (!adminReviewToken) {
-    return false;
-  }
-
-  return request.headers["x-viewfinder-admin-token"] === adminReviewToken;
-}
-
-function reviewSubmittedSpot(id, payload) {
-  const status = String(payload?.status ?? "").trim();
-  if (!reviewableSubmissionStatuses.has(status) || status === "pending_review") {
-    throw new Error("status must be approved or rejected");
-  }
-
-  const spots = loadSubmittedSpots();
-  const index = spots.findIndex((spot) => spot?.id === id);
-  if (index < 0) {
-    throw new Error("Submitted spot not found");
-  }
-
-  spots[index] = {
-    ...spots[index],
-    status,
-    reviewedAt: new Date().toISOString(),
-    reviewNote: String(payload?.reviewNote ?? "").trim().slice(0, 400) || undefined,
-  };
-  saveSubmittedSpots(spots);
-  return spots[index];
 }
 
 function submittedSpotPhotoContentType(buffer) {
@@ -301,32 +403,43 @@ function requestBaseURL(request) {
   return hostName ? `${protocol}://${hostName}` : null;
 }
 
+function submittedSpotPhotoData(spot, index = 0) {
+  const photos = Array.isArray(spot?.photoDataBase64s)
+    ? spot.photoDataBase64s
+    : (spot?.photoDataBase64 ? [spot.photoDataBase64] : []);
+
+  if (!Number.isInteger(index) || index < 0) return undefined;
+  return photos[index];
+}
+
 function submittedSpotResponse(spot, request) {
   const {
     photoDataBase64,
+    photoDataBase64s,
     submittedByID,
     submittedByName,
     reviewNote,
+    reviewedAt,
     ...publicSpot
   } = spot;
   const baseURL = requestBaseURL(request);
+  const photoCount = Array.isArray(photoDataBase64s)
+    ? photoDataBase64s.length
+    : (photoDataBase64 ? 1 : 0);
 
   if (!publicSpot.imageURL && photoDataBase64 && baseURL) {
     publicSpot.imageURL = `${baseURL}/submitted-spots/${encodeURIComponent(spot.id)}/photo`;
   }
 
-  return publicSpot;
-}
-
-function adminSubmittedSpotResponse(spot, request) {
-  const response = submittedSpotResponse(spot, request);
-  const baseURL = requestBaseURL(request);
-
-  if (spot.photoDataBase64 && baseURL) {
-    response.reviewPhotoURL = `${baseURL}/admin/submitted-spots/${encodeURIComponent(spot.id)}/photo`;
+  if (baseURL && photoCount > 0) {
+    publicSpot.photoURLs = Array.from({ length: photoCount }, (_, index) => (
+      `${baseURL}/submitted-spots/${encodeURIComponent(spot.id)}/photo/${index}`
+    ));
+  } else if (publicSpot.imageURL && !Array.isArray(publicSpot.photoURLs)) {
+    publicSpot.photoURLs = [publicSpot.imageURL];
   }
 
-  return response;
+  return publicSpot;
 }
 
 function coordinateFromLocation(location) {
@@ -467,6 +580,8 @@ function makeVerifiedSpot(recommendation, place, source) {
     latitude,
     longitude,
     source,
+    provider: source,
+    providerPlaceID: place.providerPlaceID ?? null,
   };
 }
 
@@ -500,6 +615,7 @@ async function verifyWithKakao(recommendation, context) {
         address: String(document.road_address_name || document.address_name || "주소 확인 필요").trim(),
         latitude: document.y,
         longitude: document.x,
+        providerPlaceID: document.id,
       },
       "kakao",
     );
@@ -512,7 +628,7 @@ async function verifyWithNaver(recommendation, context) {
   if (!naverClientId || !naverClientSecret) return null;
 
   for (const query of verificationQueries(recommendation, context.region)) {
-    const url = new URL("https://openapi.naver.com/v1/search/local.json");
+    const url = new URL("https://naverapihub.apigw.ntruss.com/search/v1/local");
     url.searchParams.set("query", query);
     url.searchParams.set("display", "5");
     url.searchParams.set("start", "1");
@@ -520,8 +636,8 @@ async function verifyWithNaver(recommendation, context) {
 
     const naverResponse = await fetch(url, {
       headers: {
-        "X-Naver-Client-Id": naverClientId,
-        "X-Naver-Client-Secret": naverClientSecret,
+        "X-NCP-APIGW-API-KEY-ID": naverClientId,
+        "X-NCP-APIGW-API-KEY": naverClientSecret,
       },
     });
     const payload = await readResponsePayload(naverResponse);
@@ -543,6 +659,7 @@ async function verifyWithNaver(recommendation, context) {
         address: strippedHTML(item.roadAddress || item.address || "주소 확인 필요"),
         latitude,
         longitude,
+        providerPlaceID: item.link,
       },
       "naver",
     );
@@ -556,13 +673,14 @@ function makePlaceSearchSpot(place, source, query) {
   const longitude = Number(place.longitude);
   const name = String(place.name ?? "").trim();
   const address = String(place.address ?? "주소 확인 필요").trim();
+  const category = String(place.category ?? "").trim();
 
   if (!name || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return null;
   }
 
   const tags = uniqueValues(
-    String(place.category ?? "")
+    category
       .split(/[>,/]/)
       .map((value) => value.trim())
       .filter(Boolean),
@@ -575,10 +693,15 @@ function makePlaceSearchSpot(place, source, query) {
     bestTime: "방문 목적과 현장 상황에 맞춰 확인",
     reason: `"${query}" 장소 검색 결과`,
     tags: tags.length > 0 ? tags : ["장소"],
+    // 검색 결과 목록에는 네이버가 준 원본 분류를 그대로 돌려줍니다.
+    // 앱은 이 값을 표시용으로만 쓰며, 키나 원본 API 응답 전체는 전달하지 않습니다.
+    category: category || undefined,
     address,
     latitude,
     longitude,
     source,
+    provider: source,
+    providerPlaceID: place.providerPlaceID ?? null,
     imageURL: null,
   };
 }
@@ -618,6 +741,7 @@ async function searchPlacesWithKakao(query, userLocation) {
           latitude: document.y,
           longitude: document.x,
           category: document.category_name,
+          providerPlaceID: document.id,
         },
         "kakao",
         query,
@@ -629,7 +753,7 @@ async function searchPlacesWithKakao(query, userLocation) {
 async function searchPlacesWithNaver(query) {
   if (!naverClientId || !naverClientSecret) return [];
 
-  const url = new URL("https://openapi.naver.com/v1/search/local.json");
+  const url = new URL("https://naverapihub.apigw.ntruss.com/search/v1/local");
   url.searchParams.set("query", query);
   url.searchParams.set("display", "5");
   url.searchParams.set("start", "1");
@@ -637,8 +761,8 @@ async function searchPlacesWithNaver(query) {
 
   const naverResponse = await fetch(url, {
     headers: {
-      "X-Naver-Client-Id": naverClientId,
-      "X-Naver-Client-Secret": naverClientSecret,
+      "X-NCP-APIGW-API-KEY-ID": naverClientId,
+      "X-NCP-APIGW-API-KEY": naverClientSecret,
     },
   });
   const payload = await readResponsePayload(naverResponse);
@@ -656,6 +780,7 @@ async function searchPlacesWithNaver(query) {
           latitude: Number(item.mapy) / 10000000,
           longitude: Number(item.mapx) / 10000000,
           category: strippedHTML(item.category),
+          providerPlaceID: item.link,
         },
         "naver",
         query,
@@ -739,43 +864,12 @@ async function createVerifiedSpots(context) {
 
 createServer(async (request, response) => {
   const requestPath = new URL(request.url ?? "/", "http://localhost").pathname;
-  const adminSubmittedPhotoMatch = requestPath.match(/^\/admin\/submitted-spots\/([^/]+)\/photo$/);
-  if (request.method === "GET" && adminSubmittedPhotoMatch) {
-    if (!adminReviewToken) {
-      sendJSON(response, 503, { error: "Admin review is not configured" });
-      return;
-    }
-
-    if (!hasAdminReviewAccess(request)) {
-      sendJSON(response, 401, { error: "Admin review access is required" });
-      return;
-    }
-
-    const submittedSpotID = decodeURIComponent(adminSubmittedPhotoMatch[1]);
-    const submittedSpot = loadSubmittedSpots().find((spot) => spot?.id === submittedSpotID);
-    const encodedPhoto = submittedSpot?.photoDataBase64;
-
-    if (!encodedPhoto) {
-      sendJSON(response, 404, { error: "Submitted photo not found" });
-      return;
-    }
-
-    const photoBuffer = Buffer.from(encodedPhoto, "base64");
-    response.writeHead(200, {
-      "Content-Type": submittedSpotPhotoContentType(photoBuffer),
-      "Content-Length": photoBuffer.length,
-      "Cache-Control": "private, no-store",
-      "X-Content-Type-Options": "nosniff",
-    });
-    response.end(photoBuffer);
-    return;
-  }
-
-  const submittedPhotoMatch = requestPath.match(/^\/submitted-spots\/([^/]+)\/photo$/);
+  const submittedPhotoMatch = requestPath.match(/^\/submitted-spots\/([^/]+)\/photo(?:\/(\d+))?$/);
   if (request.method === "GET" && submittedPhotoMatch) {
     const submittedSpotID = decodeURIComponent(submittedPhotoMatch[1]);
+    const photoIndex = Number(submittedPhotoMatch[2] ?? "0");
     const submittedSpot = loadSubmittedSpots().find((spot) => spot?.id === submittedSpotID);
-    const encodedPhoto = submittedSpot?.photoDataBase64;
+    const encodedPhoto = submittedSpotPhotoData(submittedSpot, photoIndex);
 
     if (submittedSpot?.status !== "approved" || !encodedPhoto) {
       sendJSON(response, 404, { error: "Submitted photo not found" });
@@ -824,44 +918,6 @@ createServer(async (request, response) => {
     return;
   }
 
-  const reviewSpotMatch = requestPath.match(/^\/admin\/submitted-spots\/([^/]+)$/);
-  if (requestPath === "/admin/submitted-spots" || reviewSpotMatch) {
-    if (!adminReviewToken) {
-      sendJSON(response, 503, { error: "Admin review is not configured" });
-      return;
-    }
-
-    if (!hasAdminReviewAccess(request)) {
-      sendJSON(response, 401, { error: "Admin review access is required" });
-      return;
-    }
-
-    if (request.method === "GET" && requestPath === "/admin/submitted-spots") {
-      sendJSON(response, 200, {
-        spots: loadSubmittedSpots().map((spot) => adminSubmittedSpotResponse(spot, request)),
-      });
-      return;
-    }
-
-    if (request.method === "PATCH" && reviewSpotMatch) {
-      try {
-        const reviewedSpot = reviewSubmittedSpot(
-          decodeURIComponent(reviewSpotMatch[1]),
-          await readJSON(request),
-        );
-        sendJSON(response, 200, { spot: adminSubmittedSpotResponse(reviewedSpot, request) });
-      } catch (error) {
-        sendJSON(response, 400, {
-          error: error instanceof Error ? error.message : "Unable to review submitted spot",
-        });
-      }
-      return;
-    }
-
-    sendJSON(response, 405, { error: "Method not allowed" });
-    return;
-  }
-
   const postEndpoints = [
     "/verify-spots",
     "/search-places",
@@ -888,6 +944,15 @@ createServer(async (request, response) => {
 
     if (requestPath === "/submitted-spots") {
       const submittedSpotResult = createSubmittedSpot(context);
+      if (submittedSpotResult.conflict) {
+        sendJSON(response, 409, {
+          code: submittedSpotResult.code,
+          status: submittedSpotResult.status,
+          spot: submittedSpotResponse(submittedSpotResult.spot, request),
+        });
+        return;
+      }
+
       sendJSON(response, 201, {
         ...submittedSpotResult,
         spot: submittedSpotResponse(submittedSpotResult.spot, request),

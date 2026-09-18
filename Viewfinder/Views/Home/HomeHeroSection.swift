@@ -1,11 +1,12 @@
 //
 //  HomeHeroSection.swift
-//  ViewFinder — Phase 2A (3차 수정)
+//  ViewFinder — Phase 2A
 //
 //  [1차] containerRelativeFrame 로 폭을 맞추려다 카드가 화면 절반 폭으로 렌더됨
 //  [2차] GeometryReader 로 크기를 명시했지만, ScrollView + .paging 스냅이
 //        불안정해서 두 사진이 걸친 상태로 멈추는 경우가 있었음
-//  [3차] 페이징을 TabView 에 맡깁니다. 한 번에 한 장만 보이는 것을 시스템이 보장합니다.
+//  [현재] 실제 horizontal scroll position을 paging 애니메이션으로 이동합니다.
+//  양 끝에 복제 페이지를 두어 마지막→첫 페이지도 같은 방향으로 이어집니다.
 //
 //  또한 검색 버튼을 Hero 안으로 들여왔습니다.
 //  화면에 고정된 플로팅 검색 버튼은 스크롤할 때 카드의 북마크 버튼과
@@ -16,83 +17,306 @@ import CoreLocation
 import SwiftUI
 
 struct HomeHeroSection: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let recommendations: [RecommendedSpot]
     let userLocation: CLLocationCoordinate2D?
-    /// 혼잡도를 커뮤니티 제보로 계산하기 위해 필요합니다.
-    /// 이전에는 spot.crowdLevel(시드 고정값)만 써서 상세 화면과 값이 어긋났습니다.
-    var communityPosts: [CommunityPost] = []
 
     /// 카드 1장의 정확한 크기. 부모가 GeometryReader 로 측정해서 넘깁니다.
     let cardSize: CGSize
     /// 상태바 높이. 사진은 여기까지 올라가고 컨트롤만 아래로 내립니다.
     var topInset: CGFloat = 0
 
-    /// Hero 좌상단 glass pill 문자열. (예: "일몰까지 2시간 10분 · 24°")
+    /// Hero 상단 상태 줄 문자열. (예: "일몰까지 2시간 10분 · 24° · 구름 적음")
     var contextText: String? = nil
     /// pill 아이콘. 일몰 전이면 sunset.fill, 일몰 후면 sunrise.fill.
     var contextSymbolName: String = "sun.max"
+    /// 날씨 snapshot을 기다리는 동안에도 상단 컨트롤의 자리를 유지합니다.
+    /// 실제 기온이나 상태를 추정해서 보여주지는 않습니다.
+    var contextIsLoading: Bool = false
     var onShowContext: (() -> Void)? = nil
+    /// Hero 이유 줄에 넣을 일출·일몰까지의 남은 시간입니다.
+    /// 상단 날씨 캡슐과 달리, 사진을 지금 보러 갈 행동 정보만 전달합니다.
+    var heroReasonTimeText: String? = nil
+    /// Hero 사진을 길게 눌러 저장하는 동작입니다.
+    /// 카드마다 버튼을 띄우지 않아 사진을 가리지 않으면서도 저장을 발견할 수 있습니다.
+    var savedSpotIDs: Set<String> = []
+    var onToggleSave: ((PhotoSpot) -> Void)? = nil
 
     let onSelect: (PhotoSpot) -> Void
     let onSearch: () -> Void
 
     @State private var selection = 0
+    @State private var carouselPosition: HeroCarouselPage? = .item(0)
+    @State private var isHeroDragging = false
+    @State private var autoAdvanceResetToken = 0
 
-    private let maxCount = 5
+    private enum HeroCarouselPage: Hashable {
+        case duplicateLast
+        case item(Int)
+        case duplicateFirst
+    }
+
+    private let maxCount = 3
+    private static let autoAdvanceIntervalNanoseconds: UInt64 = 5_000_000_000
+    private static let autoAdvanceAnimation = Animation.easeInOut(duration: 0.45)
+    private static let carouselNormalizationDelayNanoseconds: UInt64 = 450_000_000
 
     private var visible: [RecommendedSpot] {
         Array(recommendations.prefix(maxCount))
     }
 
+    private var carouselPages: [HeroCarouselPage] {
+        guard visible.count > 1 else { return [.item(0)] }
+        return [.duplicateLast]
+            + visible.indices.map { .item($0) }
+            + [.duplicateFirst]
+    }
+
+    private var carouselPageSignature: String {
+        visible.map(\.id).joined(separator: ",")
+    }
+
+    private var shouldAutoAdvance: Bool {
+        visible.count > 1
+            && scenePhase == .active
+            && !reduceMotion
+            && !isHeroDragging
+    }
+
+    private var autoAdvanceTaskID: String {
+        [
+            visible.map(\.id).joined(separator: ","),
+            String(describing: scenePhase),
+            String(reduceMotion),
+            String(isHeroDragging),
+            String(autoAdvanceResetToken)
+        ].joined(separator: "|")
+    }
+
     var body: some View {
         if visible.isEmpty {
-            NearbyRecommendationEmptyView(message: "주변 출사지 데이터가 부족해요")
+            NearbyRecommendationEmptyView(
+                message: "주변 출사지 데이터가 부족해요",
+                actionTitle: "출사지 검색",
+                action: onSearch
+            )
                 .vfScreenMargin()
                 .padding(.top, topInset + VFSpace.lg)
         } else {
-            pager
-                .frame(height: cardSize.height)
-                .clipped()
-                .overlay(alignment: .top) { topControls }
+            VStack(spacing: 0) {
+                pager
+                    .frame(width: cardSize.width, height: cardSize.height)
+                    .clipped()
+                    .overlay(alignment: .top) { topControls }
+
+                if visible.count > 1 {
+                    HomeHeroPageIndicator(
+                        selection: $selection,
+                        count: visible.count
+                    )
+                    // 사진 경계에 붙이지 않고 피드 위에 독립된 공간을 둡니다.
+                    // 그라디언트와 다음 섹션 제목 양쪽에 여백이 생깁니다.
+                    .frame(height: VFSpace.lg)
+                }
+            }
+            .task(id: autoAdvanceTaskID) {
+                await autoAdvanceHeroIfNeeded()
+            }
+            .onChange(of: selection) { _, newSelection in
+                resetAutoAdvanceTimer()
+                moveCarouselToSelectionIfNeeded(newSelection)
+            }
+            .onChange(of: carouselPageSignature) { _, _ in
+                resetCarouselPosition()
+                resetAutoAdvanceTimer()
+            }
         }
     }
 
-    /// 페이징을 시스템에 맡깁니다.
-    /// ScrollView + scrollTargetBehavior(.paging) 조합에서 두 카드가 걸친 상태로
-    /// 멈추는 문제가 있었습니다. TabView 는 한 번에 한 페이지를 보장합니다.
-    private var pager: some View {
-        TabView(selection: $selection) {
-            ForEach(Array(visible.enumerated()), id: \.element.id) { index, recommendation in
-                HomeHeroCard(
-                    recommendation: recommendation,
-                    distanceText: VFSpotDistance.text(
-                        from: userLocation,
-                        to: recommendation.spot
-                    ),
-                    size: cardSize,
-                    controlStripHeight: controlStripHeight,
-                    communityPosts: communityPosts,
-                    onSelect: { onSelect(recommendation.spot) }
+    @MainActor
+    private func autoAdvanceHeroIfNeeded() async {
+        guard shouldAutoAdvance else { return }
+
+        do {
+            while !Task.isCancelled {
+                try await Task.sleep(nanoseconds: Self.autoAdvanceIntervalNanoseconds)
+                guard !Task.isCancelled, shouldAutoAdvance else { return }
+
+                withAnimation(Self.autoAdvanceAnimation) {
+                    carouselPosition = nextAutoAdvancePage
+                }
+            }
+        } catch is CancellationError {
+            // 화면 이탈·백그라운드·드래그 시작에 따른 취소는 정상 흐름입니다.
+        } catch {
+            // 자동 전환은 실패를 사용자에게 노출할 작업이 없습니다.
+        }
+    }
+
+    private func resetAutoAdvanceTimer() {
+        autoAdvanceResetToken += 1
+    }
+
+    private var nextAutoAdvancePage: HeroCarouselPage {
+        guard selection == visible.count - 1 else {
+            return .item(selection + 1)
+        }
+
+        // 마지막 카드에서 복제된 첫 카드를 먼저 보여준 뒤,
+        // 애니메이션이 끝나면 실제 첫 카드로 무음 정규화합니다.
+        return .duplicateFirst
+    }
+
+    private func moveCarouselToSelectionIfNeeded(_ newSelection: Int) {
+        guard visible.indices.contains(newSelection) else { return }
+        guard case .item(let currentIndex) = carouselPosition,
+              currentIndex != newSelection else { return }
+
+        withAnimation(Self.autoAdvanceAnimation) {
+            carouselPosition = .item(newSelection)
+        }
+    }
+
+    private func handleCarouselPositionChange(_ page: HeroCarouselPage?) {
+        guard let page else { return }
+
+        switch page {
+        case .duplicateLast:
+            selection = max(visible.count - 1, 0)
+        case .item(let index):
+            guard visible.indices.contains(index) else { return }
+            selection = index
+        case .duplicateFirst:
+            selection = 0
+        }
+    }
+
+    private func resetCarouselPosition() {
+        guard !visible.isEmpty else { return }
+
+        let safeSelection = min(max(selection, 0), visible.count - 1)
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            carouselPosition = .item(safeSelection)
+        }
+    }
+
+    @MainActor
+    private func normalizeDuplicateCarouselPageIfNeeded() async {
+        guard visible.count > 1,
+              let page = carouselPosition else { return }
+
+        let target: HeroCarouselPage
+        switch page {
+        case .duplicateLast:
+            target = .item(visible.count - 1)
+        case .duplicateFirst:
+            target = .item(0)
+        case .item:
+            return
+        }
+
+        if !reduceMotion {
+            do {
+                try await Task.sleep(
+                    nanoseconds: Self.carouselNormalizationDelayNanoseconds
                 )
-                .tag(index)
+            } catch is CancellationError {
+                return
+            } catch {
+                return
             }
         }
-        // 직접 만든 캡슐 인디케이터를 네이티브로 되돌립니다.
-        // 커스텀 점은 손으로 만든 티가 나고, 시스템 것이 더 정돈돼 보입니다.
-        // 위치는 텍스트 블록 우하단이 아니라 카드 하단 중앙(네이티브 기본)입니다.
-        // backgroundDisplayMode: .always 로 어떤 사진 위에서도 보이게 합니다.
-        .tabViewStyle(.page(indexDisplayMode: .automatic))
-        .indexViewStyle(.page(backgroundDisplayMode: .always))
+
+        guard !Task.isCancelled, carouselPosition == page else { return }
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            carouselPosition = target
+        }
+    }
+
+    private var heroDragGesture: some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { _ in
+                guard !isHeroDragging else { return }
+                isHeroDragging = true
+            }
+            .onEnded { _ in
+                isHeroDragging = false
+                resetAutoAdvanceTimer()
+            }
+    }
+
+    /// 실제 스크롤 위치를 움직이는 native paging carousel입니다.
+    /// 양 끝의 복제 페이지는 마지막→첫 페이지 전환 뒤 무음으로 실제 페이지에
+    /// 정규화되어, 사용자에게 역방향 점프가 보이지 않게 합니다.
+    private var pager: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 0) {
+                ForEach(carouselPages, id: \.self) { page in
+                    heroCard(for: page)
+                        .frame(width: cardSize.width, height: cardSize.height)
+                        .id(page)
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .scrollIndicators(.hidden)
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $carouselPosition, anchor: .center)
+        .simultaneousGesture(heroDragGesture)
+        .onAppear {
+            resetCarouselPosition()
+        }
+        .onChange(of: carouselPosition) { _, newPosition in
+            handleCarouselPositionChange(newPosition)
+        }
+        .task(id: carouselPosition) {
+            await normalizeDuplicateCarouselPageIfNeeded()
+        }
+    }
+
+    private func heroCard(for page: HeroCarouselPage) -> some View {
+        let index: Int
+        switch page {
+        case .duplicateLast:
+            index = visible.count - 1
+        case .item(let value):
+            index = value
+        case .duplicateFirst:
+            index = 0
+        }
+
+        let recommendation = visible[index]
+        return HomeHeroCard(
+            recommendation: recommendation,
+            distanceText: VFSpotDistance.text(
+                from: userLocation,
+                to: recommendation.spot
+            ),
+            heroReasonTimeText: heroReasonTimeText,
+            size: cardSize,
+            controlStripHeight: controlStripHeight,
+            isSaved: savedSpotIDs.contains(recommendation.spot.id),
+            onToggleSave: {
+                onToggleSave?(recommendation.spot)
+            },
+            onSelect: { onSelect(recommendation.spot) }
+        )
     }
 
     // MARK: - 사진 위 컨트롤
     //
-    // 저장 버튼을 홈에서 전부 제거했습니다.
+    // 저장 버튼을 사진 위에 상시 노출하지 않습니다.
     //
-    // 홈은 "둘러보는" 화면입니다. 카드마다 저장 버튼이 붙어 있으면
-    // 사진 위에 버튼이 계속 떠 있어서 사진에 집중하기 어렵고,
-    // 아직 어떤 곳인지 모르는 상태에서 저장을 요구하는 셈이 됩니다.
-    // 저장은 상세 화면에서 장소를 확인한 뒤에 하는 동작으로 옮겼습니다.
+    // 사진을 가리지 않으면서도 저장을 발견할 수 있도록 Hero 전체를
+    // 길게 누르면 저장/저장 해제가 실행됩니다. 상세 화면의 저장 버튼은
+    // 기존대로 유지됩니다.
 
     /// 사진 위 컨트롤 한 줄의 높이.
     ///
@@ -100,10 +324,12 @@ struct HomeHeroSection: View {
     /// 카드는 이 줄만큼을 자기 탭 영역에서 제외합니다. 둘이 다른 숫자를
     /// 쓰면 컨트롤 아래쪽이나 위쪽에 어긋난 띠가 생깁니다.
     private static let controlHeight: CGFloat = 38
+    /// 검색 버튼은 날씨 pill과 독립적으로 정사각형을 유지해야 합니다.
+    private static let searchButtonSize: CGFloat = 38
 
     /// 카드 상단에서 컨트롤 줄이 끝나는 지점.
     private var controlStripHeight: CGFloat {
-        topInset + VFSpace.sm + Self.controlHeight
+        topInset + VFSpace.sm + max(Self.controlHeight, Self.searchButtonSize)
     }
 
     private var topControls: some View {
@@ -112,15 +338,23 @@ struct HomeHeroSection: View {
 
             Spacer(minLength: VFSpace.sm)
 
-            Button(action: onSearch) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.white)
-                    .frame(width: Self.controlHeight, height: Self.controlHeight)
-                    .contentShape(Rectangle())
-                    .vfGlass(interactive: true)
+            Button {
+                onSearch()
+            } label: {
+                ZStack {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                }
+                    .frame(width: Self.searchButtonSize, height: Self.searchButtonSize)
+                    .aspectRatio(1, contentMode: .fit)
+                    .contentShape(Circle())
+                    .vfGlass(in: Circle(), interactive: true)
+                    .clipShape(Circle())
             }
             .buttonStyle(.plain)
+            .frame(width: Self.searchButtonSize, height: Self.searchButtonSize)
+            .fixedSize()
             .accessibilityLabel("출사지 검색")
         }
         .padding(.horizontal, VFSpace.lg - VFSpace.xs)
@@ -136,11 +370,9 @@ struct HomeHeroSection: View {
         //  카드는 카드 전체를 탭 영역으로 잡고 있어서 상단에서 두 탭
         //  영역이 겹칩니다.
         //
-        //  보통은 앞에 있는 버튼이 터치를 먹고 끝납니다. 그런데 카드는
-        //  TabView 의 page 스타일 안에 있고 그것은 UIPageViewController
-        //  로 구현됩니다. 카드의 탭 제스처는 UIKit 이 관리하는 페이지
-        //  안에 있고 버튼은 그 바깥 SwiftUI 레이어에 있어서, 서로의
-        //  제스처를 취소시키지 못합니다. 그래서 양쪽이 다 실행됩니다.
+        //  보통은 앞에 있는 버튼이 터치를 먹고 끝납니다. 하지만 페이저
+        //  컨테이너 안의 카드 제스처와 버튼이 서로 다른 레이어에 있으면
+        //  두 제스처가 취소되지 않아 양쪽이 다 실행될 수 있습니다.
         //
         //  [1차 시도는 실패했습니다]
         //  카드의 contentShape 에서 이 줄 높이만큼을 뺐습니다.
@@ -148,7 +380,7 @@ struct HomeHeroSection: View {
         //  카드에서 뺀 높이도 topInset+46, 좌표계도 같습니다.
         //  그래도 실기에서 카드가 계속 눌렸습니다.
         //  contentShape 은 "이 도형 안에서만 반응해라" 는 요청이고,
-        //  UIPageViewController 경계를 넘으면 지켜지지 않습니다.
+        //  페이저 컨테이너 경계를 넘으면 지켜지지 않습니다.
         //
         //  [2차: 도형이 아니라 실제 뷰]
         //  컨트롤 줄 뒤에 터치를 받는 레이어를 깔았습니다.
@@ -199,6 +431,26 @@ struct HomeHeroSection: View {
             }
             .buttonStyle(.plain)
             .disabled(onShowContext == nil)
+        } else if contextIsLoading {
+            Button {
+                onShowContext?()
+            } label: {
+                HStack(spacing: VFSpace.xs + 2) {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(Color.white)
+
+                    Text("날씨 확인 중")
+                        .vfText(.mono)
+                }
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, VFSpace.md)
+                .frame(height: Self.controlHeight)
+                .contentShape(Capsule())
+                .vfGlass(interactive: true)
+            }
+            .buttonStyle(.plain)
+            .disabled(onShowContext == nil)
         }
     }
 
@@ -228,9 +480,129 @@ private struct HeroCardTapArea: Shape {
     }
 }
 
+/// 풀폭 사진과 피드 캔버스가 한 화면처럼 이어지게 하는 하단 전환입니다.
+///
+/// 고정 흰색이나 검정색을 쓰지 않고 동적 피드 색을 사용해 라이트·다크
+/// 모드에서 같은 구조를 유지합니다. 마지막 픽셀은 완전히 불투명하게
+/// 만들어 Hero 와 다음 섹션 사이의 직선 이음새도 숨깁니다.
+private struct HeroFeedBackgroundTransition: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var feedBackground: Color {
+        Color(uiColor: VFPalette.feedCanvas)
+    }
+
+    /// 순검정 피드는 같은 거리에서도 밝기 변화가 더 급하게 느껴집니다.
+    /// 다크 모드는 긴 전환을 유지하고, 라이트 모드는 사진 하단을 흐리지
+    /// 않도록 마지막 32pt 안에서만 피드 배경과 연결합니다.
+    private var transitionHeight: CGFloat {
+        colorScheme == .dark ? 96 : 32
+    }
+
+    private var gradientStops: [Gradient.Stop] {
+        if colorScheme == .dark {
+            return [
+                .init(color: feedBackground.opacity(0), location: 0),
+                .init(color: feedBackground.opacity(0.06), location: 0.26),
+                .init(color: feedBackground.opacity(0.20), location: 0.52),
+                .init(color: feedBackground.opacity(0.46), location: 0.74),
+                .init(color: feedBackground.opacity(0.78), location: 0.91),
+                .init(color: feedBackground, location: 1)
+            ]
+        }
+
+        return [
+            .init(color: feedBackground.opacity(0), location: 0),
+            .init(color: feedBackground.opacity(0), location: 0.50),
+            .init(color: feedBackground.opacity(0.12), location: 0.72),
+            .init(color: feedBackground.opacity(0.50), location: 0.92),
+            .init(color: feedBackground, location: 1)
+        ]
+    }
+
+    var body: some View {
+        LinearGradient(
+            stops: gradientStops,
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: transitionHeight)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Hero 사진을 가리지 않고 피드 경계에서 현재 페이지를 알려줍니다.
+/// 시각적으로는 작은 점이지만 VoiceOver 에서는 조절 가능한 페이지
+/// 컨트롤로 동작해 네이티브 인디케이터의 접근성을 유지합니다.
+private struct HomeHeroPageIndicator: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    @Binding var selection: Int
+    let count: Int
+
+    private let activeIndicatorWidth: CGFloat = 13
+    private let indicatorHeight: CGFloat = 5
+
+    private var indicatorColor: Color {
+        Color(uiColor: VFPalette.ink1)
+    }
+
+    private var activeOpacity: Double {
+        colorScheme == .dark ? 0.94 : 0.76
+    }
+
+    private var inactiveOpacity: Double {
+        colorScheme == .dark ? 0.46 : 0.28
+    }
+
+    private var normalizedSelection: Int {
+        min(max(selection, 0), max(count - 1, 0))
+    }
+
+    private var accessibleSelection: Binding<Int> {
+        Binding(
+            get: { normalizedSelection },
+            set: { newValue in
+                withAnimation(.easeOut(duration: 0.18)) {
+                    selection = min(max(newValue, 0), max(count - 1, 0))
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    var body: some View {
+        if count > 1 {
+            HStack(spacing: 8) {
+                ForEach(0..<count, id: \.self) { index in
+                    let isSelected = index == normalizedSelection
+
+                    Capsule()
+                        .fill(indicatorColor.opacity(isSelected ? activeOpacity : inactiveOpacity))
+                        .frame(
+                            width: isSelected ? activeIndicatorWidth : indicatorHeight,
+                            height: indicatorHeight
+                        )
+                }
+            }
+            .frame(height: 18)
+            .animation(.easeOut(duration: 0.18), value: normalizedSelection)
+            .accessibilityRepresentation {
+                Stepper(
+                    "추천 출사지 페이지 \(normalizedSelection + 1)/\(count)",
+                    value: accessibleSelection,
+                    in: 0...(count - 1)
+                )
+            }
+        }
+    }
+}
+
 private struct HomeHeroCard: View {
     let recommendation: RecommendedSpot
     let distanceText: String?
+    let heroReasonTimeText: String?
     /// 카드의 정확한 크기.
     ///
     /// 이전에는 ZStack(alignment: .bottomLeading) 안에 사진과 텍스트를 형제로 두었습니다.
@@ -241,7 +613,8 @@ private struct HomeHeroCard: View {
     /// 카드 상단에서 사진 위 컨트롤(날씨 칩 · 검색 버튼)이 차지하는 높이.
     /// 이 만큼을 탭 영역에서 제외합니다. 아래 contentShape 주석 참고.
     let controlStripHeight: CGFloat
-    let communityPosts: [CommunityPost]
+    let isSaved: Bool
+    let onToggleSave: () -> Void
     let onSelect: () -> Void
 
     private var spot: PhotoSpot { recommendation.spot }
@@ -250,20 +623,19 @@ private struct HomeHeroCard: View {
         HomeSpotDisplayFormatter.region(for: spot)
     }
 
-    /// 상세 화면과 같은 계산기를 씁니다.
-    /// 사용자가 현장 정보를 등록하면 홈 Hero 의 배지도 함께 바뀝니다.
-    /// 제보가 없으면 nil 이고, 이때는 배지 대신 "현장 정보 없음" 을 보여줍니다.
-    private var crowdLevel: VFCrowdLevel? {
-        VFLiveCrowd.resolve(spot: spot, posts: communityPosts)
-    }
+    private var heroReasonItems: [String] {
+        var items = [distanceText ?? region]
 
-    private var metaItems: [String] {
-        var items: [String] = []
-        if let distanceText {
-            items.append(distanceText)
+        if let heroReasonTimeText, !heroReasonTimeText.isEmpty {
+            items.append(heroReasonTimeText)
         }
-        items.append(region)
-        return items
+
+        if let shootingCondition = HomeSpotDisplayFormatter.heroShootingCondition(for: spot),
+           !items.contains(shootingCondition) {
+            items.append(shootingCondition)
+        }
+
+        return Array(items.prefix(3))
     }
 
     var body: some View {
@@ -273,9 +645,9 @@ private struct HomeHeroCard: View {
             height: size.height,
             cornerRadius: 0,
             showsScrim: true,
-            // 밝은 사진(하늘, 잔디)에서 흰 텍스트가 읽히지 않는 문제가 있었습니다.
-            scrimHeightRatio: 0.72,
-            scrimStrength: 1.25,
+            // 제목과 촬영 정보가 놓이는 하단만 보호해 사진의 색과 질감은 유지합니다.
+            scrimHeightRatio: 0.44,
+            scrimStrength: 1.05,
             showsTopControlScrim: true,
             // Hero 는 상태바(흰 시계/배터리)까지 보호해야 합니다.
             topScrimStrength: 0.62,
@@ -285,6 +657,10 @@ private struct HomeHeroCard: View {
         // 사진 크기를 먼저 확정합니다. 이 순서가 중요합니다.
         .frame(width: size.width, height: size.height)
         .clipped()
+        // 사진 하단을 피드 배경으로 부드럽게 연결합니다.
+        // 순검정 대비가 강한 다크 모드에서는 전환 구간을 더 길게 사용합니다.
+        // 텍스트보다 먼저 쌓아 장소명과 이유 한 줄의 대비는 유지합니다.
+        .overlay(alignment: .bottom) { HeroFeedBackgroundTransition() }
         .overlay(alignment: .bottomLeading) { textLayer }
         // 탭 영역에서 상단 컨트롤 줄을 뺍니다.
         //
@@ -295,17 +671,19 @@ private struct HomeHeroCard: View {
         //
         // 이 도형을 남겨두는 이유는 원리상 맞는 코드이기 때문입니다.
         // 카드의 탭 영역이 사진 위 컨트롤 자리까지 뻗는 것은 어느 컨테이너
-        // 안에서든 틀립니다. 지금은 TabView 의 page 스타일이
-        // UIPageViewController 로 구현되어 이 요청이 무시되지만, 페이저
-        // 구현이 바뀌면 이 도형이 제 역할을 하게 됩니다.
+        // 안에서든 틀립니다. 페이저 구현이 바뀌어도 이 도형이 제 역할을
+        // 하도록 남겨 둡니다.
         .contentShape(HeroCardTapArea(topExclusion: controlStripHeight))
         .onTapGesture(perform: onSelect)
+        .onLongPressGesture(minimumDuration: 0.45, maximumDistance: 24) {
+            VFHaptics.save()
+            onToggleSave()
+        }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel(
-            "\(spot.name), \(region), \(crowdLevel?.accessibilityLabel ?? "현장 정보 없음")"
-        )
+        .accessibilityLabel("\(spot.name), \(heroReasonItems.joined(separator: ", "))")
         .accessibilityAction(named: "상세 보기", onSelect)
+        .accessibilityAction(named: isSaved ? "저장 해제" : "저장", onToggleSave)
     }
 
     private var textLayer: some View {
@@ -321,23 +699,11 @@ private struct HomeHeroCard: View {
                 .minimumScaleFactor(0.62)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: VFSpace.md) {
-                VFMetaLineOnPhoto(items: metaItems)
-
-                if let crowdLevel {
-                    VFCrowdBadge(level: crowdLevel)
-                } else {
-                    // 시드 값으로 채우지 않고 없다고 말합니다.
-                    // 제보를 유도하는 효과도 있습니다.
-                    Text("현장 정보 없음")
-                        .vfText(.mono)
-                        .foregroundStyle(Color.white.opacity(0.58))
-                }
-            }
+            VFMetaLineOnPhoto(items: heroReasonItems)
 
         }
         .padding(.horizontal, VFSpace.lg)
-        // 네이티브 페이지 인디케이터가 하단 중앙에 놓이므로
+        // 커스텀 페이지 인디케이터가 하단 중앙에 놓이므로
         // 텍스트가 그 위로 오도록 여백을 확보합니다.
         .padding(.bottom, VFSpace.xxl + VFSpace.sm)
         // 긴 장소명이 카드 밖으로 넘치지 않게 폭을 고정합니다.
@@ -348,19 +714,26 @@ private struct HomeHeroCard: View {
 // ═══════════════════════════════════════════════════════════════════
 // MARK: - HomePhotoCard
 //
-//  섹션 카드. 모든 섹션이 이 카드 하나만 씁니다.
+//  섹션 카드. 사진·캡션 언어는 한 컴포넌트로 통일하되, 우선순위에 따라
+//  비율·높이만 달리해 Hero 다음의 시각 리듬을 이어 갑니다.
 //
 //  [이전 시도]
 //  섹션마다 레이아웃을 다르게 해서(3:2 카로셀 / 2:1+1:1 모자이크) 리듬을 만들려 했으나
 //  실제 화면에서는 "리듬"이 아니라 "규격이 안 맞는 것"으로 읽혔고,
 //  캡션 없는 정사각 타일은 어디인지 알 수 없다는 문제가 있었습니다.
-//  통일이 분화보다 낫다는 판단으로 전 섹션 동일 규격(3:2 + 캡션)으로 돌아갑니다.
+//  통일이 분화보다 낫다는 판단으로 사진 위 캡션과 정보 밀도는 동일하게 유지합니다.
 // ═══════════════════════════════════════════════════════════════════
 
 struct HomePhotoCard: View {
     let recommendation: RecommendedSpot
-    let aspectRatio: CGFloat
+    let aspectRatio: CGFloat?
+    /// 첫 우선 레일처럼 비율보다 사진 높이의 존재감이 중요할 때 사용합니다.
+    var height: CGFloat? = nil
     var showsMeta: Bool = true
+    var metaItems: [String]? = nil
+    var cornerRadius: CGFloat = VFRadius.photo
+    var scrimHeightRatio: CGFloat = 0.62
+    var scrimStrength: Double = 1.15
     let onSelect: () -> Void
 
     private var spot: PhotoSpot { recommendation.spot }
@@ -371,18 +744,19 @@ struct HomePhotoCard: View {
 
     // 카드마다 "몇 km" 를 붙이면 사진 위에 숫자가 반복되어
     // 훑어볼 때 노이즈가 됩니다. 지역명만 남깁니다.
-    private var metaItems: [String] {
-        [region]
+    private var displayedMetaItems: [String] {
+        metaItems ?? [region]
     }
 
     var body: some View {
         VFPhotoTile(
             spot: spot,
             aspectRatio: aspectRatio,
-            cornerRadius: VFRadius.photo,
+            height: height,
+            cornerRadius: cornerRadius,
             showsScrim: true,
-            scrimHeightRatio: 0.62,
-            scrimStrength: 1.15
+            scrimHeightRatio: scrimHeightRatio,
+            scrimStrength: scrimStrength
         )
         .overlay(alignment: .bottomLeading) { caption }
         .contentShape(Rectangle())
@@ -401,7 +775,7 @@ struct HomePhotoCard: View {
                 .minimumScaleFactor(0.78)
 
             if showsMeta {
-                VFMetaLineOnPhoto(items: metaItems)
+                VFMetaLineOnPhoto(items: displayedMetaItems)
             }
         }
         .padding(.horizontal, VFSpace.md + 2)
@@ -482,7 +856,6 @@ private struct HomeHeroPreviewHost: View {
 
 #Preview("Home Hero") {
     HomeHeroPreviewHost()
-        .preferredColorScheme(.dark)
 }
 
 #Preview("Photo Card") {
@@ -504,6 +877,5 @@ private struct HomeHeroPreviewHost: View {
     .vfScreenMargin()
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Color(uiColor: VFPalette.canvas))
-    .preferredColorScheme(.dark)
 }
 #endif

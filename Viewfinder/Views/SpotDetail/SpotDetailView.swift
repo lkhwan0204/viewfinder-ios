@@ -40,6 +40,10 @@ struct SpotDetailView: View {
     let source: SpotDetailSource
     let isSaved: Bool
     let communityPosts: [CommunityPost]
+    let placePhotos: [PlacePhoto]
+    let placePhotoGalleryStore: PlacePhotoGalleryStore
+    let crowdReports: [CrowdReport]
+    @ObservedObject var crowdReportStore: CrowdReportStore
     let currentUserID: String
     let spots: [PhotoSpot]
     /// 거리 표시용. 없으면 거리 지표가 "위치 확인 필요" 로 표시됩니다.
@@ -47,18 +51,99 @@ struct SpotDetailView: View {
     let onToggleSave: () -> Void
     let onOpenMap: () -> Void
     let onReportPhoto: () -> Void
+    let onSubmitCrowdReport: (CommunityPost.Crowd) -> Void
     let onSubmitCommunity: (CommunityPostDraft) -> Void
     let onUpdateCommunity: (CommunityPost, CommunityPostDraft) -> Void
     let onDeleteCommunity: (CommunityPost) -> Void
+    @ObservedObject var communityViewModel: CommunityViewModel
+    let onToggleCommunityLike: (CommunityPost) -> Void
+    let onToggleCommunityFollow: (CommunityPost) -> Void
+    let onAddCommunityComment: (String, CommunityPost) -> Bool
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isDirectionsDialogPresented = false
     @State private var isCommunityComposerPresented = false
     @State private var editingCommunityPost: CommunityPost?
     @State private var authenticationDestination: AuthenticationDestination?
     @State private var pendingAuthenticatedAction: (() -> Void)?
     @State private var isVisitInformationExpanded = false
+    @State private var sessionGalleryPhotos: [PlacePhoto]
+    @State private var selectedGalleryIndex = 0
+
+    init(
+        authViewModel: AuthViewModel,
+        spot: PhotoSpot,
+        source: SpotDetailSource,
+        isSaved: Bool,
+        communityPosts: [CommunityPost],
+        placePhotos: [PlacePhoto] = [],
+        placePhotoGalleryStore: PlacePhotoGalleryStore? = nil,
+        crowdReports: [CrowdReport] = [],
+        crowdReportStore: CrowdReportStore? = nil,
+        currentUserID: String,
+        spots: [PhotoSpot],
+        userLocation: CLLocationCoordinate2D? = nil,
+        onToggleSave: @escaping () -> Void,
+        onOpenMap: @escaping () -> Void,
+        onReportPhoto: @escaping () -> Void,
+        onSubmitCrowdReport: @escaping (CommunityPost.Crowd) -> Void = { _ in },
+        onSubmitCommunity: @escaping (CommunityPostDraft) -> Void,
+        onUpdateCommunity: @escaping (CommunityPost, CommunityPostDraft) -> Void,
+        onDeleteCommunity: @escaping (CommunityPost) -> Void,
+        communityViewModel: CommunityViewModel? = nil,
+        onToggleCommunityLike: @escaping (CommunityPost) -> Void = { _ in },
+        onToggleCommunityFollow: @escaping (CommunityPost) -> Void = { _ in },
+        onAddCommunityComment: @escaping (String, CommunityPost) -> Bool = { _, _ in false }
+    ) {
+        self.authViewModel = authViewModel
+        self.spot = spot
+        self.source = source
+        self.isSaved = isSaved
+        self.communityPosts = communityPosts
+        self.placePhotos = placePhotos
+        self.placePhotoGalleryStore = placePhotoGalleryStore ?? .shared
+        self.crowdReports = crowdReports
+        self._crowdReportStore = ObservedObject(wrappedValue: crowdReportStore ?? .shared)
+        self.currentUserID = currentUserID
+        self.spots = spots
+        self.userLocation = userLocation
+        self.onToggleSave = onToggleSave
+        self.onOpenMap = onOpenMap
+        self.onReportPhoto = onReportPhoto
+        self.onSubmitCrowdReport = onSubmitCrowdReport
+        self.onSubmitCommunity = onSubmitCommunity
+        self.onUpdateCommunity = onUpdateCommunity
+        self.onDeleteCommunity = onDeleteCommunity
+        self._communityViewModel = ObservedObject(wrappedValue: communityViewModel ?? CommunityViewModel())
+        self.onToggleCommunityLike = onToggleCommunityLike
+        self.onToggleCommunityFollow = onToggleCommunityFollow
+        self.onAddCommunityComment = onAddCommunityComment
+        _sessionGalleryPhotos = State(
+            initialValue: PlacePhotoPool.select(
+                from: placePhotos.isEmpty ? PlacePhotoPool.candidates(for: spot) : placePhotos
+            )
+        )
+    }
+
+    private var isDetailOverlayPresented: Bool {
+        isDirectionsDialogPresented
+            || isCommunityComposerPresented
+            || authenticationDestination != nil
+    }
+
+    private var isCrowdReportSubmitting: Bool {
+        guard !currentUserID.isEmpty else { return false }
+        return crowdReportStore.isSubmitting(
+            placeID: spot.id,
+            authorID: currentUserID
+        )
+    }
+
+    private var isCrowdReportLoading: Bool {
+        crowdReportStore.isLoading(placeID: spot.id)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -68,8 +153,10 @@ struct SpotDetailView: View {
             ZStack(alignment: .bottom) {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: source.isCompact ? 14 : 20) {
-                        SpotDetailHeroImage(
+                        SpotDetailPhotoGallery(
                             spot: spot,
+                            photos: sessionGalleryPhotos,
+                            selectedIndex: $selectedGalleryIndex,
                             height: heroHeight(in: proxy.size),
                             cornerRadius: source.isMapContext ? AppLayout.cardCornerRadius : 0,
                             showsBorder: source.isMapContext,
@@ -95,12 +182,16 @@ struct SpotDetailView: View {
                         }
 
                         SpotDetailCommunitySection(
+                            spot: spot,
                             posts: communityPosts,
+                            crowdReports: crowdReports,
                             currentUserID: currentUserID,
-                            onWrite: {
+                            spots: spots,
+                            isCrowdReportSubmitting: isCrowdReportSubmitting,
+                            isCrowdReportLoading: isCrowdReportLoading,
+                            onReportCrowd: { crowd in
                                 requireAuthentication {
-                                    editingCommunityPost = nil
-                                    isCommunityComposerPresented = true
+                                    onSubmitCrowdReport(crowd)
                                 }
                             },
                             onEdit: { post in
@@ -113,6 +204,20 @@ struct SpotDetailView: View {
                                 requireAuthentication {
                                     onDeleteCommunity(post)
                                 }
+                            },
+                            communityViewModel: communityViewModel,
+                            onToggleLike: { post in
+                                requireAuthentication {
+                                    onToggleCommunityLike(post)
+                                }
+                            },
+                            onToggleFollow: { post in
+                                requireAuthentication {
+                                    onToggleCommunityFollow(post)
+                                }
+                            },
+                            onAddComment: { message, post in
+                                onAddCommunityComment(message, post)
                             }
                         )
                     }
@@ -132,6 +237,7 @@ struct SpotDetailView: View {
             }
             .ignoresSafeArea(.container, edges: .bottom)
         }
+        .accessibilityHidden(isDetailOverlayPresented)
         .background(AppColors.background.ignoresSafeArea())
         .confirmationDialog("길찾기 앱 선택", isPresented: $isDirectionsDialogPresented, titleVisibility: .visible) {
             ForEach(MapProvider.allCases) { provider in
@@ -165,6 +271,14 @@ struct SpotDetailView: View {
             onDismiss: resumePendingAuthenticatedActionIfPossible
         ) { _ in
             LoginView(authViewModel: authViewModel)
+        }
+        .task(id: spot.id) {
+            let loadedPhotos = await placePhotoGalleryStore.load(for: spot)
+            sessionGalleryPhotos = PlacePhotoPool.select(
+                from: loadedPhotos.isEmpty ? PlacePhotoPool.candidates(for: spot) : loadedPhotos
+            )
+            selectedGalleryIndex = min(selectedGalleryIndex, max(sessionGalleryPhotos.count - 1, 0))
+            await crowdReportStore.load(for: spot)
         }
     }
 
@@ -318,6 +432,8 @@ struct SpotDetailView: View {
                 .lineLimit(source.isCompact ? 2 : 2)
                 .lineSpacing(1)
 
+            VFMetaLine(items: decisionSummaryItems)
+
             HStack(spacing: 6) {
                 ForEach(spot.hashtags.prefix(2), id: \.self) { tag in
                     Text("#\(tag.replacingOccurrences(of: "#", with: ""))")
@@ -345,10 +461,7 @@ struct SpotDetailView: View {
             )
 
             LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: 10),
-                    GridItem(.flexible(), spacing: 10)
-                ],
+                columns: shootingConditionColumns,
                 spacing: 10
             ) {
                 SpotShootingMetric(
@@ -357,40 +470,35 @@ struct SpotDetailView: View {
                     value: HomeSpotDisplayFormatter.bestTime(spot.bestTime)
                 )
                 SpotShootingMetric(
-                    symbolName: "person.2.fill",
-                    title: "혼잡도",
-                    value: crowdMetricValue
-                )
-                SpotShootingMetric(
                     symbolName: "clock.badge.checkmark.fill",
                     title: "이용 시간",
                     value: openingHoursMetricValue
                 )
-                SpotShootingMetric(
-                    symbolName: "cloud.sun.fill",
-                    title: "날씨 궁합",
-                    value: spot.weatherFit
-                )
             }
+            SpotShootingMetric(
+                symbolName: "cloud.sun.fill",
+                title: "날씨 궁합",
+                value: spot.weatherFit
+            )
         }
     }
 
-    /// 최근 제보로 계산한 혼잡도. 제보가 없으면 nil.
-    ///
-    /// 계산은 VFLiveCrowd 한 곳에서만 합니다.
-    /// 홈과 상세가 각자 계산하던 시절에는 같은 장소가 홈에서 "붐빔",
-    /// 상세에서 "여유" 로 보이는 문제가 있었습니다.
-    private var liveCrowd: VFCrowdLevel? {
-        VFLiveCrowd.resolve(spot: spot, posts: communityPosts)
+    private var decisionSummaryItems: [String] {
+        [
+            VFSpotDistance.text(from: userLocation, to: spot)
+                ?? HomeSpotDisplayFormatter.region(for: spot),
+            HomeSpotDisplayFormatter.bestTime(spot.bestTime)
+        ]
     }
 
-    /// 제보가 없으면 시드 값으로 채우지 않고 없다고 말합니다.
-    /// 관측되지 않은 값을 실시간처럼 보여주면 혼잡도 전체가 신뢰를 잃습니다.
-    private var crowdMetricValue: String {
-        guard let liveCrowd else {
-            return "현장 정보 없음"
+    private var shootingConditionColumns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible())]
         }
-        return "\(liveCrowd.label) · 실시간"
+        return [
+            GridItem(.flexible(), spacing: 10),
+            GridItem(.flexible(), spacing: 10)
+        ]
     }
 
     /// 지금 들어갈 수 있는지. 사진가가 출발 전 가장 먼저 확인하는 정보입니다.
@@ -525,6 +633,188 @@ struct SpotDetailHeroImage: View {
     }
 }
 
+struct SpotDetailPhotoGallery: View {
+    let spot: PhotoSpot
+    let photos: [PlacePhoto]
+    @Binding var selectedIndex: Int
+    let height: CGFloat
+    var cornerRadius: CGFloat = AppLayout.cardCornerRadius
+    var showsBorder: Bool = true
+    let onReportPhoto: () -> Void
+
+    var body: some View {
+        Group {
+            if photos.isEmpty {
+                Button(action: onReportPhoto) {
+                    ZStack(alignment: .bottom) {
+                        MissingSpotPhotoPrompt(layout: .hero)
+
+                        Text("대표 사진 제보")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(AppColors.primary)
+                            .padding(.horizontal, 15)
+                            .frame(height: 34)
+                            .background(AppColors.cardBackground, in: Capsule())
+                            .overlay(Capsule().stroke(AppColors.divider, lineWidth: 1))
+                            .padding(.bottom, 15)
+                    }
+                }
+                .buttonStyle(.plain)
+            } else {
+                ZStack(alignment: .bottomTrailing) {
+                    TabView(selection: $selectedIndex) {
+                        ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                            SpotDetailGalleryImage(photo: photo)
+                                .tag(index)
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+
+                    VStack {
+                        HStack {
+                            Spacer(minLength: 0)
+
+                            Button(action: onReportPhoto) {
+                                Label("사진 추가", systemImage: "plus")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 10)
+                                    .frame(height: 28)
+                                    .background(.black.opacity(0.46), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("이 장소에 사진 추가")
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+                    .padding(10)
+
+                    HStack(spacing: 8) {
+                        if let attributionText {
+                            Text(attributionText)
+                                .font(.system(size: 9.5, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.92))
+                                .lineLimit(1)
+                                .padding(.horizontal, 7)
+                                .frame(height: 22)
+                                .background(.black.opacity(0.42), in: Capsule())
+                        }
+
+                        if photos.count > 1 {
+                            Text("\(min(selectedIndex + 1, photos.count)) / \(photos.count)")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 9)
+                                .frame(height: 26)
+                                .background(.black.opacity(0.48), in: Capsule())
+                        }
+                    }
+                    .padding(10)
+                }
+            }
+        }
+        .frame(height: height)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay {
+            if showsBorder {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(AppColors.divider.opacity(0.65), lineWidth: 1)
+            }
+        }
+    }
+
+    private var attributionText: String? {
+        guard let credit = spot.imageCredit?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !credit.isEmpty else {
+            return nil
+        }
+
+        if let license = spot.imageLicense?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !license.isEmpty {
+            return "\(credit) · \(license)"
+        }
+
+        return credit
+    }
+}
+
+private struct SpotDetailGalleryImage: View {
+    let photo: PlacePhoto
+    @State private var revealedRemoteImageKey: String?
+
+    var body: some View {
+        Group {
+            if let imageData = photo.imageData,
+               let image = UIImage(data: imageData) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else if let imageName = photo.imageName,
+                      let image = UIImage(named: imageName) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else if let imageURL = photo.imageURL {
+                AsyncImage(
+                    url: imageURL,
+                    transaction: Transaction(animation: .easeOut(duration: 0.18))
+                ) { phase in
+                    ZStack {
+                        placeholderSurface
+
+                        switch phase {
+                        case .empty:
+                            EmptyView()
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .opacity(revealedRemoteImageKey == imageURL.absoluteString ? 1 : 0)
+                                .onAppear {
+                                    guard revealedRemoteImageKey != imageURL.absoluteString else { return }
+                                    withAnimation(.easeOut(duration: 0.18)) {
+                                        revealedRemoteImageKey = imageURL.absoluteString
+                                    }
+                                }
+                        case .failure:
+                            placeholder
+                        @unknown default:
+                            placeholder
+                        }
+                    }
+                }
+                .onChange(of: imageURL) { _, newURL in
+                    guard revealedRemoteImageKey != newURL.absoluteString else { return }
+                    revealedRemoteImageKey = nil
+                }
+            } else {
+                placeholder
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+    }
+
+    private var placeholder: some View {
+        placeholderSurface
+            .overlay {
+                Image(systemName: "camera.aperture")
+                    .font(.system(size: 34, weight: .regular))
+                    .foregroundStyle(AppColors.secondaryText.opacity(0.58))
+            }
+    }
+
+    private var placeholderSurface: some View {
+        AppColors.mutedSurface
+            .overlay {
+                Rectangle()
+                    .stroke(AppColors.divider.opacity(0.72), lineWidth: 1)
+            }
+    }
+}
+
 struct SpotHeroMap: View {
     let spot: PhotoSpot
 
@@ -596,89 +886,399 @@ func communityWrittenTimeText(for date: Date) -> String {
 }
 
 struct SpotDetailCommunitySection: View {
+    let spot: PhotoSpot
     let posts: [CommunityPost]
+    let crowdReports: [CrowdReport]
     let currentUserID: String
-    let onWrite: () -> Void
+    let spots: [PhotoSpot]
+    let isCrowdReportSubmitting: Bool
+    let isCrowdReportLoading: Bool
+    let onReportCrowd: (CommunityPost.Crowd) -> Void
     let onEdit: (CommunityPost) -> Void
     let onDelete: (CommunityPost) -> Void
+    @ObservedObject var communityViewModel: CommunityViewModel
+    let onToggleLike: (CommunityPost) -> Void
+    let onToggleFollow: (CommunityPost) -> Void
+    let onAddComment: (String, CommunityPost) -> Bool
 
-    private var recentCrowdSummary: CommunityCrowdSummary? {
-        let cutoff = Date().addingTimeInterval(-3 * 60 * 60)
-        let recentPosts = posts.filter { $0.createdAt >= cutoff }
-        guard !recentPosts.isEmpty else { return nil }
+    @State private var isCommunityPostsPresented = false
 
-        let counts = Dictionary(grouping: recentPosts, by: \.crowd).mapValues(\.count)
-        let recentCrowdsByRecency = recentPosts.sorted { $0.createdAt > $1.createdAt }.map(\.crowd)
-        let selectedCrowd = CommunityPost.Crowd.allCases.max { left, right in
-            let leftCount = counts[left, default: 0]
-            let rightCount = counts[right, default: 0]
+    private var relatedCommunityPosts: [CommunityPost] {
+        var seenIDs = Set<String>()
 
-            if leftCount == rightCount {
-                let leftRecentIndex = recentCrowdsByRecency.firstIndex(of: left) ?? Int.max
-                let rightRecentIndex = recentCrowdsByRecency.firstIndex(of: right) ?? Int.max
-                return leftRecentIndex > rightRecentIndex
-            }
+        return posts
+            .filter { $0.relatedSpotID == spot.id }
+            .sorted { $0.createdAt > $1.createdAt }
+            .filter { seenIDs.insert($0.id).inserted }
+    }
 
-            return leftCount < rightCount
+    private var selectedCrowd: CommunityPost.Crowd? {
+        guard !currentUserID.isEmpty else { return nil }
+
+        let cutoff = Date().addingTimeInterval(-CrowdReportStore.freshnessWindow)
+        if let report = crowdReports
+            .filter({
+                $0.placeID == spot.id
+                    && $0.authorID == currentUserID
+                    && $0.updatedAt >= cutoff
+            })
+            .max(by: { $0.updatedAt < $1.updatedAt }) {
+            return report.crowd
         }
 
-        guard let selectedCrowd else { return nil }
-        return CommunityCrowdSummary(crowd: selectedCrowd, reportCount: recentPosts.count)
+        // 구버전 Community 글은 아직 crowdReports 문서가 없을 수 있어
+        // 같은 유효 시간창 안에서만 UI 선택 상태를 복원합니다.
+        return posts
+            .filter({
+                $0.spotID == spot.id
+                    && $0.authorID == currentUserID
+                    && $0.hasStatusInfo
+                    && ($0.updatedAt ?? $0.createdAt) >= cutoff
+            })
+            .max(by: { ($0.updatedAt ?? $0.createdAt) < ($1.updatedAt ?? $1.createdAt) })?
+            .crowd
+    }
+
+    private var recentCrowdSummary: CrowdReportSummary? {
+        VFLiveCrowd.summary(
+            spot: spot,
+            reports: crowdReports,
+            legacyPosts: posts
+        )
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("실시간 현장 정보")
+            Text("실시간 현장 정보")
+                .font(AppTypography.cardTitle)
+                .foregroundStyle(AppColors.primary)
+
+            VStack(alignment: .leading, spacing: 14) {
+                // 현재 상태를 먼저 보여주고, 바로 아래에서 사용자가
+                // 자신의 현장 상태를 선택하도록 한 덩어리로 묶습니다.
+                CommunityCrowdSummaryCard(summary: recentCrowdSummary)
+
+                SpotDetailCrowdReportControl(
+                    selection: selectedCrowd,
+                    isSubmitting: isCrowdReportSubmitting || isCrowdReportLoading,
+                    onSelect: onReportCrowd
+                )
+            }
+            .padding(12)
+            .appCardSurface()
+
+            if !relatedCommunityPosts.isEmpty {
+                Button {
+                    isCommunityPostsPresented = true
+                } label: {
+                    SpotDetailCommunityEntryCard(postCount: relatedCommunityPosts.count)
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $isCommunityPostsPresented) {
+                    SpotCommunityPostsSheet(
+                        spot: spot,
+                        posts: relatedCommunityPosts,
+                        spots: spots,
+                        currentUserID: currentUserID,
+                        communityViewModel: communityViewModel,
+                        onEdit: onEdit,
+                        onDelete: onDelete,
+                        onToggleLike: onToggleLike,
+                        onToggleFollow: onToggleFollow,
+                        onAddComment: onAddComment
+                    )
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                }
+            }
+        }
+    }
+
+}
+
+private struct SpotDetailCommunityEntryCard: View {
+    let postCount: Int
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "bubble.left.and.bubble.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColors.secondaryText)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("커뮤니티에서 이 장소")
                     .font(AppTypography.cardTitle)
                     .foregroundStyle(AppColors.primary)
 
-                Spacer()
-
-                Button(action: onWrite) {
-                    Label("작성", systemImage: "pencil")
-                        .font(AppTypography.caption)
-                        .foregroundStyle(AppColors.accent)
-                        .padding(.horizontal, 9)
-                        .frame(height: 29)
-                        .background(AppColors.accentSoft, in: Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-
-            CommunityCrowdSummaryCard(summary: recentCrowdSummary)
-
-            if posts.isEmpty {
-                Text("아직 이 장소의 현장 정보가 없어요. 지금 상황을 첫 번째로 알려주세요.")
+                Text("최근 언급 \(postCount)개를 확인해보세요")
                     .font(AppTypography.metadata)
                     .foregroundStyle(AppColors.secondaryText)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .appCardSurface()
+            }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(AppColors.secondaryText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .appCardSurface()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("커뮤니티에서 이 장소, 최근 언급 \(postCount)개 보기")
+    }
+}
+
+private struct SpotCommunityPostsSheet: View {
+    private static let initialLimit = 5
+    private static let maximumLimit = 10
+
+    let spot: PhotoSpot
+    let posts: [CommunityPost]
+    let spots: [PhotoSpot]
+    let currentUserID: String
+    @ObservedObject var communityViewModel: CommunityViewModel
+    let onEdit: (CommunityPost) -> Void
+    let onDelete: (CommunityPost) -> Void
+    let onToggleLike: (CommunityPost) -> Void
+    let onToggleFollow: (CommunityPost) -> Void
+    let onAddComment: (String, CommunityPost) -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var visiblePostCount = SpotCommunityPostsSheet.initialLimit
+
+    private var orderedPosts: [CommunityPost] {
+        var seenIDs = Set<String>()
+
+        return posts
+            .filter { $0.relatedSpotID == spot.id }
+            .sorted { $0.createdAt > $1.createdAt }
+            .filter { seenIDs.insert($0.id).inserted }
+            .prefix(Self.maximumLimit)
+            .map { $0 }
+    }
+
+    private var visiblePosts: [CommunityPost] {
+        Array(orderedPosts.prefix(min(visiblePostCount, Self.maximumLimit)))
+    }
+
+    private var canShowMore: Bool {
+        visiblePosts.count < orderedPosts.count
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: VFSpace.md) {
+                    ForEach(visiblePosts) { post in
+                        NavigationLink(value: post.id) {
+                            SpotCommunityPostRow(post: post, spot: spot)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if canShowMore {
+                        Button {
+                            visiblePostCount = min(visiblePostCount + Self.initialLimit, Self.maximumLimit)
+                        } label: {
+                            Text("더 보기")
+                                .vfText(.callout.weight(.semibold))
+                                .foregroundStyle(AppColors.accent)
+                                .frame(maxWidth: .infinity, minHeight: AppLayout.touchTarget)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .vfScreenMargin()
+                .padding(.top, VFSpace.md)
+                .vfScrollBottomInset()
+            }
+            .background(AppColors.background.ignoresSafeArea())
+            .navigationTitle("커뮤니티에서 이 장소")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("닫기") {
+                        dismiss()
+                    }
+                }
+            }
+            .navigationDestination(for: String.self) { postID in
+                if let post = orderedPosts.first(where: { $0.id == postID }) {
+                    CommunityPostDetailView(
+                        post: post,
+                        spot: spot,
+                        captureLocationSpot: captureLocationSpot(for: post),
+                        currentUserID: currentUserID,
+                        isLiked: communityViewModel.isLiked(post),
+                        likeCount: post.likeCount + (communityViewModel.isLiked(post) ? 1 : 0),
+                        isFollowing: communityViewModel.isFollowing(post),
+                        comments: communityViewModel.comments(for: post),
+                        focusCommentComposerOnAppear: false,
+                        onToggleLike: onToggleLike,
+                        onToggleFollow: onToggleFollow,
+                        onAddComment: onAddComment,
+                        onSelectSpot: { _ in
+                            dismiss()
+                        },
+                        onEdit: onEdit,
+                        onDelete: onDelete,
+                        communityViewModel: communityViewModel
+                    )
+                } else {
+                    EmptyView()
+                }
+            }
+        }
+    }
+
+    private func captureLocationSpot(for post: CommunityPost) -> PhotoSpot? {
+        guard let placeID = post.captureLocation?.placeID else { return nil }
+        return spots.first { $0.id == placeID }
+    }
+}
+
+private struct SpotCommunityPostRow: View {
+    let post: CommunityPost
+    let spot: PhotoSpot
+
+    private var displayTags: [String] {
+        communityDisplayTags(post.tags, excluding: spot, crowd: post.crowd, limit: 2)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 6) {
+                    Text(post.authorName)
+                        .vfText(.caption.weight(.semibold))
+                        .foregroundStyle(AppColors.primary)
+                        .lineLimit(1)
+
+                    Text("·")
+                        .vfText(.caption)
+                        .foregroundStyle(AppColors.secondaryText)
+
+                    Text(communityRelativeTimeText(for: post.createdAt))
+                        .vfText(.caption)
+                        .foregroundStyle(AppColors.secondaryText)
+                }
+
+                if let title = post.title {
+                    Text(title)
+                        .vfText(.subhead.weight(.semibold))
+                        .foregroundStyle(AppColors.primary)
+                        .lineLimit(1)
+                }
+
+                if !post.message.isEmpty {
+                    Text(post.message)
+                        .vfText(.subhead)
+                        .foregroundStyle(AppColors.primary.opacity(0.82))
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if post.hasStatusInfo || !displayTags.isEmpty {
+                    HStack(spacing: 6) {
+                        if post.hasStatusInfo {
+                            CommunityCrowdBadge(crowd: post.crowd)
+                        }
+
+                        ForEach(displayTags, id: \.self) { tag in
+                            Text(tag)
+                                .vfText(.caption.weight(.semibold))
+                                .foregroundStyle(AppColors.secondaryText)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let attachment = post.publicPhotoAttachments.first {
+                SpotCommunityPostThumbnail(attachment: attachment)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AppColors.secondaryText.opacity(0.8))
+                .padding(.top, 26)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appCardSurface(cornerRadius: VFRadius.inner)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(post.authorName), \(communityRelativeTimeText(for: post.createdAt)), 게시글 보기")
+    }
+}
+
+private struct SpotCommunityPostThumbnail: View {
+    let attachment: CommunityPhotoAttachment
+
+    var body: some View {
+        ZStack {
+            AppColors.mutedSurface
+
+            if let imageData = attachment.imageData,
+               let image = CommunityPhotoDecoder.image(from: imageData) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else if let remoteURL = attachment.remoteURL {
+                AsyncImage(url: remoteURL) { phase in
+                    if case .success(let image) = phase {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } else if case .failure = phase {
+                        Image(systemName: "photo")
+                            .foregroundStyle(AppColors.secondaryText)
+                    } else {
+                        ProgressView()
+                            .tint(AppColors.secondaryText)
+                    }
+                }
             } else {
-                VStack(spacing: 8) {
-                    ForEach(posts.prefix(3)) { post in
-                        CommunityInlinePostCard(
-                            post: post,
-                            currentUserID: currentUserID,
-                            onEdit: onEdit,
-                            onDelete: onDelete
-                        )
+                Image(systemName: "photo")
+                    .foregroundStyle(AppColors.secondaryText)
+            }
+        }
+        .frame(width: 76, height: 64)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: VFRadius.tile, style: .continuous))
+        .accessibilityHidden(true)
+    }
+}
+
+private struct SpotDetailCrowdReportControl: View {
+    let selection: CommunityPost.Crowd?
+    let isSubmitting: Bool
+    let onSelect: (CommunityPost.Crowd) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("지금 얼마나 붐비나요?")
+                .font(AppTypography.metadata.weight(.semibold))
+                .foregroundStyle(AppColors.secondaryText)
+
+            HStack(spacing: 8) {
+                ForEach(CommunityPost.Crowd.allCases) { crowd in
+                    VFCrowdLevelButton(
+                        crowd: crowd,
+                        isSelected: selection == crowd,
+                        isDisabled: isSubmitting
+                    ) {
+                        onSelect(crowd)
                     }
                 }
             }
         }
     }
-
-}
-
-private struct CommunityCrowdSummary {
-    let crowd: CommunityPost.Crowd
-    let reportCount: Int
 }
 
 private struct CommunityCrowdSummaryCard: View {
-    let summary: CommunityCrowdSummary?
+    let summary: CrowdReportSummary?
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -694,7 +1294,7 @@ private struct CommunityCrowdSummaryCard: View {
                         .foregroundStyle(AppColors.primary)
 
                     if let summary {
-                        Text(summary.crowd.rawValue)
+                        Text(summary.crowd.displayName)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(summary.crowd.tint)
                             .padding(.horizontal, 7)
@@ -710,8 +1310,7 @@ private struct CommunityCrowdSummaryCard: View {
 
             Spacer(minLength: 0)
         }
-        .padding(12)
-        .appCardSurface()
+        .padding(.horizontal, 2)
     }
 
     private var tint: Color {
@@ -720,10 +1319,10 @@ private struct CommunityCrowdSummaryCard: View {
 
     private var subtitle: String {
         guard let summary else {
-            return "최근 혼잡도 정보 없음"
+            return "최근 유효한 제보 없음"
         }
 
-        return "최근 제보 \(summary.reportCount)개 기준"
+        return "최근 제보 \(summary.reportCount)개 기준 · \(communityRelativeTimeText(for: summary.latestDate)) 갱신"
     }
 }
 
@@ -779,11 +1378,11 @@ private struct SpotShootingMetric: View {
             Text(value)
                 .font(AppTypography.bodyStrong)
                 .foregroundStyle(AppColors.primary)
-                .lineLimit(2)
+                .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(13)
-        .frame(maxWidth: .infinity, minHeight: 126, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 138, alignment: .topLeading)
         .appCardSurface()
         .accessibilityElement(children: .combine)
     }

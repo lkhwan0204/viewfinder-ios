@@ -1,4 +1,5 @@
 import CoreLocation
+import Combine
 import Foundation
 import OSLog
 
@@ -21,11 +22,24 @@ import OSLog
 
 @MainActor
 final class RecommendationLocationReader: NSObject, ObservableObject, CLLocationManagerDelegate {
+    nonisolated static func isUsable(_ location: CLLocation, now: Date, maxAge: TimeInterval) -> Bool {
+        let age = now.timeIntervalSince(location.timestamp)
+        return CLLocationCoordinate2DIsValid(location.coordinate)
+            && location.horizontalAccuracy >= 0
+            && location.horizontalAccuracy <= 5_000
+            && age >= 0 && age <= maxAge
+    }
     @Published private(set) var coordinate: CLLocationCoordinate2D?
+    @Published private(set) var locationTimestamp: Date?
     @Published private(set) var state: AsyncLoadState = .idle
 
     private let manager = CLLocationManager()
     private var pendingContinuations: [CheckedContinuation<CLLocationCoordinate2D?, Never>] = []
+    private var requestTimeoutTask: Task<Void, Never>?
+    private var isRequestInFlight = false
+    private let maximumCachedLocationAge: TimeInterval = 60 * 60
+    private let maximumLiveLocationAge: TimeInterval = 2 * 60
+    private let defaultRequestTimeout: Duration = .seconds(4)
 
     override init() {
         super.init()
@@ -33,29 +47,58 @@ final class RecommendationLocationReader: NSObject, ObservableObject, CLLocation
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
 
-    func requestLocation() {
-        switch manager.authorizationStatus {
-        case .notDetermined:
-            state = .loading
-            manager.requestWhenInUseAuthorization()
-        case .authorizedAlways, .authorizedWhenInUse:
-            state = .loading
-            manager.requestLocation()
-        case .denied, .restricted:
-            finish(with: nil, state: .failed(message: "위치 권한이 필요해요"))
-        @unknown default:
-            finish(with: nil, state: .failed(message: "위치 상태를 확인하지 못했어요"))
-        }
+    /// Foreground callers use this to revalidate the current position. Existing recent
+    /// content remains available while Core Location obtains a new fix.
+    func recentCoordinateForRecommendation() -> CLLocationCoordinate2D? {
+        expirePublishedLocationIfNeeded()
+        return usableCachedLocation()?.coordinate
     }
 
-    func coordinateForRecommendation() async -> CLLocationCoordinate2D? {
-        if let coordinate {
-            return coordinate
+    func requestLocation(forceRefresh: Bool = true) {
+        expirePublishedLocationIfNeeded()
+        guard !isRequestInFlight else { return }
+
+        beginLocationRequest(forceRefresh: forceRefresh, timeout: defaultRequestTimeout)
+    }
+
+    func coordinateForRecommendation(
+        forceRefresh: Bool = false,
+        timeout: Duration = .seconds(4)
+    ) async -> CLLocationCoordinate2D? {
+        expirePublishedLocationIfNeeded()
+
+        if !forceRefresh, let location = usableCachedLocation() {
+            publish(location)
+            return location.coordinate
         }
 
         return await withCheckedContinuation { continuation in
             pendingContinuations.append(continuation)
-            requestLocation()
+
+            if !isRequestInFlight {
+                beginLocationRequest(forceRefresh: forceRefresh, timeout: timeout)
+            }
+        }
+    }
+
+    private func beginLocationRequest(forceRefresh: Bool, timeout: Duration) {
+        isRequestInFlight = true
+        state = .loading
+        scheduleTimeout(after: timeout)
+
+        switch manager.authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse:
+            if !forceRefresh, let location = usableCachedLocation() {
+                finish(with: location, state: .loaded)
+            } else {
+                manager.requestLocation()
+            }
+        case .denied, .restricted:
+            finishWithFallbackOrFailure(message: "위치 권한이 필요해요")
+        @unknown default:
+            finishWithFallbackOrFailure(message: "위치 상태를 확인하지 못했어요")
         }
     }
 
@@ -63,26 +106,37 @@ final class RecommendationLocationReader: NSObject, ObservableObject, CLLocation
         Task { @MainActor in
             switch manager.authorizationStatus {
             case .authorizedAlways, .authorizedWhenInUse:
-                state = .loading
-                manager.requestLocation()
+                if isRequestInFlight {
+                    manager.requestLocation()
+                } else {
+                    requestLocation()
+                }
             case .denied, .restricted:
-                finish(with: nil, state: .failed(message: "위치 권한이 필요해요"))
+                expirePublishedLocationIfNeeded()
+                finishWithFallbackOrFailure(message: "위치 권한이 필요해요")
             case .notDetermined:
                 break
             @unknown default:
-                finish(with: nil, state: .failed(message: "위치 상태를 확인하지 못했어요"))
+                if isRequestInFlight {
+                    finishWithFallbackOrFailure(message: "위치 상태를 확인하지 못했어요")
+                }
             }
         }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         Task { @MainActor in
-            guard let newCoordinate = locations.last?.coordinate else {
-                finish(with: nil, state: .failed(message: "현재 위치를 찾지 못했어요"))
+            let now = Date()
+            guard let location = locations
+                .filter({ Self.isUsable($0, now: now, maxAge: maximumLiveLocationAge) })
+                .max(by: { $0.timestamp < $1.timestamp }),
+                  now.timeIntervalSince(location.timestamp) >= 0,
+                  now.timeIntervalSince(location.timestamp) <= maximumLiveLocationAge else {
+                finishWithFallbackOrFailure(message: "현재 위치를 찾지 못했어요")
                 return
             }
-            coordinate = newCoordinate
-            finish(with: newCoordinate, state: .loaded)
+
+            finish(with: location, state: .loaded)
         }
     }
 
@@ -91,14 +145,82 @@ final class RecommendationLocationReader: NSObject, ObservableObject, CLLocation
             AppLog.location.error(
                 "Location request failed: \(error.localizedDescription, privacy: .public)"
             )
-            finish(with: nil, state: .failed(message: "현재 위치를 불러오지 못했어요"))
+            finishWithFallbackOrFailure(message: "현재 위치를 불러오지 못했어요")
         }
     }
 
-    private func finish(with result: CLLocationCoordinate2D?, state newState: AsyncLoadState) {
+    private func scheduleTimeout(after timeout: Duration) {
+        requestTimeoutTask?.cancel()
+        requestTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(for: timeout)
+            guard !Task.isCancelled, let self, self.isRequestInFlight else { return }
+
+            AppLog.location.debug("Location request timed out")
+            self.finishWithFallbackOrFailure(message: "현재 위치를 불러오지 못했어요")
+        }
+    }
+
+    private func finishWithFallbackOrFailure(message: String) {
+        if let location = usableCachedLocation() {
+            finish(with: location, state: .loaded)
+        } else {
+            finish(with: nil, state: .failed(message: message))
+        }
+    }
+
+    private func finish(with result: CLLocation?, state newState: AsyncLoadState) {
+        requestTimeoutTask?.cancel()
+        requestTimeoutTask = nil
+        isRequestInFlight = false
+
+        if let result {
+            publish(result)
+        } else {
+            coordinate = nil
+            locationTimestamp = nil
+        }
+
         state = newState
         let continuations = pendingContinuations
         pendingContinuations.removeAll()
-        continuations.forEach { $0.resume(returning: result) }
+        continuations.forEach { $0.resume(returning: result?.coordinate) }
+    }
+
+    private func publish(_ location: CLLocation) {
+        coordinate = location.coordinate
+        locationTimestamp = location.timestamp
+    }
+
+    private func usableCachedLocation(now: Date = Date()) -> CLLocation? {
+        let candidates = [
+            manager.location,
+            coordinate.flatMap { coordinate in
+                guard let locationTimestamp else { return nil }
+                return CLLocation(
+                    coordinate: coordinate,
+                    altitude: 0,
+                    horizontalAccuracy: manager.location?.horizontalAccuracy ?? kCLLocationAccuracyHundredMeters,
+                    verticalAccuracy: -1,
+                    timestamp: locationTimestamp
+                )
+            }
+        ]
+        .compactMap { $0 }
+        .filter { location in
+            Self.isUsable(location, now: now, maxAge: maximumCachedLocationAge)
+        }
+
+        return candidates.max(by: { $0.timestamp < $1.timestamp })
+    }
+
+    private func expirePublishedLocationIfNeeded(now: Date = Date()) {
+        guard let locationTimestamp else { return }
+        let age = now.timeIntervalSince(locationTimestamp)
+        guard age < 0 || age > maximumCachedLocationAge else {
+            return
+        }
+
+        coordinate = nil
+        self.locationTimestamp = nil
     }
 }

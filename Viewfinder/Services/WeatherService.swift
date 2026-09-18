@@ -17,6 +17,9 @@ struct WeatherService {
         let (data, response) = try await client.data(from: url)
         try validate(response)
         let decoded = try JSONDecoder().decode(OpenMeteoResponse.self, from: data)
+        let timeZone = TimeZone(identifier: decoded.timezone ?? "")
+            ?? decoded.utc_offset_seconds.flatMap { TimeZone(secondsFromGMT: $0) }
+            ?? .current
         let fineDust = try? await fineDust(for: coordinate)
 
         return WeatherSnapshot(
@@ -34,27 +37,29 @@ struct WeatherService {
             cloudCover: decoded.current.cloudCover,
             windSpeed: decoded.current.windSpeed10M,
             fineDust: fineDust,
-            hourlyForecasts: hourlyForecasts(from: decoded),
-            sunrise: solarDate(decoded.daily.sunrise, at: 0),
-            sunset: solarDate(decoded.daily.sunset, at: 0),
-            tomorrowSunrise: solarDate(decoded.daily.sunrise, at: 1)
+            hourlyForecasts: hourlyForecasts(from: decoded, timeZone: timeZone),
+            timeZoneIdentifier: timeZone.identifier,
+            fetchedAt: Date(),
+            sunrise: solarDate(decoded.daily.sunrise, at: 0, timeZone: timeZone),
+            sunset: solarDate(decoded.daily.sunset, at: 0, timeZone: timeZone),
+            tomorrowSunrise: solarDate(decoded.daily.sunrise, at: 1, timeZone: timeZone)
         )
     }
 
     /// Open-Meteo 의 "yyyy-MM-dd'T'HH:mm" 문자열을 Date 로 변환합니다.
     /// hourlyForecasts 와 동일한 포맷/타임존 규칙을 씁니다.
-    private func solarDate(_ values: [String]?, at index: Int) -> Date? {
+    private func solarDate(
+        _ values: [String]?,
+        at index: Int,
+        timeZone: TimeZone
+    ) -> Date? {
         guard let values, values.indices.contains(index) else { return nil }
-        return Self.solarFormatter.date(from: values[index])
-    }
-
-    private static let solarFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.timeZone = TimeZone(identifier: "Asia/Seoul")
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
-        return formatter
-    }()
+        return formatter.date(from: values[index])
+    }
 
     private func fineDust(for coordinate: CLLocationCoordinate2D) async throws -> FineDustSnapshot {
         guard let url = fineDustURL(for: coordinate) else {
@@ -90,7 +95,7 @@ struct WeatherService {
             // 2일치를 받습니다. 일몰 이후에는 "내일 일출까지" 를 보여줘야 하는데
             // 1일치만 받으면 그 시점에 표시할 다음 이벤트가 없습니다.
             URLQueryItem(name: "forecast_days", value: "2"),
-            URLQueryItem(name: "timezone", value: "Asia/Seoul")
+            URLQueryItem(name: "timezone", value: "auto")
         ]
         return components?.url
     }
@@ -104,7 +109,7 @@ struct WeatherService {
             URLQueryItem(name: "longitude", value: "\(coordinate.longitude)"),
             URLQueryItem(name: "hourly", value: "pm10,pm2_5"),
             URLQueryItem(name: "forecast_days", value: "1"),
-            URLQueryItem(name: "timezone", value: "Asia/Seoul")
+            URLQueryItem(name: "timezone", value: "auto")
         ]
         return components?.url
     }
@@ -116,7 +121,10 @@ struct WeatherService {
         }
     }
 
-    private func hourlyForecasts(from decoded: OpenMeteoResponse) -> [WeatherHourlyForecast] {
+    private func hourlyForecasts(
+        from decoded: OpenMeteoResponse,
+        timeZone: TimeZone
+    ) -> [WeatherHourlyForecast] {
         let hourly = decoded.hourly
         let count = min(
             hourly.time.count,
@@ -126,11 +134,12 @@ struct WeatherService {
         )
         guard count > 0 else { return [] }
 
-        let calendar = Calendar(identifier: .gregorian)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
         let now = Date()
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.timeZone = TimeZone(identifier: "Asia/Seoul")
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
 
         return (0..<count)
@@ -175,15 +184,19 @@ struct WeatherService {
 
 @MainActor
 final class WeatherStore: ObservableObject {
+    private static let defaultLocationTitle = "현재 위치 기반"
+
     @Published private(set) var snapshot: WeatherSnapshot?
-    @Published private(set) var locationTitle = "현재 위치 기반"
+    @Published private(set) var locationTitle = WeatherStore.defaultLocationTitle
     @Published private(set) var state: AsyncLoadState = .idle
 
     private let service: WeatherService
     private let geocoder = CLGeocoder()
-    private var coordinateKey: String?
+    private let locationChangeThresholdMeters: CLLocationDistance = 1_500
+    private var contextCoordinate: CLLocationCoordinate2D?
     private var lastFetchDate: Date?
     private var loadRevision = 0
+    private var locationContextRevision = 0
 
     init(service: WeatherService = WeatherService()) {
         self.service = service
@@ -193,14 +206,29 @@ final class WeatherStore: ObservableObject {
         state.errorMessage != nil
     }
 
+    /// A recent snapshot is safe to keep visible while Core Location is
+    /// temporarily unavailable. It is deliberately time-bounded so the Home
+    /// pill never turns into an indefinitely stale weather value.
+    var hasFreshSnapshot: Bool {
+        guard let snapshot else { return false }
+        return Date().timeIntervalSince(snapshot.fetchedAt) < 30 * 60
+    }
+
     func load(
         for coordinate: CLLocationCoordinate2D,
         fallbackTitle: String? = nil,
         force: Bool = false
     ) async {
-        let key = coordinateCacheKey(for: coordinate)
+        let isSameContext = isCurrentLocationContext(coordinate)
+
+        // GPS가 같은 생활권 안에서 연속 값을 내보낼 때 동일한 네트워크 요청을
+        // 겹쳐 시작하지 않습니다. force도 이미 진행 중인 요청을 복제하지 않습니다.
+        if state.isLoading, isSameContext {
+            return
+        }
+
         if !force,
-           coordinateKey == key,
+           isSameContext,
            snapshot != nil,
            state == .loaded,
            let lastFetchDate,
@@ -208,22 +236,41 @@ final class WeatherStore: ObservableObject {
             return
         }
 
-        coordinateKey = key
-        loadRevision &+= 1
-        let revision = loadRevision
-        if let fallbackTitle, locationTitle == "현재 위치 기반" {
+        let contextChanged = contextCoordinate != nil && !isSameContext
+        if contextCoordinate == nil || contextChanged {
+            contextCoordinate = coordinate
+            locationContextRevision &+= 1
+        }
+
+        if contextChanged {
+            // 새 지역을 불러오는 동안 이전 지역의 날씨나 지명이 현재 정보처럼
+            // 보이지 않게 즉시 제거합니다.
+            snapshot = nil
+            lastFetchDate = nil
+            locationTitle = fallbackTitle ?? Self.defaultLocationTitle
+        } else if let fallbackTitle,
+                  locationTitle == Self.defaultLocationTitle {
             locationTitle = fallbackTitle
         }
+
+        loadRevision &+= 1
+        let revision = loadRevision
         state = .loading
 
         do {
             let newSnapshot = try await service.snapshot(for: coordinate)
-            guard revision == loadRevision else { return }
+            guard !Task.isCancelled, revision == loadRevision,
+                  isCurrentLocationContext(coordinate) else {
+                return
+            }
             snapshot = newSnapshot
             lastFetchDate = Date()
             state = .loaded
         } catch {
-            guard revision == loadRevision else { return }
+            guard revision == loadRevision,
+                  isCurrentLocationContext(coordinate) else {
+                return
+            }
             AppLog.network.error(
                 "Weather fetch failed: \(error.localizedDescription, privacy: .public)"
             )
@@ -232,6 +279,7 @@ final class WeatherStore: ObservableObject {
     }
 
     func updateLocationTitle(for coordinate: CLLocationCoordinate2D) async {
+        let contextRevision = locationContextRevision
         let location = CLLocation(
             latitude: coordinate.latitude,
             longitude: coordinate.longitude
@@ -239,6 +287,10 @@ final class WeatherStore: ObservableObject {
 
         do {
             guard let placemark = try await geocoder.reverseGeocodeLocation(location).first else {
+                return
+            }
+            guard contextRevision == locationContextRevision,
+                  isCurrentLocationContext(coordinate) else {
                 return
             }
             let title = Self.displayLocationTitle(from: placemark)
@@ -252,8 +304,42 @@ final class WeatherStore: ObservableObject {
         }
     }
 
-    private func coordinateCacheKey(for coordinate: CLLocationCoordinate2D) -> String {
-        "\(Int((coordinate.latitude * 100).rounded()))-\(Int((coordinate.longitude * 100).rounded()))"
+    /// 위치 권한이 사라져 좌표가 nil이 된 경우 Main이 호출합니다.
+    /// 진행 중 응답은 revision guard에서 폐기하고, 호출자가 요청하면
+    /// 아직 신선한 snapshot만 화면에 남겨 fallback으로 사용할 수 있습니다.
+    func invalidateLocationContext(preservingFreshSnapshot: Bool = false) {
+        let preservedSnapshot = preservingFreshSnapshot && hasFreshSnapshot ? snapshot : nil
+        let preservedLocationTitle = locationTitle
+
+        loadRevision &+= 1
+        locationContextRevision &+= 1
+        geocoder.cancelGeocode()
+        contextCoordinate = nil
+
+        if let preservedSnapshot {
+            snapshot = preservedSnapshot
+            locationTitle = preservedLocationTitle
+            lastFetchDate = preservedSnapshot.fetchedAt
+            state = .loaded
+        } else {
+            snapshot = nil
+            locationTitle = Self.defaultLocationTitle
+            lastFetchDate = nil
+            state = .idle
+        }
+    }
+
+    private func isCurrentLocationContext(_ coordinate: CLLocationCoordinate2D) -> Bool {
+        guard let contextCoordinate else { return false }
+        let currentLocation = CLLocation(
+            latitude: contextCoordinate.latitude,
+            longitude: contextCoordinate.longitude
+        )
+        let candidateLocation = CLLocation(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude
+        )
+        return currentLocation.distance(from: candidateLocation) < locationChangeThresholdMeters
     }
 
     private static func displayLocationTitle(from placemark: CLPlacemark) -> String {
@@ -360,7 +446,8 @@ extension WeatherSnapshot {
             cloudCover: cloudCover,
             windSpeed: windSpeed,
             pm10: fineDust?.pm10,
-            pm25: fineDust?.pm25
+            pm25: fineDust?.pm25,
+            timeZoneIdentifier: timeZoneIdentifier
         )
     }
 }

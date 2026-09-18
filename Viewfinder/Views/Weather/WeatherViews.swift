@@ -13,6 +13,10 @@ struct WeatherSnapshot: Equatable {
     let windSpeed: Double
     let fineDust: FineDustSnapshot?
     let hourlyForecasts: [WeatherHourlyForecast]
+    /// Open-Meteo가 좌표에 맞춰 선택한 IANA 시간대입니다.
+    var timeZoneIdentifier: String = TimeZone.current.identifier
+    /// 화면에 표시하는 날씨 값이 실제로 갱신된 시각입니다.
+    var fetchedAt: Date = Date()
 
     // 골든아워 표시용. 기본값을 둬서 기존 생성 호출부가 그대로 컴파일됩니다.
     var sunrise: Date? = nil
@@ -33,13 +37,31 @@ struct WeatherSnapshot: Equatable {
         var candidates: [SunEvent] = []
 
         if let sunrise {
-            candidates.append(SunEvent(kind: .sunrise, date: sunrise))
+            candidates.append(
+                SunEvent(
+                    kind: .sunrise,
+                    date: sunrise,
+                    timeZoneIdentifier: timeZoneIdentifier
+                )
+            )
         }
         if let sunset {
-            candidates.append(SunEvent(kind: .sunset, date: sunset))
+            candidates.append(
+                SunEvent(
+                    kind: .sunset,
+                    date: sunset,
+                    timeZoneIdentifier: timeZoneIdentifier
+                )
+            )
         }
         if let tomorrowSunrise {
-            candidates.append(SunEvent(kind: .sunrise, date: tomorrowSunrise))
+            candidates.append(
+                SunEvent(
+                    kind: .sunrise,
+                    date: tomorrowSunrise,
+                    timeZoneIdentifier: timeZoneIdentifier
+                )
+            )
         }
 
         return candidates
@@ -84,6 +106,7 @@ struct SunEvent: Equatable {
 
     let kind: Kind
     let date: Date
+    var timeZoneIdentifier: String = TimeZone.current.identifier
 
     var symbolName: String {
         kind == .sunset ? "sunset.fill" : "sunrise.fill"
@@ -93,13 +116,33 @@ struct SunEvent: Equatable {
         kind == .sunset ? "일몰" : "일출"
     }
 
+    /// 다음 날 이벤트는 오늘 시각처럼 보이지 않도록 날짜 맥락을 붙입니다.
+    /// Open-Meteo 응답의 현지 시간대를 기준으로 비교합니다.
+    private var contextualName: String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()),
+              calendar.isDate(date, inSameDayAs: tomorrow) else {
+            return name
+        }
+
+        return "내일 \(name)"
+    }
+
     /// 남은 시간이 짧을수록 구체적으로 보여줍니다.
     ///
     /// 90분 이내는 분 단위로 (지금 움직여야 하는 구간),
     /// 3시간 이내는 시간+분,
     /// 그보다 멀면 카운트다운이 의미 없으므로 절대 시각으로 표시합니다.
     var label: String {
-        countdownLabel ?? "\(name) \(Self.timeFormatter.string(from: date))"
+        countdownLabel ?? shortLabel
+    }
+
+    /// 홈처럼 한눈에 요약하는 표면에서 쓰는 절대 시각입니다.
+    /// 카운트다운은 날씨 상세나 사진 맥락에서만 사용합니다.
+    var shortLabel: String {
+        "\(contextualName) \(timeFormatter.string(from: date))"
     }
 
     /// 카운트다운으로 말할 수 있을 때만 값을 돌려줍니다.
@@ -110,21 +153,27 @@ struct SunEvent: Equatable {
     /// 같은 말을 위아래로 두 번 하게 되므로, 그 경우 카운트다운 줄
     /// 자체를 그리지 않습니다.
     var countdownLabel: String? {
+        guard let duration = countdownDurationLabel else { return nil }
+        return "\(contextualName)까지 \(duration)"
+    }
+
+    /// 장소 맥락에서 짧게 붙일 수 있는 카운트다운입니다. (예: "32분")
+    var countdownDurationLabel: String? {
         let remaining = date.timeIntervalSinceNow
         guard remaining > 0 else { return nil }
 
         let minutes = Int(remaining / 60)
 
         if minutes <= 90 {
-            return "\(name)까지 \(minutes)분"
+            return "\(minutes)분"
         }
 
         if minutes <= 180 {
             let hours = minutes / 60
             let rest = minutes % 60
             return rest == 0
-                ? "\(name)까지 \(hours)시간"
-                : "\(name)까지 \(hours)시간 \(rest)분"
+                ? "\(hours)시간"
+                : "\(hours)시간 \(rest)분"
         }
 
         return nil
@@ -132,13 +181,17 @@ struct SunEvent: Equatable {
 
     var isNext: Bool { date > Date() }
 
-    private static let timeFormatter: DateFormatter = {
+    private var timeZone: TimeZone {
+        TimeZone(identifier: timeZoneIdentifier) ?? .current
+    }
+
+    private var timeFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ko_KR")
-        formatter.timeZone = TimeZone(identifier: "Asia/Seoul")
+        formatter.timeZone = timeZone
         formatter.dateFormat = "HH:mm"
         return formatter
-    }()
+    }
 }
 
 struct WeatherVisualTheme {
@@ -268,6 +321,8 @@ struct WeatherHourlyForecast: Identifiable, Equatable {
 }
 
 struct OpenMeteoResponse: Decodable {
+    let timezone: String?
+    let utc_offset_seconds: Int?
     let current: CurrentWeather
     let hourly: HourlyWeather
     let daily: DailyWeather
@@ -343,6 +398,8 @@ struct OpenMeteoAirQualityResponse: Decodable {
 struct WeatherDetailView: View {
     let snapshot: WeatherSnapshot?
     let locationTitle: String
+    var loadState: AsyncLoadState = .idle
+    var onRefresh: (() async -> Void)? = nil
 
     private var theme: WeatherVisualTheme {
         snapshot?.detailTheme ?? .fallback
@@ -386,8 +443,23 @@ struct WeatherDetailView: View {
                         }
 
                         WeatherMetricsGrid(snapshot: snapshot, theme: theme)
+
+                        WeatherDataStatusView(
+                            updatedAt: snapshot.fetchedAt,
+                            timeZoneIdentifier: snapshot.timeZoneIdentifier,
+                            loadState: loadState,
+                            onRefresh: onRefresh
+                        )
                     } else {
-                        WeatherLoadingCard(theme: theme)
+                        if let errorMessage = loadState.errorMessage {
+                            WeatherUnavailableCard(
+                                message: errorMessage,
+                                theme: theme,
+                                onRefresh: onRefresh
+                            )
+                        } else {
+                            WeatherLoadingCard(theme: theme)
+                        }
                     }
                 }
                 .padding(.horizontal, 18)
@@ -395,6 +467,106 @@ struct WeatherDetailView: View {
                 .padding(.bottom, 40)
             }
         }
+    }
+}
+
+private struct WeatherDataStatusView: View {
+    let updatedAt: Date
+    let timeZoneIdentifier: String
+    let loadState: AsyncLoadState
+    let onRefresh: (() async -> Void)?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Open-Meteo 제공")
+                    .vfText(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.primary)
+
+                Text(statusText)
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+            }
+
+            Spacer(minLength: 8)
+
+            if let onRefresh {
+                Button {
+                    Task { await onRefresh() }
+                } label: {
+                    Group {
+                        if loadState.isLoading {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .vfIcon(14, relativeTo: .callout)
+                        }
+                    }
+                    .foregroundStyle(AppColors.primary)
+                    .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
+                    .background(AppColors.mutedSurface, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(loadState.isLoading)
+                .accessibilityLabel(loadState.isLoading ? "날씨 갱신 중" : "날씨 새로고침")
+            }
+        }
+        .padding(.horizontal, 4)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var statusText: String {
+        if loadState.errorMessage != nil {
+            return "마지막 갱신 \(timeFormatter.string(from: updatedAt)) · 새 정보 확인 실패"
+        }
+        return "\(timeFormatter.string(from: updatedAt)) 갱신"
+    }
+
+    private var timeFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.timeZone = TimeZone(identifier: timeZoneIdentifier) ?? .current
+        formatter.dateFormat = "M월 d일 HH:mm"
+        return formatter
+    }
+}
+
+private struct WeatherUnavailableCard: View {
+    let message: String
+    let theme: WeatherVisualTheme
+    let onRefresh: (() async -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Image(systemName: "wifi.exclamationmark")
+                .vfIcon(22, relativeTo: .title2)
+                .foregroundStyle(theme.secondaryText)
+
+            Text(message)
+                .vfText(.headline.weight(.bold))
+                .foregroundStyle(theme.primaryText)
+
+            Text("연결을 확인한 뒤 다시 시도해주세요.")
+                .vfText(.subhead)
+                .foregroundStyle(theme.secondaryText)
+
+            if let onRefresh {
+                Button {
+                    Task { await onRefresh() }
+                } label: {
+                    Label("다시 시도", systemImage: "arrow.clockwise")
+                        .vfText(.callout.weight(.semibold))
+                        .foregroundStyle(AppColors.accent)
+                        .frame(minHeight: AppLayout.touchTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, minHeight: 220, alignment: .leading)
+        .weatherGlassCard(theme: theme, cornerRadius: 24)
     }
 }
 
@@ -672,6 +844,22 @@ struct WeatherMetricsGrid: View {
         snapshot.hourlyForecasts.first?.precipitationProbability ?? Int(snapshot.precipitation.rounded())
     }
 
+    /// 서버가 제공하는 구름량과 강수만으로 촬영 시 빛의 성격을 설명합니다.
+    /// 임의의 골든아워 시각을 만들지 않고 관측값에서 말할 수 있는 범위만 씁니다.
+    private var shootingLightValue: String {
+        if precipitationProbability >= 50 || snapshot.precipitation > 0 {
+            return "비 촬영"
+        }
+        switch snapshot.cloudCover {
+        case ..<20:
+            return "선명한 직사광"
+        case ..<65:
+            return "빛 변화 있음"
+        default:
+            return "부드러운 확산광"
+        }
+    }
+
     private var metrics: [WeatherMetric] {
         [
             // "현재 기온" 과 "기상상태" 카드를 없앴습니다.
@@ -682,6 +870,7 @@ struct WeatherMetricsGrid: View {
             // 있었고, 그 두 카드가 아래 격자의 첫 두 자리를 차지해서
             // 정작 새로운 정보(강수·미세먼지·바람·습도)를 밀어냈습니다.
             WeatherMetric(symbolName: "drop.fill", title: "강수확률", value: "\(precipitationProbability)%", subtitle: "현재 강수 \(Int(snapshot.precipitation.rounded())) mm"),
+            WeatherMetric(symbolName: "camera.filters", title: "빛 조건", value: shootingLightValue, subtitle: "구름량 \(snapshot.cloudCover)% 기준"),
             WeatherMetric(symbolName: "aqi.medium", title: "미세먼지", value: fineDustValue, subtitle: fineDustDetail),
             WeatherMetric(symbolName: "wind", title: "바람", value: String(format: "%.1f km/h", snapshot.windSpeed), subtitle: "현재 풍속"),
             WeatherMetric(symbolName: "humidity.fill", title: "습도", value: "\(snapshot.humidity)%", subtitle: "상대 습도")
@@ -936,12 +1125,31 @@ struct WeatherSunSection: View {
     let snapshot: WeatherSnapshot
     let theme: WeatherVisualTheme
 
-    private var nextKind: SunEvent.Kind? {
-        snapshot.nextSunEvent?.kind
+    private var nextEvent: SunEvent? {
+        snapshot.nextSunEvent
+    }
+
+    /// 일몰 이후에는 이미 지난 오늘 일출 대신 실제 다음 이벤트인
+    /// 내일 일출을 보여줍니다. 두 이벤트가 같은 `sunrise` 종류라는 이유만으로
+    /// 오늘 일출을 강조하던 문제를 막습니다.
+    private var displayedSunrise: (title: String, date: Date)? {
+        if let nextEvent,
+           let tomorrowSunrise = snapshot.tomorrowSunrise,
+           nextEvent.kind == .sunrise,
+           nextEvent.date == tomorrowSunrise {
+            return ("내일 일출", tomorrowSunrise)
+        }
+
+        guard let sunrise = snapshot.sunrise else { return nil }
+        return ("일출", sunrise)
     }
 
     private var hasAnyTime: Bool {
-        snapshot.sunrise != nil || snapshot.sunset != nil
+        displayedSunrise != nil || snapshot.sunset != nil
+    }
+
+    private func isNextEvent(_ date: Date) -> Bool {
+        nextEvent?.date == date
     }
 
     var body: some View {
@@ -996,12 +1204,12 @@ struct WeatherSunSection: View {
                 HStack(spacing: 0) {
                     Spacer(minLength: VFSpace.sm)
 
-                    if let sunrise = snapshot.sunrise {
+                    if let displayedSunrise {
                         sunTime(
                             symbol: "sunrise.fill",
-                            title: "일출",
-                            date: sunrise,
-                            isNext: nextKind == .sunrise
+                            title: displayedSunrise.title,
+                            date: displayedSunrise.date,
+                            isNext: isNextEvent(displayedSunrise.date)
                         )
 
                         Spacer(minLength: VFSpace.md)
@@ -1012,7 +1220,7 @@ struct WeatherSunSection: View {
                             symbol: "sunset.fill",
                             title: "일몰",
                             date: sunset,
-                            isNext: nextKind == .sunset
+                            isNext: isNextEvent(sunset)
                         )
                     }
 
@@ -1048,19 +1256,20 @@ struct WeatherSunSection: View {
                 .vfText(.subhead.weight(.medium))
                 .foregroundStyle(isNext ? AppColors.accent : theme.secondaryText)
 
-            Text(Self.timeFormatter.string(from: date))
+            Text(timeFormatter.string(from: date))
                 .vfText(.headline)
         }
         .foregroundStyle(isNext ? AppColors.accent : theme.primaryText)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title) \(Self.timeFormatter.string(from: date))")
+        .accessibilityLabel("\(title) \(timeFormatter.string(from: date))")
         .accessibilityValue(isNext ? "다음 이벤트" : "")
     }
 
-    private static let timeFormatter: DateFormatter = {
+    private var timeFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ko_KR")
+        formatter.timeZone = TimeZone(identifier: snapshot.timeZoneIdentifier) ?? .current
         formatter.dateFormat = "HH:mm"
         return formatter
-    }()
+    }
 }

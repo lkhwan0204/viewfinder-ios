@@ -23,6 +23,7 @@ struct MyTabView: View {
     let likedPostIDs: Set<String>
     let followedAuthorIDs: Set<String>
     let commentsByPostID: [String: [CommunityComment]]
+    let communityViewModel: CommunityViewModel
     let onTabBarVisibilityChange: (Bool) -> Void
     let onSelectSpot: (PhotoSpot) -> Void
     let onEditPost: (CommunityPost) -> Void
@@ -34,6 +35,7 @@ struct MyTabView: View {
     let onExploreSpots: () -> Void
     let onSignOut: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.system.rawValue
     @State private var previousScrollOffset: CGFloat?
     @State private var isTabBarHidden = false
 
@@ -49,6 +51,10 @@ struct MyTabView: View {
     private var myPosts: [CommunityPost] {
         guard let user else { return [] }
         return posts.filter { $0.authorID == user.id }
+    }
+
+    private var appearance: AppAppearance {
+        AppAppearance(rawValue: appearanceRawValue) ?? .system
     }
 
     var body: some View {
@@ -118,7 +124,7 @@ struct MyTabView: View {
                 }
             }
             // Phase 1: 스크롤한 본문이 상태바 시계와 겹쳐 읽히는 문제를 수정합니다.
-            .vfTopEdgeFade()
+            .vfTopScrollEdge()
             .navigationBarHidden(true)
         }
     }
@@ -233,6 +239,7 @@ struct MyTabView: View {
         CommunityPostCard(
             post: post,
             spot: spot(for: post),
+            captureLocationSpot: captureLocationSpot(for: post),
             currentUserID: user?.id ?? "",
             isLiked: likedPostIDs.contains(post.id),
             likeCount: post.likeCount + (likedPostIDs.contains(post.id) ? 1 : 0),
@@ -243,8 +250,14 @@ struct MyTabView: View {
             onToggleLike: onToggleLike,
             onToggleFollow: onToggleFollow,
             onAddComment: onAddComment,
-            onSelectSpot: onSelectSpot
+            onSelectSpot: onSelectSpot,
+            communityViewModel: communityViewModel
         )
+    }
+
+    private func captureLocationSpot(for post: CommunityPost) -> PhotoSpot? {
+        guard let placeID = post.captureLocation?.placeID else { return nil }
+        return spots.first { $0.id == placeID }
     }
 
     private var usageInfoSection: some View {
@@ -268,6 +281,14 @@ struct MyTabView: View {
                     symbolName: "person.crop.circle.badge.checkmark",
                     title: "계정 활동",
                     detail: "글, 댓글, 좋아요와 장소 제보가 필요할 때만 로그인하세요."
+                )
+
+                Divider()
+                    .padding(.leading, 52)
+
+                MyAppearanceModeRow(
+                    appearance: appearance,
+                    selection: $appearanceRawValue
                 )
             }
             .padding(.horizontal, 14)
@@ -665,6 +686,70 @@ private struct MyInformationRow: View {
     }
 }
 
+private struct MyAppearanceModeRow: View {
+    let appearance: AppAppearance
+    @Binding var selection: String
+
+    var body: some View {
+        Menu {
+            ForEach(AppAppearance.allCases) { option in
+                Button {
+                    selection = option.rawValue
+                } label: {
+                    Label {
+                        HStack {
+                            Text(option.title)
+                            if option == appearance {
+                                Spacer()
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    } icon: {
+                        Image(systemName: option.symbolName)
+                    }
+                }
+            }
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: appearance.symbolName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppColors.primary)
+                    .frame(width: 38, height: 38)
+                    .background(
+                        AppColors.mutedSurface,
+                        in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
+                    )
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("화면 모드")
+                        .vfText(.callout)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(AppColors.primary)
+
+                    Text(appearance.detail)
+                        .vfText(.subhead)
+                        .foregroundStyle(AppColors.secondaryText)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(AppColors.secondaryText)
+                    .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
+                    .accessibilityHidden(true)
+            }
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("화면 모드")
+        .accessibilityValue(appearance.title)
+        .accessibilityHint("시스템 설정, 라이트, 다크 중에서 선택")
+    }
+}
+
 private struct PlaceSubmissionReceiptRow: View {
     let receipt: PlaceSubmissionReceipt
 
@@ -683,7 +768,7 @@ private struct PlaceSubmissionReceiptRow: View {
                     .foregroundStyle(AppColors.primary)
                     .lineLimit(1)
 
-                Text(receipt.status.detail)
+                Text("홈, 지도, 검색에 공개됐어요")
                     .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
                     .lineLimit(2)
@@ -691,7 +776,7 @@ private struct PlaceSubmissionReceiptRow: View {
 
             Spacer(minLength: 8)
 
-            Text(receipt.status.title)
+            Text("공개됨")
                 .vfText(.caption)
                 .foregroundStyle(AppColors.primary)
                 .padding(.horizontal, 9)

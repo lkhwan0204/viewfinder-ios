@@ -1,15 +1,12 @@
 {
   "images" : [
     {
-      "filename" : "spot_gwangnaru_hangang_park.jpg",
-      "idiom" : "universal",
-      "scale" : "1x"
-    },
-    {
+      "filename" : "ViewFinderAppIcon@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
+      "filename" : "ViewFinderAppIcon@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

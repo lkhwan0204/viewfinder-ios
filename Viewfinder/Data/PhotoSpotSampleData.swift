@@ -31,7 +31,7 @@ enum PhotoSpotSampleData {
             mapQuery: "용산공원",
             latitude: 37.5244,
             longitude: 126.9729,
-            theme: .healing
+            theme: .landscape
         ),
         PhotoSpot(
             id: "seoul-botanic-park",
@@ -54,7 +54,7 @@ enum PhotoSpotSampleData {
             mapQuery: "서울식물원",
             latitude: 37.5699,
             longitude: 126.8354,
-            theme: .flower
+            theme: .landscape
         ),
         PhotoSpot(
             id: "yanghwa-bridge",
@@ -77,7 +77,7 @@ enum PhotoSpotSampleData {
             mapQuery: "양화대교",
             latitude: 37.5436,
             longitude: 126.9060,
-            theme: .night
+            theme: .cityArchitecture
         ),
         PhotoSpot(
             id: "sevit-island",
@@ -100,7 +100,7 @@ enum PhotoSpotSampleData {
             mapQuery: "세빛섬",
             latitude: 37.5126,
             longitude: 126.9959,
-            theme: .water
+            theme: .landscape
         ),
         PhotoSpot(
             id: "alone-tree",
@@ -123,7 +123,7 @@ enum PhotoSpotSampleData {
             mapQuery: "올림픽공원 나홀로나무",
             latitude: 37.5208,
             longitude: 127.1215,
-            theme: .healing
+            theme: .landscape
         ),
         PhotoSpot(
             id: "seongsu-cloud-bridge",
@@ -146,7 +146,7 @@ enum PhotoSpotSampleData {
             mapQuery: "성수구름다리",
             latitude: 37.537823,
             longitude: 127.04168,
-            theme: .city
+            theme: .cityArchitecture
         )
     ]
 }

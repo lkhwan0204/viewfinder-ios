@@ -15,6 +15,7 @@ final class MapExperienceState: ObservableObject {
     @Published var isSavedListPresented = false
     @Published var savedListFilter: SavedMapListFilter = .all
     @Published var categoryFilter: MapCategoryFilter = .all
+    @Published var isSavedFilterEnabled = false
     @Published var userLocationFocusRevision = 0
 
     var isRecommendationLoading: Bool {
@@ -28,6 +29,7 @@ final class MapExperienceState: ObservableObject {
         isSavedListPresented = false
         savedListFilter = .all
         shouldFocusUserOnSelection = true
+        isSavedFilterEnabled = false
         if resetCategory {
             categoryFilter = .all
         }
@@ -55,6 +57,18 @@ final class MapExperienceState: ObservableObject {
         recommendationState = .idle
         explicitSpot = nil
         isSavedListPresented = false
+        isSavedFilterEnabled = true
+    }
+
+    func setSavedFilterEnabled(_ enabled: Bool) {
+        isSavedFilterEnabled = enabled
+        if enabled {
+            mode = .recommendations
+            recommendationState = .loaded
+            explicitSpot = nil
+            isSavedListPresented = false
+            shouldFocusUserOnSelection = true
+        }
     }
 
     func showExplicitSpot(_ spot: PhotoSpot) {
@@ -63,6 +77,7 @@ final class MapExperienceState: ObservableObject {
         explicitSpot = spot
         isSavedListPresented = false
         savedListFilter = .all
+        isSavedFilterEnabled = false
         shouldFocusUserOnSelection = false
     }
 }

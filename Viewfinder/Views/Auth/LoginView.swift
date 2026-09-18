@@ -7,8 +7,21 @@ enum AuthenticationDestination: String, Identifiable {
     var id: String { rawValue }
 }
 
+/// 로그인 화면을 어떤 사용자 의도로 열었는지 나타냅니다.
+///
+/// 로그인 자체는 공통 화면을 쓰되, 시작한 작업이 명확한 경우에는
+/// 사용자가 인증 후 어디로 이어지는지 알 수 있게 합니다.
+enum LoginPresentationContext {
+    case general
+    case addSpot
+    case contributePhotos
+    case communityPost
+}
+
 struct LoginView: View {
     @ObservedObject var authViewModel: AuthViewModel
+    var presentationContext: LoginPresentationContext = .general
+
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
 
@@ -21,40 +34,43 @@ struct LoginView: View {
     }
 
     var body: some View {
-        ZStack {
-            AppColors.background
-                .ignoresSafeArea()
-
+        GeometryReader { proxy in
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) {
-                    loginHero
-                    guestReassurance
+                VStack(alignment: .leading, spacing: 0) {
+                    Color.clear
+                        .frame(height: contentTopInset(for: proxy.size.height))
+
+                    brandLockup
+
+                    Text(loginHeroTitle)
+                        .vfText(.title1)
+                        .foregroundStyle(AppColors.primary)
+                        .padding(.top, VFSpace.xl)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(loginHeroDescription)
+                        .vfText(.body)
+                        .foregroundStyle(AppColors.secondaryText)
+                        .padding(.top, VFSpace.sm)
+                        .fixedSize(horizontal: false, vertical: true)
+
                     signInActions
-                    legalNotice
+                        .padding(.top, VFSpace.xl)
+
+                    Spacer(minLength: VFSpace.xxl)
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 90)
-                .padding(.bottom, 34)
+                .frame(minHeight: max(proxy.size.height - 8, 0), alignment: .top)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, VFSpace.screenMargin)
+                .padding(.bottom, VFSpace.xxl)
             }
+            .background(AppColors.background)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            bottomNotes
         }
         .overlay(alignment: .topTrailing) {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(AppColors.primary)
-                    .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
-                    .contentShape(Rectangle())
-                    .background(AppColors.mutedSurface, in: Circle())
-                    .overlay(Circle().stroke(AppColors.divider, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .disabled(authViewModel.isSigningIn)
-            .opacity(authViewModel.isSigningIn ? 0.45 : 1)
-            .padding(.top, 12)
-            .padding(.trailing, 18)
-            .accessibilityLabel("로그인 닫기")
+            closeButton
         }
         .interactiveDismissDisabled(authViewModel.isSigningIn)
         .onAppear {
@@ -73,125 +89,187 @@ struct LoginView: View {
         dismiss()
     }
 
-    private var loginHero: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            // 앱의 정체를 보여주는 자리입니다.
-            // 흰 사각형 + 검정 조리개였는데, 브랜드 색이 있는 앱에서
-            // 로고 자리를 무채색으로 둘 이유가 없습니다.
-            Image(systemName: "camera.aperture")
-                .font(.system(size: 34, weight: .medium))
-                .foregroundStyle(AppColors.onAccent)
-                .frame(width: 64, height: 64)
-                .background(
-                    AppColors.accent,
-                    in: RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
-                )
+    private func contentTopInset(for screenHeight: CGFloat) -> CGFloat {
+        min(max(screenHeight * 0.16, 96), 136)
+    }
 
-            VStack(alignment: .leading, spacing: 9) {
-                Text("좋은 장면을\n놓치지 않도록")
-                    .font(.largeTitle.weight(.bold))
+    private var brandLockup: some View {
+        HStack(spacing: VFSpace.md) {
+            Image("ViewFinderAppIcon")
+                .resizable()
+                .renderingMode(.original)
+                .scaledToFill()
+                .frame(width: 48, height: 48)
+                .clipShape(VFRadius.shape(VFRadius.inner))
+                .overlay {
+                    VFRadius.shape(VFRadius.inner)
+                        .stroke(AppColors.primary.opacity(0.14), lineWidth: 1)
+                }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("ViewFinder")
+                    .vfText(.headline)
                     .foregroundStyle(AppColors.primary)
-                    .fixedSize(horizontal: false, vertical: true)
 
-                Text("출사지와 현장 정보를 계정에 연결해, 다음 촬영에서도 빠르게 이어가세요.")
-                    .font(AppTypography.body)
+                Text("사진 출사지 플랫폼")
+                    .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
-                    .lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
             }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("ViewFinder, 사진 출사지 플랫폼")
+    }
+
+    private var loginHeroTitle: String {
+        switch presentationContext {
+        case .general:
+            return "좋은 출사지를\n다시 찾기 쉽게"
+        case .addSpot:
+            return "발견한 출사지를\n함께 나눠주세요"
+        case .contributePhotos:
+            return "이 장소의 사진을\n함께 나눠주세요"
+        case .communityPost:
+            return "사진과 이야기를\n함께 나눠주세요"
         }
     }
 
-    private var guestReassurance: some View {
-        HStack(alignment: .top, spacing: 11) {
-            Image(systemName: "bookmark.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppColors.primary)
-                .frame(width: 34, height: 34)
-                .background(AppColors.primarySoft, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text("저장한 장소는 그대로 있어요")
-                    .font(AppTypography.bodyStrong)
-                    .foregroundStyle(AppColors.primary)
-                Text("둘러보기와 저장은 게스트로 계속 이용할 수 있어요.")
-                    .font(AppTypography.metadata)
-                    .foregroundStyle(AppColors.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+    private var loginHeroDescription: String {
+        switch presentationContext {
+        case .general:
+            return "저장한 장소와 활동을 계정에 연결해요."
+        case .addSpot:
+            return "로그인 후 장소를 등록하고 제보를 관리할 수 있어요."
+        case .contributePhotos:
+            return "로그인하면 선택한 장소에 사진을 등록할 수 있어요."
+        case .communityPost:
+            return "로그인하면 바로 글쓰기로 이어져요."
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .appCardSurface()
+    }
+
+    private var guestReassuranceText: String {
+        switch presentationContext {
+        case .general:
+            return "저장한 장소는 그대로 남아 있어요."
+        case .addSpot, .contributePhotos, .communityPost:
+            return "둘러보기와 저장은 로그인 없이도 가능해요."
+        }
     }
 
     private var signInActions: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: VFSpace.md) {
             if isAppleSignInEnabled {
-                AppleAuthorizationButton {
+                AppleAuthorizationButton(
+                    style: colorScheme == .dark ? .white : .black
+                ) {
                     authViewModel.startAppleSignIn()
                 }
                 .frame(height: 52)
-                .clipShape(RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous))
+                .clipShape(VFRadius.shape(VFRadius.inner))
                 .disabled(authViewModel.isSigningIn)
+                .id(colorScheme)
+                .accessibilityLabel("Apple로 계속하기")
             }
 
             Button {
                 authViewModel.startGoogleSignIn()
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: VFSpace.md) {
                     Text("G")
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(colorScheme == .dark ? .black : .white)
+                        .foregroundStyle(googleButtonForeground)
                         .frame(width: 28, height: 28)
+                        .accessibilityHidden(true)
 
                     Text("Google로 계속하기")
-                        .font(AppTypography.bodyStrong)
-                        .foregroundStyle(colorScheme == .dark ? .black : .white)
+                        .vfText(.callout)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(googleButtonForeground)
 
                     Spacer(minLength: 0)
 
                     if authViewModel.isSigningIn {
                         ProgressView()
-                            .tint(colorScheme == .dark ? .black : .white)
-                            .scaleEffect(0.85)
+                            .tint(googleButtonForeground)
+                            .accessibilityHidden(true)
                     }
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, VFSpace.lg - 2)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 52)
                 .background(
-                    colorScheme == .dark ? Color.white : Color.black,
-                    in: RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous)
+                    googleButtonBackground,
+                    in: VFRadius.shape(AppLayout.controlCornerRadius)
                 )
+                .contentShape(VFRadius.shape(AppLayout.controlCornerRadius))
             }
             .buttonStyle(.plain)
             .disabled(authViewModel.isSigningIn)
             .opacity(authViewModel.isSigningIn ? 0.72 : 1)
+            .accessibilityLabel("Google로 계속하기")
 
             if let errorMessage = authViewModel.errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                    .font(AppTypography.metadata)
-                    .foregroundStyle(AppColors.secondaryText)
-                    .multilineTextAlignment(.leading)
+                Label(errorMessage, systemImage: "exclamationmark.circle.fill")
+                    .vfText(.subhead)
+                    .foregroundStyle(Color(uiColor: VFPalette.crowdBusy))
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous))
             }
         }
     }
 
-    private var legalNotice: some View {
-        Text("계속하면 서비스 이용에 필요한 인증 정보를 처리하는 데 동의하게 됩니다.")
-            .font(AppTypography.caption)
-            .foregroundStyle(AppColors.secondaryText)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
+    private var googleButtonBackground: Color {
+        colorScheme == .dark ? .white : .black
+    }
+
+    private var googleButtonForeground: Color {
+        colorScheme == .dark ? .black : .white
+    }
+
+    private var bottomNotes: some View {
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            Text(guestReassuranceText)
+                .vfText(.subhead)
+                .foregroundStyle(AppColors.primary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("계속하면 서비스 이용에 필요한 인증 정보를 처리하는 데 동의하게 됩니다.")
+                .vfText(.caption)
+                .foregroundStyle(AppColors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, VFSpace.screenMargin)
+        .padding(.top, VFSpace.md)
+        .padding(.bottom, VFSpace.sm)
+        .background(AppColors.background)
+    }
+
+    private var closeButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(AppColors.primary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+                .background(AppColors.mutedSurface, in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(AppColors.divider, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .disabled(authViewModel.isSigningIn)
+        .opacity(authViewModel.isSigningIn ? 0.45 : 1)
+        .padding(.top, VFSpace.md)
+        .padding(.trailing, VFSpace.screenMargin)
+        .accessibilityLabel("로그인 닫기")
     }
 }
 
 struct AppleAuthorizationButton: UIViewRepresentable {
+    let style: ASAuthorizationAppleIDButton.Style
     let action: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -199,8 +277,8 @@ struct AppleAuthorizationButton: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
-        let button = ASAuthorizationAppleIDButton(type: .signIn, style: .black)
-        button.cornerRadius = 14
+        let button = ASAuthorizationAppleIDButton(type: .continue, style: style)
+        button.cornerRadius = VFRadius.inner
         button.addTarget(context.coordinator, action: #selector(Coordinator.didTap), for: .touchUpInside)
         return button
     }

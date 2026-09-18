@@ -36,15 +36,12 @@ NAVER_CLIENT_ID=your-naver-client-id-here
 NAVER_CLIENT_SECRET=your-naver-client-secret-here
 
 KAKAO_REST_API_KEY=your-kakao-rest-api-key-here
-
-VIEWFINDER_ADMIN_REVIEW_TOKEN=replace-with-a-long-random-value
 ```
 
 | 변수 | 쓰임 | 없으면 |
 |---|---|---|
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | `POST /search-places` 장소 검색 | 홈·지도·제보의 장소 검색이 동작하지 않습니다 |
 | `KAKAO_REST_API_KEY` | `POST /verify-spots` 장소 검증 | 검증 경로만 막힙니다 |
-| `VIEWFINDER_ADMIN_REVIEW_TOKEN` | 제보 검토 관리자 API | 관리자 API 가 열리지 않습니다 |
 
 `PORT`(기본 8787)와 `HOST`(기본 0.0.0.0)도 환경변수로 바꿀 수 있습니다.
 
@@ -74,45 +71,27 @@ curl http://localhost:8787/health
 GET   /health
 POST  /search-places                     네이버 장소검색. 앱의 모든 장소 검색
 POST  /verify-spots                      카카오/네이버로 장소 확인
-GET   /submitted-spots                   승인된 제보만
-POST  /submitted-spots                   장소 제보
-GET   /admin/submitted-spots             관리자 토큰 필요
-PATCH /admin/submitted-spots/:id         관리자 토큰 필요
-GET   /admin/submitted-spots/:id/photo   관리자 토큰 필요
+GET   /submitted-spots                   공개된 사용자 추가 장소
+POST  /submitted-spots                   장소 즉시 추가
+GET   /submitted-spots/:id/photo         공개 장소 사진
 ```
 
 `POST /search-places` 는 네이버 지역검색 결과만 돌려줍니다. Apple MapKit 이나
 카카오 검색은 쓰지 않습니다.
 
-## 장소 제보 검토
+## 장소 즉시 추가
 
-사용자가 `POST /submitted-spots`로 제보한 장소는 `pending_review` 상태로
-저장됩니다. 공개 앱이 호출하는 `GET /submitted-spots`와 사진 URL은
-`approved` 상태만 반환하므로, 승인 전에는 홈·지도·검색에 노출되지 않습니다.
+사용자가 `POST /submitted-spots`로 추가한 장소는 `approved` 상태로 저장되고,
+응답 직후 공개 `GET /submitted-spots`와 사진 URL에서 사용할 수 있습니다. 앱은
+성공 응답 뒤 목록을 새로 받아 홈·지도·검색에 반영합니다.
 
-`.env.local`에 `VIEWFINDER_ADMIN_REVIEW_TOKEN`을 설정한 뒤 아래처럼 씁니다.
-토큰은 앱 코드나 클라이언트에 넣지 않습니다.
+장소 데이터와 대표 사진은 현재 이 개발 서버의
+`RecommendationServer/submitted-spots.json`에 저장됩니다. Community 게시물과
+사진 갤러리처럼 Firebase Firestore를 사용하는 기능과는 별도 저장소입니다.
 
-```sh
-curl \
-  -H "X-Viewfinder-Admin-Token: $VIEWFINDER_ADMIN_REVIEW_TOKEN" \
-  http://localhost:8787/admin/submitted-spots
-
-curl -X PATCH \
-  -H "Content-Type: application/json" \
-  -H "X-Viewfinder-Admin-Token: $VIEWFINDER_ADMIN_REVIEW_TOKEN" \
-  -d '{"status":"approved"}' \
-  http://localhost:8787/admin/submitted-spots/SPOT_ID
-
-curl -X PATCH \
-  -H "Content-Type: application/json" \
-  -H "X-Viewfinder-Admin-Token: $VIEWFINDER_ADMIN_REVIEW_TOKEN" \
-  -d '{"status":"rejected","reviewNote":"장소 또는 사진 정보를 보완해 주세요."}' \
-  http://localhost:8787/admin/submitted-spots/SPOT_ID
-```
-
-`GET /admin/submitted-spots` 응답에는 관리자 전용 `reviewPhotoURL`이 들어
-있습니다. 같은 관리자 토큰 헤더를 넣어야 열리며 승인 전 사진도 볼 수 있습니다.
+기존 파일에 남아 있는 `pending_review` 레코드는 서버 시작 시 삭제하지 않고
+`approved`로 한 번만 전환합니다. 장소 ID, 사진, 좌표, provider 정보는 유지되며
+새 제보에는 pending 상태가 생성되지 않습니다.
 
 ## 출시 전에 반드시 할 일
 

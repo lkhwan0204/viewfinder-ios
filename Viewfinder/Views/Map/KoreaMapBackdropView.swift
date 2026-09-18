@@ -12,7 +12,6 @@ struct KoreaMapBackdropView: View {
     /// 사용자가 지금 고른 핀. 이 핀만 커지고 이름표가 붙습니다.
     let selectedPinID: String?
     let onSelectSpot: (PhotoSpot) -> Void
-    let onDeselect: () -> Void
 
     @StateObject private var locationPermission = LocationPermissionRequester()
 
@@ -22,11 +21,11 @@ struct KoreaMapBackdropView: View {
         // [문제였던 상황]
         // 이 파일의 ZStack 안에서 .padding(.bottom, 104) 로 띄우고 있었는데,
         // 이 뷰 전체가 MapTabView 에서 .ignoresSafeArea() 로 감싸져 있습니다.
-        // 반면 하단 카드는 safe area 를 지키는 컨테이너에 있었습니다.
+        // 반면 하단 컨트롤은 safe area 를 지키는 컨테이너에 있었습니다.
         // 두 컨트롤이 서로 다른 좌표계에 놓여서 높이가 어긋났고,
-        // 카드와 버튼 사이에 지도가 100pt 넘게 비어 보였습니다.
+        // 컨트롤 사이에 지도가 100pt 넘게 비어 보였습니다.
         //
-        // 지금은 검색바·칩·내 위치·카드가 모두 MapTabView 의 한 VStack 안에
+        // 지금은 검색바·칩·내 위치가 모두 MapTabView 의 한 VStack 안에
         // 있습니다. 같은 좌표계, 같은 좌우 여백을 씁니다.
         ZStack {
             NaverMapRepresentable(
@@ -36,24 +35,18 @@ struct KoreaMapBackdropView: View {
                 focusUserLocationRevision: focusUserLocationRevision,
                 userCoordinate: userCoordinate,
                 selectedPinID: selectedPinID,
-                // 핀 탭은 상세를 열지 않습니다.
-                //
-                // [문제였던 상황]
-                // 핀을 누르면 곧바로 화면 72% 를 덮는 상세 시트가 떴습니다.
-                // 핀 6개를 둘러보려면 모달을 6번 열고 닫아야 했습니다.
-                // 지도는 "둘러보는" 화면인데 한 곳을 볼 때마다 지도가 사라졌습니다.
-                //
-                // 이제 핀 탭 -> 하단 카드, 카드 탭 -> 상세 두 단계입니다.
                 onSelectSpot: onSelectSpot,
-                // onFocusSpot 은 updateUIView 안에서 호출됩니다.
-                // 거기서 SwiftUI 상태를 바로 고치면
-                // "Modifying state during view update" 경고가 납니다.
-                onFocusSpot: { spot in
-                    DispatchQueue.main.async { onSelectSpot(spot) }
-                },
-                onDeselect: onDeselect
+                // 카메라 자동 포커스와 사용자 핀 탭은 별도 경로입니다.
+                // 자동 포커스가 상세 화면을 열지 않도록 onSelectSpot은 핀 터치에서만 호출됩니다.
             )
             .ignoresSafeArea()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("출사지 지도")
+            .accessibilityValue(
+                spots.isEmpty
+                    ? "표시된 장소가 없습니다"
+                    : "등록된 장소를 현재 지도 화면 범위에서 표시합니다. 사진 마커를 탭하면 상세를 엽니다"
+            )
         }
         .onAppear {
             locationPermission.requestWhenInUse()
@@ -69,11 +62,11 @@ private struct NaverMapRepresentable: UIViewRepresentable {
     let userCoordinate: CLLocationCoordinate2D?
     let selectedPinID: String?
     let onSelectSpot: (PhotoSpot) -> Void
-    let onFocusSpot: (PhotoSpot) -> Void
-    let onDeselect: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    private let fallbackCoordinate = CLLocationCoordinate2D(latitude: 37.5665, longitude: 126.9780)
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onSelectSpot: onSelectSpot, onFocusSpot: onFocusSpot, onDeselect: onDeselect)
+        Coordinator(onSelectSpot: onSelectSpot)
     }
 
     func makeUIView(context: Context) -> NMFNaverMapView {
@@ -84,6 +77,7 @@ private struct NaverMapRepresentable: UIViewRepresentable {
         // 축척 바("1km")는 출사지를 찾는 데 쓰이지 않는데
         // 우하단에서 내 위치 버튼, 네이버 로고와 겹쳐 보였습니다.
         naverMapView.showScaleBar = false
+        configureMapAppearance(naverMapView.mapView)
         // ═══════════════════════════════════════════════════════════
         //  네이버 로고를 좌하단으로 옮겼습니다.
         //
@@ -103,16 +97,23 @@ private struct NaverMapRepresentable: UIViewRepresentable {
         naverMapView.mapView.logoAlign = .leftBottom
         naverMapView.mapView.logoMargin = UIEdgeInsets(top: 0, left: 14, bottom: 6, right: 0)
         context.coordinator.configure(naverMapView)
-        context.coordinator.syncMarkers(spots: spots, selectedPinID: selectedPinID, on: naverMapView.mapView)
-        if let userCoordinate {
-            context.coordinator.focusOnUserLocation(userCoordinate, mapView: naverMapView.mapView, animated: false)
-        } else if selectedSpotRevision > 0 {
+        naverMapView.mapView.addCameraDelegate(delegate: context.coordinator)
+        context.coordinator.setCandidates(spots: spots, selectedPinID: selectedPinID)
+        if selectedSpotRevision > 0 {
             context.coordinator.focus(on: selectedSpot, mapView: naverMapView.mapView, animated: false)
+        } else if let userCoordinate {
+            context.coordinator.focusOnUserLocation(userCoordinate, mapView: naverMapView.mapView, animated: false)
+        } else {
+            // 위치 권한이 없거나 시뮬레이터 위치가 아직 준비되지 않아도
+            // 서울 기본 탐색점에서 viewport를 시작해 첫 화면이 비지 않게 합니다.
+            context.coordinator.focusOnUserLocation(fallbackCoordinate, mapView: naverMapView.mapView, animated: false)
         }
+        context.coordinator.scheduleViewportSync(on: naverMapView.mapView)
         return naverMapView
     }
 
     func updateUIView(_ naverMapView: NMFNaverMapView, context: Context) {
+        naverMapView.mapView.isNightModeEnabled = colorScheme == .dark
         context.coordinator.syncMarkers(spots: spots, selectedPinID: selectedPinID, on: naverMapView.mapView)
 
         if selectedSpotRevision > 0,
@@ -121,6 +122,7 @@ private struct NaverMapRepresentable: UIViewRepresentable {
             context.coordinator.selectedSpotRevision = selectedSpotRevision
             context.coordinator.selectedSpotID = selectedSpot.id
             context.coordinator.focus(on: selectedSpot, mapView: naverMapView.mapView, animated: true)
+            context.coordinator.scheduleViewportSync(on: naverMapView.mapView)
         }
 
         if context.coordinator.focusUserLocationRevision != focusUserLocationRevision
@@ -130,11 +132,8 @@ private struct NaverMapRepresentable: UIViewRepresentable {
             naverMapView.mapView.positionMode = .direction
             if let userCoordinate {
                 context.coordinator.focusOnUserLocation(userCoordinate, mapView: naverMapView.mapView, animated: true)
+                context.coordinator.scheduleViewportSync(on: naverMapView.mapView)
             }
-        } else if selectedSpotRevision == 0,
-                  let userCoordinate,
-                  context.coordinator.userCoordinateKey != Self.coordinateKey(for: userCoordinate) {
-            context.coordinator.focusOnUserLocation(userCoordinate, mapView: naverMapView.mapView, animated: true)
         }
     }
 
@@ -142,7 +141,15 @@ private struct NaverMapRepresentable: UIViewRepresentable {
         "\(Int((coordinate.latitude * 10_000).rounded()))-\(Int((coordinate.longitude * 10_000).rounded()))"
     }
 
-    final class Coordinator {
+    /// 네이버 지도 SDK의 야간 모드는 Basic 지도에서 지원됩니다.
+    /// 앱 테마가 바뀌면 UIViewRepresentable의 updateUIView가 다시 호출되어
+    /// 화면을 닫지 않고도 지도 타일이 같은 모드로 전환됩니다.
+    private func configureMapAppearance(_ mapView: NMFMapView) {
+        mapView.mapType = .basic
+        mapView.isNightModeEnabled = colorScheme == .dark
+    }
+
+    final class Coordinator: NSObject, NMFMapViewCameraDelegate {
         var selectedSpotRevision = 0
         var focusUserLocationRevision = 0
         var localFocusRevision = 0
@@ -150,65 +157,114 @@ private struct NaverMapRepresentable: UIViewRepresentable {
         var userCoordinateKey: String?
 
         private let onSelectSpot: (PhotoSpot) -> Void
-        private let onFocusSpot: (PhotoSpot) -> Void
-        private let onDeselect: () -> Void
         private var markers: [String: NMFMarker] = [:]
+        private var latestCandidateSpots: [PhotoSpot] = []
+        private var latestSelectedPinID: String?
+        private var latestCandidateSignature: [MarkerCandidateSignature] = []
+        private var hasCandidateSignature = false
+        private var viewportSyncWorkItem: DispatchWorkItem?
 
-        init(
-            onSelectSpot: @escaping (PhotoSpot) -> Void,
-            onFocusSpot: @escaping (PhotoSpot) -> Void,
-            onDeselect: @escaping () -> Void
-        ) {
-            self.onSelectSpot = onSelectSpot
-            self.onFocusSpot = onFocusSpot
-            self.onDeselect = onDeselect
+        private struct MarkerCandidateSignature: Equatable {
+            let id: String
+            let name: String
+            let latitude: Double
+            let longitude: Double
+            let imageName: String?
+            let imageURL: String?
         }
 
-        /// 줌은 그대로 두고 좌표만 화면 중앙 위쪽으로 옮깁니다.
-        /// pivot y 0.36 은 선택된 핀이 하단 카드에 가리지 않게 하는 값입니다.
-        func center(on spot: PhotoSpot, mapView: NMFMapView) {
-            let update = NMFCameraUpdate(
-                scrollTo: NMGLatLng(lat: spot.latitude, lng: spot.longitude)
-            )
-            // pivot y 0.43 은 "카드에 가리지 않는 지도 영역의 중앙" 입니다.
-            //
-            // [계산]
-            // contentInset 이 top 92 / bottom 100 이므로 콘텐츠 영역은 92~752 (660).
-            // 카드 상단은 화면 아래에서 92+96 이므로 y=664.
-            // 즉 핀이 보일 수 있는 구간은 92~664, 그 중앙이 378.
-            // (378 - 92) / 660 = 0.43
-            //
-            // 전에는 0.36 이라 누른 핀은 화면 위쪽, 카드는 화면 맨 아래에 놓여
-            // 방금 누른 것과 그 정보가 화면 양 끝으로 갈렸습니다.
-            update.pivot = CGPoint(x: 0.5, y: 0.43)
-            update.animation = .easeIn
-            update.animationDuration = 0.28
-            mapView.moveCamera(update)
-            // onFocusSpot 을 부르지 않습니다.
-            // 이 메서드는 touchHandler 에서만 호출되고,
-            // 그 자리에서 이미 onSelectSpot 으로 선택을 알렸습니다.
+        init(onSelectSpot: @escaping (PhotoSpot) -> Void) {
+            self.onSelectSpot = onSelectSpot
+            super.init()
+        }
+
+        deinit {
+            viewportSyncWorkItem?.cancel()
+        }
+
+        func mapViewCameraIdle(_ mapView: NMFMapView) {
+            // Naver Map은 제스처가 끝난 뒤에만 idle을 보냅니다.
+            // 여기에 짧은 debounce를 더해 카메라 애니메이션과 연속 이동이
+            // 끝난 뒤 한 번만 현재 viewport의 marker를 갱신합니다.
+            scheduleViewportSync(on: mapView)
         }
 
         func configure(_ naverMapView: NMFNaverMapView) {
             // 상단: 카테고리 칩 한 줄 + 상태 pill.  하단: 탭바 + 내 위치 버튼.
-            // (이전 bottom 220 은 항상 떠 있던 큰 프리뷰 카드를 위한 값이었습니다.
-            //  카드가 선택 시에만 나타나도록 바뀌어 그만큼 필요하지 않습니다.
-            //  이 값이 네이버 로고를 화면 중앙까지 밀어 올리고 있었습니다.)
+            // (이전 bottom 220 은 항상 떠 있던 큰 프리뷰 오버레이를 위한 값이었습니다.
+            //  오버레이를 제거했으므로 지도 하단 컨트롤에 필요한 여백만 유지합니다.)
             naverMapView.mapView.contentInset = UIEdgeInsets(top: 92, left: 0, bottom: 100, right: 0)
         }
 
+        func setCandidates(spots: [PhotoSpot], selectedPinID: String?) {
+            latestCandidateSpots = spots
+            latestSelectedPinID = selectedPinID
+        }
+
         func syncMarkers(spots: [PhotoSpot], selectedPinID: String?, on mapView: NMFMapView) {
-            let incomingIDs = Set(spots.map(\.id))
+            let candidateSignature = spots.map {
+                MarkerCandidateSignature(
+                    id: $0.id,
+                    name: $0.name,
+                    latitude: $0.latitude,
+                    longitude: $0.longitude,
+                    imageName: $0.imageName,
+                    imageURL: $0.imageURL?.absoluteString
+                )
+            }
+            let candidatesChanged = !hasCandidateSignature
+                || candidateSignature != latestCandidateSignature
+            let selectionChanged = selectedPinID != latestSelectedPinID
+
+            guard candidatesChanged || selectionChanged else { return }
+
+            latestCandidateSignature = candidateSignature
+            hasCandidateSignature = true
+            setCandidates(spots: spots, selectedPinID: selectedPinID)
+
+            guard mapView.bounds.width > 1, mapView.bounds.height > 1 else {
+                scheduleViewportSync(on: mapView)
+                return
+            }
+
+            syncVisibleMarkers(on: mapView)
+        }
+
+        func scheduleViewportSync(on mapView: NMFMapView) {
+            viewportSyncWorkItem?.cancel()
+
+            let workItem = DispatchWorkItem { [weak self, weak mapView] in
+                guard let self, let mapView else { return }
+
+                guard mapView.bounds.width > 1, mapView.bounds.height > 1 else {
+                    self.scheduleViewportSync(on: mapView)
+                    return
+                }
+
+                self.syncVisibleMarkers(on: mapView)
+            }
+
+            viewportSyncWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
+        }
+
+        private func syncVisibleMarkers(on mapView: NMFMapView) {
+            let visibleSpots = latestCandidateSpots.filter { spot in
+                mapView.coveringBounds.hasPoint(
+                    NMGLatLng(lat: spot.latitude, lng: spot.longitude)
+                )
+            }
+            let incomingIDs = Set(visibleSpots.map(\.id))
 
             for (id, marker) in markers where !incomingIDs.contains(id) {
                 marker.mapView = nil
                 markers[id] = nil
             }
 
-            for (index, spot) in spots.enumerated() {
-                let isSelected = spot.id == selectedPinID
+            for (index, spot) in visibleSpots.enumerated() {
+                let isSelected = spot.id == latestSelectedPinID
                 // 앞선 장소일수록 높은 zIndex. 겹치면 뒤쪽이 숨습니다.
-                let priority = spots.count - index
+                let priority = visibleSpots.count - index
 
                 if let marker = markers[spot.id] {
                     marker.position = NMGLatLng(lat: spot.latitude, lng: spot.longitude)
@@ -222,20 +278,10 @@ private struct NaverMapRepresentable: UIViewRepresentable {
                 marker.touchHandler = { [weak self] overlay in
                     guard let self else { return true }
 
-                    // 같은 핀을 다시 누르면 선택을 해제합니다.
-                    // (지도 빈 곳 탭으로 해제하려면 터치 델리게이트가 필요한데,
-                    //  검증할 수 없는 SDK API 라서 재탭 토글로 대신합니다.)
-                    if self.selectedSpotID == spot.id {
-                        self.selectedSpotID = nil
-                        self.onDeselect()
-                        return true
-                    }
-
+                    // 핀을 누르는 순간에만 상세 이동을 시작합니다.
+                    // 선택 상태는 사진 마커의 selected 디자인을 유지하는 데만 사용합니다.
                     self.selectedSpotID = spot.id
                     self.onSelectSpot(spot)
-                    // 확대는 하지 않습니다. 핀을 하나씩 눌러보는 중인데
-                    // 매번 줌이 14.5 로 튀면 둘러보던 맥락이 사라집니다.
-                    self.center(on: spot, mapView: mapView)
                     return true
                 }
                 marker.mapView = mapView
@@ -337,7 +383,6 @@ private struct NaverMapRepresentable: UIViewRepresentable {
 
         func focus(on spot: PhotoSpot, mapView: NMFMapView, animated: Bool) {
             let update = NMFCameraUpdate(scrollTo: NMGLatLng(lat: spot.latitude, lng: spot.longitude), zoomTo: 14.5)
-            // center(on:) 과 같은 값. 이 경로도 하단 카드를 함께 띄웁니다.
             update.pivot = CGPoint(x: 0.5, y: 0.43)
 
             if animated {
@@ -346,7 +391,6 @@ private struct NaverMapRepresentable: UIViewRepresentable {
             }
 
             mapView.moveCamera(update)
-            onFocusSpot(spot)
         }
 
         func focusOnUserLocation(_ coordinate: CLLocationCoordinate2D, mapView: NMFMapView, animated: Bool) {
@@ -369,6 +413,7 @@ struct NaverSpotPreviewMap: UIViewRepresentable {
     let spot: PhotoSpot
     /// 확대/축소를 허용할지. 상세 화면의 "위치 미리보기" 에서 true 로 씁니다.
     var allowsZoom: Bool = false
+    @Environment(\.colorScheme) private var colorScheme
 
     func makeUIView(context: Context) -> NMFNaverMapView {
         let naverMapView = NMFNaverMapView(frame: .zero)
@@ -376,6 +421,8 @@ struct NaverSpotPreviewMap: UIViewRepresentable {
         naverMapView.showScaleBar = false
         naverMapView.showZoomControls = allowsZoom
         naverMapView.showLocationButton = false
+        naverMapView.mapView.mapType = .basic
+        naverMapView.mapView.isNightModeEnabled = colorScheme == .dark
 
         // 핀치/더블탭 확대는 허용하되, 패닝·회전·기울기는 막습니다.
         // 세로 스크롤 화면 안에 있는 지도라 패닝을 허용하면 스크롤이 막힙니다.
@@ -390,6 +437,7 @@ struct NaverSpotPreviewMap: UIViewRepresentable {
     }
 
     func updateUIView(_ naverMapView: NMFNaverMapView, context: Context) {
+        naverMapView.mapView.isNightModeEnabled = colorScheme == .dark
         context.coordinator.render(spot: spot, on: naverMapView.mapView, animated: true)
     }
 
@@ -620,7 +668,12 @@ final class MapPinPhotoStore {
     private var overlays: [String: NMFOverlayImage] = [:]
     /// 원본 사진. 선택 상태가 바뀔 때 핀을 다시 그려야 하는데,
     /// 원본이 없으면 매번 네트워크를 다시 타게 됩니다.
-    private var sources: [String: UIImage] = [:]
+    private let sources: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 80
+        cache.totalCostLimit = 24 * 1024 * 1024
+        return cache
+    }()
     private var inFlight: Set<String> = []
 
     private init() {}
@@ -640,7 +693,7 @@ final class MapPinPhotoStore {
             return existing
         }
 
-        guard let source = sources[spot.id] else { return nil }
+        guard let source = sources.object(forKey: spot.id as NSString) else { return nil }
 
         let overlay = NMFOverlayImage(
             image: ViewfinderMapPhotoPin.image(from: source, isSelected: isSelected),
@@ -700,7 +753,9 @@ final class MapPinPhotoStore {
         URLSession.shared.dataTask(with: requestURL) { [weak self] data, _, _ in
             guard let self else { return }
 
-            guard let data, let image = UIImage(data: data) else {
+            guard let data,
+                  let image = VFImageDownsampler.image(from: data, maxPixelSize: 240)
+                    ?? UIImage(data: data) else {
                 DispatchQueue.main.async { self.inFlight.remove(fetchKey) }
                 return
             }
@@ -729,7 +784,11 @@ final class MapPinPhotoStore {
         let key = cacheKey(spotID: spotID, isSelected: isSelected)
 
         DispatchQueue.main.async {
-            self.sources[spotID] = source
+            self.sources.setObject(
+                source,
+                forKey: spotID as NSString,
+                cost: VFImageDownsampler.memoryCost(of: source)
+            )
             let overlay = NMFOverlayImage(image: rendered, reuseIdentifier: key)
             self.overlays[key] = overlay
             self.inFlight.remove(fetchKey)
@@ -746,7 +805,7 @@ enum ViewfinderMapPhotoPin {
     /// 꼬리는 사각형의 형태를 흐리고, 핀이 모이면 삼각형끼리 겹칩니다.
     static let size = CGSize(width: 54, height: 54)
 
-    /// 선택된 핀. 카드에 뜬 장소가 지도의 어느 핀인지 눈으로 찾을 수 있어야 합니다.
+    /// 선택된 핀. 방금 탭한 장소를 지도에서 바로 구분할 수 있어야 합니다.
     static let selectedSize = CGSize(width: 68, height: 68)
 
     static func size(isSelected: Bool) -> CGSize {
@@ -796,7 +855,7 @@ enum ViewfinderMapPhotoPin {
     //
     //  앰버는 "지금 선택된 것" 하나에만 씁니다.
     //  (VFDesign 의 규칙: 앰버는 한 화면에 2곳 이하, 의미는 하나)
-    //  저장 여부는 하단 카드의 북마크 아이콘이 말해줍니다.
+    //  저장 여부는 저장 필터 상태로 구분합니다.
     // ═══════════════════════════════════════════════════════════════
     private static func render(
         isSelected: Bool,

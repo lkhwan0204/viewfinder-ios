@@ -113,7 +113,7 @@ struct AppStatePanel: View {
                     .vfText(.callout)
                     .foregroundStyle(AppColors.accent)
                     .padding(.horizontal, VFSpace.md + 2)
-                    .frame(height: 38)
+                    .frame(minHeight: AppLayout.touchTarget)
                     .background(
                         AppColors.accentSoft,
                         in: Capsule()

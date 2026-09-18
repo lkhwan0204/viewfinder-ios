@@ -5,6 +5,7 @@ import SwiftUI
 import UIKit
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     private enum AppTab: Hashable {
         case home
         case map
@@ -71,14 +72,24 @@ struct ContentView: View {
     @State private var selectedSpot = PhotoSpotSampleData.spots[0]
     @State private var selectedSpotRevision = 0
     @State private var aiSpots: [PhotoSpot] = []
+    @State private var registeredHomeSpots: [PhotoSpot] = []
+    @State private var homeWeatherCoordinate: CLLocationCoordinate2D?
+    @State private var homeWeatherTask: Task<Void, Never>?
     @State private var detailPresentation: SpotDetailPresentation?
     @State private var isWeatherDetailPresented = false
     @State private var composerPurpose: CommunityComposerPurpose = .fieldReport
     @State private var submittedSpotsState: AsyncLoadState = .idle
     @State private var appErrorMessage: String?
     @State private var submissionConfirmation: PlaceSubmissionReceipt?
+    @State private var photoContributionConfirmationSpot: PhotoSpot?
+    @State private var contributedCoverPhotos: [String: PlacePhoto] = [:]
     @State private var authenticationDestination: AuthenticationDestination?
+    @State private var loginPresentationContext: LoginPresentationContext = .general
     @State private var pendingAuthenticatedAction: ((AuthUser) -> Void)?
+    @State private var isHomeSearchPresented = false
+    @State private var shouldRestoreHomeSearch = false
+    @State private var pendingHomeSearchAction: (() -> Void)?
+    @State private var pendingDetailDismissAction: (() -> Void)?
     @StateObject private var homeRecommendations = HomeRecommendationsViewModel()
     @StateObject private var locationReader = RecommendationLocationReader()
     @StateObject private var mapState = MapExperienceState()
@@ -87,21 +98,45 @@ struct ContentView: View {
     @StateObject private var savedSpotStore = SavedSpotStore()
     @StateObject private var authViewModel = AuthViewModel()
     @StateObject private var communityViewModel = CommunityViewModel()
+    @StateObject private var placePhotoGalleryStore = PlacePhotoGalleryStore.shared
+    @StateObject private var crowdReportStore = CrowdReportStore.shared
     @StateObject private var placeSubmissionStore = PlaceSubmissionStore()
     private let localSeedDataService = LocalSeedDataService()
-    private let mapRecommendationEngine = MapRecommendationEngine()
     private let placeSubmissionService = PlaceSubmissionService()
-    private let fallbackWeatherCoordinate = CLLocationCoordinate2D(latitude: 37.5665, longitude: 126.9780)
+
+    private var homePresentationState: HomeRecommendationState {
+        if homeRecommendations.recommendationState == .empty {
+            switch submittedSpotsState {
+            case .idle, .loading:
+                return .initialLoading
+            case .failed(let message):
+                return .failed(message: message)
+            case .loaded:
+                break
+            }
+        }
+        return homeRecommendations.recommendationState
+    }
 
     private var recommendedSpots: [PhotoSpot] {
         uniqueSpots(homeRecommendations.visibleSpots + aiSpots)
+            .map { resolvedSpotWithContributedCover($0) }
             .filter { !RecommendationBlacklist.isBlacklistedRecommendation($0) }
+    }
+
+    /// 지도는 홈의 일부 추천 결과가 아니라 앱이 알고 있는 전체 장소를 후보로 사용합니다.
+    /// 실제 marker 생성은 Naver Map의 현재 viewport 안으로 다시 좁혀집니다.
+    private var allMapSpots: [PhotoSpot] {
+        uniqueSpots(localSeedDataService.allPhotoSpots() + recommendedSpots + aiSpots)
+            .map { resolvedSpotWithContributedCover($0) }
     }
 
     private var mapPinSpots: [PhotoSpot] {
         switch mapState.mode {
         case .saved:
-            return savedMapListSpots
+            return sanitizedMapSpots(
+                savedMapListSpots.filter { mapState.categoryFilter.matches($0) }
+            )
 
         case .explicitSpot:
             if let explicitMapSpot = mapState.explicitSpot,
@@ -111,27 +146,30 @@ struct ContentView: View {
             return []
 
         case .recommendations:
-            guard !mapState.isRecommendationLoading else {
-                return []
-            }
-
-            return uniqueSpots(currentMapRecommendation.spots).filter {
-                $0.imageURL != nil
-                    && !CafeRecommendationPolicy.isBlacklistedCafe($0)
-                    && !RecommendationBlacklist.isBlacklistedRecommendation($0)
-            }
+            let sourceSpots = mapState.isSavedFilterEnabled ? savedSpots : allMapSpots
+            return sanitizedMapSpots(
+                sourceSpots.filter { mapState.categoryFilter.matches($0) }
+            )
         }
     }
 
-    private var currentMapRecommendation: MapRecommendationResult {
-        mapRecommendationEngine.recommendations(
-            near: locationReader.coordinate,
-            from: recommendedSpots,
-            categoryFilter: mapState.categoryFilter
-        )
+    private func sanitizedMapSpots(_ spots: [PhotoSpot]) -> [PhotoSpot] {
+        uniqueSpots(spots).filter {
+            // 지도 핀은 원격 URL뿐 아니라 번들 에셋 사진도 표시할 수 있습니다.
+            // imageURL만 검사하면 로컬 사진이 있는 출사지가 지도 추천에서 사라집니다.
+            $0.hasReliableDisplayImage
+                && !CafeRecommendationPolicy.isBlacklistedCafe($0)
+                && !RecommendationBlacklist.isBlacklistedRecommendation($0)
+        }
     }
 
     private var mapRecommendationEmptyMessage: String? {
+        if mapState.isSavedFilterEnabled {
+            // 저장 필터는 지도 위의 핀만 줄이는 조용한 필터입니다.
+            // 저장 장소가 없어도 고정 문구나 빈 상태 카드를 띄우지 않습니다.
+            return nil
+        }
+
         guard mapState.mode == .recommendations,
               !mapState.isRecommendationLoading,
               mapPinSpots.isEmpty else {
@@ -143,13 +181,8 @@ struct ContentView: View {
             : "주변 출사지 데이터가 부족해요"
     }
 
-    private var visibleMapSavedSpotIDs: Set<String> {
-        mapState.mode == .saved ? savedSpotStore.savedSpotIDs : []
-    }
-
     private var savedSpots: [PhotoSpot] {
-        let allSpots = uniqueSpots(localSeedDataService.allPhotoSpots() + recommendedSpots + aiSpots)
-        return allSpots.filter { savedSpotStore.contains($0) }
+        allMapSpots.filter { savedSpotStore.contains($0) }
     }
 
     private var savedMapListSpots: [PhotoSpot] {
@@ -159,17 +192,17 @@ struct ContentView: View {
     }
 
     private var selectableSpots: [PhotoSpot] {
-        uniqueSpots(localSeedDataService.allPhotoSpots() + recommendedSpots + aiSpots)
+        allMapSpots
             .filter { !RecommendationBlacklist.isBlacklistedRecommendation($0) }
     }
 
-    private var discoverSpots: [PhotoSpot] {
-        uniqueSpots(localSeedDataService.allPhotoSpots() + recommendedSpots + aiSpots)
-            .filter { spot in
-                spot.hasReliableDisplayImage
-                    && !RecommendationBlacklist.isBlacklistedRecommendation(spot)
-                    && !CafeRecommendationPolicy.isBlacklistedCafe(spot)
-            }
+    /// 시트나 전체 화면이 열린 동안 배경 탭이 VoiceOver 탐색에 남지 않게 합니다.
+    /// 시각적 탭바 동작과 위치는 바꾸지 않고 접근성 트리만 격리합니다.
+    private var isRootModalPresented: Bool {
+        detailPresentation != nil
+            || communityViewModel.isComposerPresented
+            || isWeatherDetailPresented
+            || authenticationDestination != nil
     }
 
     private var tabSelection: Binding<AppTab> {
@@ -201,7 +234,7 @@ struct ContentView: View {
                     selectedTab = .add
                     DispatchQueue.main.async {
                         selectedTab = returnTab
-                        performAuthenticatedAction { _ in
+                        performAuthenticatedAction(loginPresentationContext: .addSpot) { _ in
                             presentComposer(.addSpot)
                         }
                     }
@@ -226,19 +259,39 @@ struct ContentView: View {
     var body: some View {
         mainContent
         .task {
-            await Task.yield()
+            // Restore only after a trustworthy regional context is available.
+            // Never infer today's country from the recommendation cache itself.
+            if let recentCoordinate = locationReader.recentCoordinateForRecommendation() {
+                homeRecommendations.updateLocationContext(userLocation: recentCoordinate)
+                // `onReceive($coordinate)` does not replay a value that was
+                // published before this view subscribed. Start the weather
+                // request explicitly for the cached coordinate as well.
+                refreshHomeWeatherIfNeeded(at: recentCoordinate)
+            }
+            let coordinate = await locationReader.coordinateForRecommendation(forceRefresh: true)
+            homeRecommendations.updateLocationContext(userLocation: coordinate)
+            if let coordinate {
+                refreshHomeWeatherIfNeeded(at: coordinate)
+            }
             homeRecommendations.prepareIfNeeded()
         }
         .fullScreenCover(
             item: $authenticationDestination,
-            onDismiss: resumePendingAuthenticatedActionIfPossible
+            onDismiss: {
+                resumePendingAuthenticatedActionIfPossible()
+                loginPresentationContext = .general
+            }
         ) { _ in
-            LoginView(authViewModel: authViewModel)
+            LoginView(
+                authViewModel: authViewModel,
+                presentationContext: loginPresentationContext
+            )
         }
     }
 
     private var mainContent: some View {
         nativeTabContent
+        .accessibilityHidden(isRootModalPresented)
         .background(AppColors.background.ignoresSafeArea())
         .tint(AppColors.accent)
         // 상세는 모든 진입 경로에서 시트로 띄웁니다.
@@ -252,29 +305,52 @@ struct ContentView: View {
         //     모달 위에 얹으면 계층이 모호해집니다.
         // 잘 만든 시트 하나가 끊기는 zoom 보다 낫다고 판단했습니다.
         // 상세를 push 구조로 바꾸거나 이미지 디코딩을 최적화한 뒤 재검토할 여지는 남깁니다.
-        .sheet(item: $detailPresentation) { presentation in
+        .sheet(item: $detailPresentation, onDismiss: {
+            let action = pendingDetailDismissAction
+            pendingDetailDismissAction = nil
+            action?()
+            restoreHomeSearchIfPossible()
+        }) { presentation in
             detailView(for: presentation)
                 .presentationDetents(presentation.source.detents)
                 .presentationDragIndicator(.visible)
         }
 
-        .sheet(isPresented: $communityViewModel.isComposerPresented) {
+        .sheet(isPresented: $communityViewModel.isComposerPresented, onDismiss: restoreHomeSearchIfPossible) {
             CommunityComposerView(
                 spots: selectableSpots,
                 selectedSpot: communityViewModel.composerSpot(in: selectableSpots),
-                locksSelectedSpot: composerPurpose == .addSpot
+                locksSelectedSpot: (composerPurpose == .addSpot || composerPurpose.isPhotoContribution)
                     && communityViewModel.composerSpot(in: selectableSpots) != nil,
                 editingPost: communityViewModel.editingPostForComposer,
                 purpose: composerPurpose,
+                onShowRegisteredSpot: { spot in
+                    showDetail(spot, source: .search)
+                },
                 onSubmit: { draft in
                     guard let authenticatedUser = authViewModel.currentUser else {
                         requestAuthentication()
                         return
                     }
 
-                    if composerPurpose == .addSpot {
-                        let spot = submittedSpot(from: draft)
-                        submitAddedSpot(spot, draft: draft, submitter: authenticatedUser)
+                    if composerPurpose.isPhotoContribution {
+                        guard let placeID = composerPurpose.photoContributionPlaceID,
+                              let spot = draft.spot,
+                              spot.id == placeID else {
+                            communityViewModel.finishComposing()
+                            appErrorMessage = "사진을 등록할 장소를 찾지 못했어요."
+                            return
+                        }
+                        submitPlacePhotoContribution(
+                            spot: spot,
+                            draft: draft,
+                            submitter: authenticatedUser
+                        )
+                        communityViewModel.finishComposing()
+                    } else if composerPurpose == .addSpot {
+                        if let spot = submittedSpot(from: draft) {
+                            submitAddedSpot(spot, draft: draft, submitter: authenticatedUser)
+                        }
                         communityViewModel.finishComposing()
                     } else if let post = communityViewModel.editingPostForComposer {
                         communityViewModel.updatePost(post, draft: draft)
@@ -289,7 +365,15 @@ struct ContentView: View {
         .sheet(isPresented: $isWeatherDetailPresented) {
             WeatherDetailView(
                 snapshot: weatherStore.snapshot,
-                locationTitle: weatherStore.locationTitle
+                locationTitle: weatherStore.locationTitle,
+                loadState: weatherStore.state,
+                onRefresh: {
+                    guard let coordinate = locationReader.coordinate else { return }
+                    await weatherStore.load(
+                        for: coordinate,
+                        force: true
+                    )
+                }
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
@@ -307,8 +391,11 @@ struct ContentView: View {
         } message: {
             Text(appErrorMessage ?? "잠시 후 다시 시도해주세요.")
         }
+        .onChange(of: appErrorMessage) { _, message in
+            if message == nil { restoreHomeSearchIfPossible() }
+        }
         .alert(
-            "장소 제보를 받았어요",
+            "장소가 추가됐어요",
             isPresented: Binding(
                 get: { submissionConfirmation != nil },
                 set: { if !$0 { submissionConfirmation = nil } }
@@ -318,24 +405,45 @@ struct ContentView: View {
                 submissionConfirmation = nil
             }
         } message: {
-            Text(submissionConfirmation?.confirmationMessage ?? "검토가 끝난 뒤 공개됩니다.")
+            Text(submissionConfirmation?.confirmationMessage ?? "장소가 공개됐어요.")
+        }
+        .alert(
+            "사진이 등록되었어요",
+            isPresented: Binding(
+                get: { photoContributionConfirmationSpot != nil },
+                set: { if !$0 { photoContributionConfirmationSpot = nil } }
+            )
+        ) {
+            Button("장소 보기") {
+                guard let spot = photoContributionConfirmationSpot else { return }
+                photoContributionConfirmationSpot = nil
+                showDetail(spot, source: .community)
+            }
+            Button("확인", role: .cancel) {
+                photoContributionConfirmationSpot = nil
+            }
+        } message: {
+            Text("기존 장소에 사진이 추가되었어요.")
         }
         .onReceive(locationReader.$coordinate) { newCoordinate in
             guard let newCoordinate else { return }
 
             homeRecommendations.updateLocationContext(userLocation: newCoordinate)
-
-            Task {
-                await weatherStore.updateLocationTitle(for: newCoordinate)
-                await weatherStore.load(for: newCoordinate)
-            }
+            refreshHomeWeatherIfNeeded(at: newCoordinate)
 
             if mapState.mode == .recommendations {
                 mapState.finishRecommendations()
-                logMapRecommendationResult()
             }
         }
         .onReceive(locationReader.$state) { state in
+            if case .failed = state, locationReader.coordinate == nil {
+                homeRecommendations.updateLocationContext(userLocation: nil)
+                homeWeatherTask?.cancel()
+                homeWeatherCoordinate = nil
+                // A transient location failure should not erase a still-valid
+                // weather snapshot that can keep the Home pill useful.
+                weatherStore.invalidateLocationContext(preservingFreshSnapshot: true)
+            }
             guard mapState.mode == .recommendations,
                   case .failed(let message) = state else {
                 return
@@ -354,12 +462,11 @@ struct ContentView: View {
         .task {
             await loadSubmittedSpotsIfNeeded()
         }
-        .task {
-            locationReader.requestLocation()
-            await weatherStore.load(
-                for: fallbackWeatherCoordinate,
-                fallbackTitle: "서울특별시"
-            )
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                homeRecommendations.refreshTimeContextIfNeeded()
+                locationReader.requestLocation()
+            }
         }
         .onChange(of: selectedTab) { _, newTab in
             setHomeTabBarHidden(false)
@@ -368,12 +475,15 @@ struct ContentView: View {
                 lastContentTab = newTab
             }
 
+            if newTab == .home {
+                locationReader.requestLocation()
+            }
+
             if newTab == .map {
                 if mapState.shouldFocusUserOnSelection {
                     mapState.activateRecommendations()
                     selectedSpotRevision = 0
                     locationReader.requestLocation()
-                    mapState.userLocationFocusRevision += 1
                 }
                 mapState.shouldFocusUserOnSelection = true
             }
@@ -385,9 +495,13 @@ struct ContentView: View {
         TabView(selection: tabSelection) {
             HomeFeedView(
                 searchableSpots: selectableSpots,
+                geographicCandidateSpots: homeRecommendations.geographicCandidateSpots.map {
+                    resolvedSpotWithContributedCover($0)
+                },
                 recommendedSpots: recommendedSpots,
                 communityPosts: communityViewModel.posts,
                 preloadedRecommendations: homeRecommendations.todayRecommendations,
+                recommendationState: homePresentationState,
                 sectionRecommendations: homeRecommendations.sectionRecommendations,
                 expandedSectionRecommendations: homeRecommendations.expandedSectionRecommendations,
                 loadingSectionIDs: [],
@@ -395,6 +509,7 @@ struct ContentView: View {
                 currentLocationTitle: weatherStore.locationTitle,
                 weatherSnapshot: weatherStore.snapshot,
                 weatherLoadFailed: weatherStore.hasFailed,
+                weatherIsLoading: weatherStore.state.isLoading,
                 savedSpotIDs: savedSpotStore.savedSpotIDs,
                 searchViewModel: searchViewModel,
                 userLocation: locationReader.coordinate,
@@ -402,8 +517,13 @@ struct ContentView: View {
                 onShowDetail: { showDetail($0, source: .home) },
                 onShowSearchDetail: { showDetail($0, source: .search) },
                 onReportMissingPhoto: { spot in
-                    performAuthenticatedAction { _ in
-                        presentComposer(.addSpot, spot: spot)
+                    performAuthenticatedAction(loginPresentationContext: .contributePhotos) { _ in
+                        presentComposer(.contributePhotos(placeID: spot.id), spot: spot)
+                    }
+                },
+                onAddPlace: {
+                    performAuthenticatedAction(loginPresentationContext: .addSpot) { _ in
+                        presentComposer(.addSpot)
                     }
                 },
                 onToggleSave: { savedSpotStore.toggle($0) },
@@ -424,8 +544,19 @@ struct ContentView: View {
                     )
                 },
                 onRefreshRecommendations: {
+                    if case .failed = submittedSpotsState {
+                        await loadSubmittedSpotsIfNeeded()
+                    }
+                    let coordinate = await locationReader.coordinateForRecommendation(forceRefresh: true)
+                    homeRecommendations.updateLocationContext(userLocation: coordinate)
+                    if let coordinate {
+                        refreshHomeWeatherIfNeeded(at: coordinate)
+                    }
                     await homeRecommendations.refresh()
-                }
+                },
+                isSearchResultsPresented: $isHomeSearchPresented,
+                onSearchDismissed: finishHomeSearchDismissal,
+                onPerformSearchAction: performAfterHomeSearchDismissal
             )
             .tag(AppTab.home)
             .tabItem {
@@ -458,7 +589,7 @@ struct ContentView: View {
                     updateTabBarVisibility(shouldHide, source: .community)
                 },
                 onCompose: {
-                    performAuthenticatedAction { _ in
+                    performAuthenticatedAction(loginPresentationContext: .communityPost) { _ in
                         presentComposer(.fieldReport)
                     }
                 },
@@ -488,7 +619,8 @@ struct ContentView: View {
                     performAuthenticatedAction(resumeAfterLogin: false) { user in
                         communityViewModel.addComment(message, to: post, author: user)
                     }
-                }
+                },
+                communityViewModel: communityViewModel
             )
             .tag(AppTab.community)
             .tabItem {
@@ -505,6 +637,7 @@ struct ContentView: View {
                 likedPostIDs: communityViewModel.likedPostIDs,
                 followedAuthorIDs: communityViewModel.followedAuthorIDs,
                 commentsByPostID: communityViewModel.commentsByPostID,
+                communityViewModel: communityViewModel,
                 onTabBarVisibilityChange: { shouldHide in
                     updateTabBarVisibility(shouldHide, source: .my)
                 },
@@ -647,10 +780,9 @@ struct ContentView: View {
             focusUserLocationRevision: mapState.userLocationFocusRevision,
             userCoordinate: locationReader.coordinate,
             savedSpots: savedSpots,
-            savedSpotIDs: visibleMapSavedSpotIDs,
             shouldShowNearbyMapPins: mapState.mode == .recommendations,
             isRecommendationLoading: mapState.isRecommendationLoading,
-            isMapSavedFilterEnabled: mapState.mode == .saved,
+            isMapSavedFilterEnabled: mapState.isSavedFilterEnabled,
             mapCategoryFilter: mapState.categoryFilter,
             emptyRecommendationMessage: mapRecommendationEmptyMessage,
             isSavedListPresented: Binding(
@@ -661,7 +793,6 @@ struct ContentView: View {
                 get: { mapState.savedListFilter },
                 set: { mapState.savedListFilter = $0 }
             ),
-            onSelectSpot: { selectedSpot = $0 },
             onShowDetail: { showDetail($0, source: .map) },
             onToggleRecommendations: toggleNearbyMapPins,
             onToggleSavedFilter: toggleSavedMapFilter,
@@ -672,6 +803,11 @@ struct ContentView: View {
             // 검색 결과 선택은 상세의 "지도에서 보기" 와 같은 경로입니다.
             // 그 장소를 지도에 명시적으로 올리고 카메라를 옮깁니다.
             onSelectSearchResult: openMap,
+            onAddPlace: {
+                performAuthenticatedAction(loginPresentationContext: .addSpot) { _ in
+                    presentComposer(.addSpot)
+                }
+            },
             onFocusUserLocation: focusUserLocationOnMap
         )
         .onAppear {
@@ -712,6 +848,31 @@ struct ContentView: View {
         communityViewModel.beginComposing(spot: spot)
     }
 
+    private func performAfterHomeSearchDismissal(_ action: @escaping () -> Void) {
+        guard pendingHomeSearchAction == nil else { return }
+        shouldRestoreHomeSearch = true
+        pendingHomeSearchAction = action
+        isHomeSearchPresented = false
+    }
+
+    private func finishHomeSearchDismissal() {
+        let action = pendingHomeSearchAction
+        pendingHomeSearchAction = nil
+        action?()
+    }
+
+    private func restoreHomeSearchIfPossible() {
+        guard shouldRestoreHomeSearch,
+              pendingHomeSearchAction == nil,
+              pendingDetailDismissAction == nil,
+              pendingAuthenticatedAction == nil,
+              appErrorMessage == nil,
+              !isRootModalPresented else { return }
+        shouldRestoreHomeSearch = false
+        guard selectedTab == .home else { return }
+        isHomeSearchPresented = true
+    }
+
     /// 장소 제보가 실패했을 때 사용자에게 할 말.
     ///
     /// 전에는 error.localizedDescription 을 그대로 띄웠습니다.
@@ -722,6 +883,10 @@ struct ContentView: View {
     /// 모르므로 문구에 기능 이름을 넣을 수 없습니다.
     /// 그래서 기능 이름은 이 자리에서 붙입니다.
     private func submissionFailureMessage(for error: Error) -> String {
+        if let submissionError = error as? PlaceSubmissionError {
+            return submissionError.localizedDescription
+        }
+
         guard let searchError = error as? PhotoSpotSearchError else {
             return "장소를 등록하지 못했어요. 잠시 후 다시 시도해주세요."
         }
@@ -735,13 +900,17 @@ struct ContentView: View {
         }
     }
 
-    private func requestAuthentication(afterLogin action: ((AuthUser) -> Void)? = nil) {
+    private func requestAuthentication(
+        afterLogin action: ((AuthUser) -> Void)? = nil,
+        loginPresentationContext: LoginPresentationContext = .general
+    ) {
         if let authenticatedUser = authViewModel.currentUser {
             action?(authenticatedUser)
             return
         }
 
         pendingAuthenticatedAction = action
+        self.loginPresentationContext = loginPresentationContext
         authViewModel.prepareForSignInPresentation()
         Task { @MainActor in
             await Task.yield()
@@ -760,10 +929,14 @@ struct ContentView: View {
     @discardableResult
     private func performAuthenticatedAction(
         resumeAfterLogin: Bool = true,
+        loginPresentationContext: LoginPresentationContext = .general,
         action: @escaping (AuthUser) -> Void
     ) -> Bool {
         guard let authenticatedUser = authViewModel.currentUser else {
-            requestAuthentication(afterLogin: resumeAfterLogin ? action : nil)
+            requestAuthentication(
+                afterLogin: resumeAfterLogin ? action : nil,
+                loginPresentationContext: loginPresentationContext
+            )
             return false
         }
 
@@ -774,6 +947,7 @@ struct ContentView: View {
     private func resumePendingAuthenticatedActionIfPossible() {
         guard authViewModel.currentUser != nil else {
             pendingAuthenticatedAction = nil
+            restoreHomeSearchIfPossible()
             return
         }
 
@@ -782,6 +956,7 @@ struct ContentView: View {
         DispatchQueue.main.async {
             guard let latestAuthenticatedUser = authViewModel.currentUser else { return }
             action?(latestAuthenticatedUser)
+            restoreHomeSearchIfPossible()
         }
     }
 
@@ -789,7 +964,7 @@ struct ContentView: View {
         guard source == .home, selectedTab == .home else {
             return
         }
-        setHomeTabBarHidden(shouldHide)
+        setHomeTabBarHidden(homePresentationState == .initialLoading ? false : shouldHide)
     }
 
     private func setHomeTabBarHidden(_ shouldHide: Bool) {
@@ -811,24 +986,19 @@ struct ContentView: View {
             locationReader.requestLocation()
         } else {
             mapState.finishRecommendations()
-            logMapRecommendationResult()
         }
     }
 
     private func toggleSavedMapFilter() {
         withAnimation(.easeInOut(duration: 0.16)) {
-            let shouldEnableSavedPins = mapState.mode != .saved
+            let shouldEnableSavedPins = !mapState.isSavedFilterEnabled
+            mapState.setSavedFilterEnabled(shouldEnableSavedPins)
 
-            if shouldEnableSavedPins {
-                mapState.showSavedSpots()
-                if let firstSavedSpot = savedMapListSpots.first ?? savedSpots.first {
-                    selectedSpot = firstSavedSpot
-                    selectedSpotRevision += 1
-                }
-            } else {
+            if !shouldEnableSavedPins, mapState.mode == .saved {
                 mapState.activateRecommendations(resetCategory: false)
-                selectedSpotRevision = 0
             }
+
+            selectedSpotRevision = 0
         }
     }
 
@@ -858,17 +1028,20 @@ struct ContentView: View {
         withAnimation(.easeInOut(duration: 0.16)) {
             mapState.categoryFilter = filter
 
-            if filter != .all {
-                if mapState.mode != .recommendations {
-                    mapState.beginRecommendations()
-                }
-                if locationReader.coordinate == nil {
-                    locationReader.requestLocation()
-                } else {
-                    mapState.finishRecommendations()
-                    logMapRecommendationResult()
-                }
+            if mapState.isSavedFilterEnabled {
+                mapState.finishRecommendations()
+                selectedSpotRevision = 0
+                return
             }
+
+            if mapState.mode != .recommendations {
+                mapState.activateRecommendations(resetCategory: false)
+            }
+
+            // 테마 변경은 이미 메모리에 있는 전국 seed 후보를 로컬 필터링합니다.
+            // 위치 권한 확인이나 반경 추천 요청을 다시 시작하지 않습니다.
+            mapState.finishRecommendations()
+            selectedSpotRevision = 0
         }
     }
 
@@ -892,8 +1065,13 @@ struct ContentView: View {
         aiSpots.append(spot)
     }
 
-    private func submittedSpot(from draft: CommunityPostDraft) -> PhotoSpot {
-        let spot = draft.spot
+    private func resolvedSpotWithContributedCover(_ spot: PhotoSpot) -> PhotoSpot {
+        guard let coverPhoto = contributedCoverPhotos[spot.id] else { return spot }
+        return spot.replacingDisplayImage(with: coverPhoto)
+    }
+
+    private func submittedSpot(from draft: CommunityPostDraft) -> PhotoSpot? {
+        guard let spot = draft.spot else { return nil }
         let trimmedMessage = draft.message.trimmingCharacters(in: .whitespacesAndNewlines)
         let submittedTags = draft.tags.reduce(into: [String]()) { result, tag in
             let normalized = normalizedSubmissionTag(tag)
@@ -937,7 +1115,10 @@ struct ContentView: View {
             imageLicense: spot.imageLicense,
             imageSourceURL: spot.imageSourceURL,
             recommendationRegions: spot.recommendationRegions,
-            isHiddenSpot: spot.isHiddenSpot
+            isHiddenSpot: spot.isHiddenSpot,
+            provider: spot.provider,
+            providerPlaceID: spot.providerPlaceID,
+            galleryPhotos: spot.galleryPhotos
         )
     }
 
@@ -958,15 +1139,33 @@ struct ContentView: View {
     ) {
         Task {
             do {
-                let receipt = try await placeSubmissionService.submit(
+                let photoDatas = draft.photoAttachments.compactMap(\.imageData)
+                let submission = try await placeSubmissionService.submit(
                     spot: spot,
                     tags: draft.tags,
                     photoData: draft.photoData,
-                    submitter: submitter
+                    submitter: submitter,
+                    registeredSpots: selectableSpots,
+                    photoDatas: photoDatas
                 )
                 await MainActor.run {
-                    placeSubmissionStore.record(receipt)
-                    submissionConfirmation = receipt
+                    placeSubmissionStore.record(submission.receipt)
+                    mergeAISpots(from: [submission.publishedSpot])
+                    mergeRegisteredHomeSpots(from: [submission.publishedSpot])
+                    submissionConfirmation = submission.receipt
+                }
+                let refreshedSpots: [PhotoSpot]
+                do {
+                    refreshedSpots = try await placeSubmissionService.fetchSubmittedSpots()
+                } catch {
+                    refreshedSpots = []
+                    AppLog.network.error(
+                        "Published submitted spot refresh failed: \(error.localizedDescription, privacy: .public)"
+                    )
+                }
+                await MainActor.run {
+                    mergeAISpots(from: refreshedSpots)
+                    mergeRegisteredHomeSpots(from: refreshedSpots)
                 }
             } catch {
                 // 원인은 로그로, 사용자에게는 사용자 문구로.
@@ -977,6 +1176,40 @@ struct ContentView: View {
                 )
                 await MainActor.run {
                     appErrorMessage = submissionFailureMessage(for: error)
+                }
+            }
+        }
+    }
+
+    private func submitPlacePhotoContribution(
+        spot: PhotoSpot,
+        draft: CommunityPostDraft,
+        submitter: AuthUser
+    ) {
+        Task {
+            do {
+                let photos = try await placePhotoGalleryStore.contributePhotos(
+                    for: spot,
+                    attachments: draft.photoAttachments,
+                    uploader: submitter
+                )
+                guard !photos.isEmpty else {
+                    throw FirebaseCommunityError.emptyResponse
+                }
+
+                await MainActor.run {
+                    if let firstPhoto = photos.first,
+                       !spot.hasReliableDisplayImage {
+                        contributedCoverPhotos[spot.id] = firstPhoto
+                    }
+                    photoContributionConfirmationSpot = spot
+                }
+            } catch {
+                AppLog.persistence.error(
+                    "Place photo contribution failed: \(error.localizedDescription, privacy: .public)"
+                )
+                await MainActor.run {
+                    appErrorMessage = "사진을 등록하지 못했어요. 잠시 후 다시 시도해주세요."
                 }
             }
         }
@@ -993,10 +1226,10 @@ struct ContentView: View {
         do {
             let submittedSpots = try await placeSubmissionService.fetchSubmittedSpots()
             mergeAISpots(from: submittedSpots)
-            placeSubmissionStore.markApproved(spotIDs: Set(submittedSpots.map(\.id)))
+            mergeRegisteredHomeSpots(from: submittedSpots)
             submittedSpotsState = .loaded
         } catch {
-            // 승인된 제보 장소를 가져오는 것은 배경 작업입니다.
+            // 사용자 추가 장소를 가져오는 것은 배경 작업입니다.
             // 실패해도 앱은 시드 131곳으로 정상 동작하므로, 사용자에게
             // 서버 사정을 알릴 이유가 없습니다. 원인은 로그로만 갑니다.
             let diagnostic = (error as? PhotoSpotSearchError)?.diagnosticDescription
@@ -1014,6 +1247,33 @@ struct ContentView: View {
         }
     }
 
+    private func mergeRegisteredHomeSpots(from spots: [PhotoSpot]) {
+        var merged = Dictionary(registeredHomeSpots.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+        for spot in spots { merged[spot.id] = spot }
+        registeredHomeSpots = merged.values.sorted { $0.id < $1.id }
+        homeRecommendations.updateAvailableSpots(
+            uniqueSpots(localSeedDataService.allPhotoSpots() + registeredHomeSpots)
+        )
+    }
+
+    private func refreshHomeWeatherIfNeeded(at coordinate: CLLocationCoordinate2D) {
+        if let previous = homeWeatherCoordinate {
+            let distance = CLLocation(latitude: previous.latitude, longitude: previous.longitude)
+                .distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
+            let weatherIsFresh = weatherStore.snapshot.map {
+                Date().timeIntervalSince($0.fetchedAt) < 30 * 60
+            } ?? false
+            guard distance >= 15_000 || (!weatherIsFresh && weatherStore.state != .loading) else { return }
+        }
+        homeWeatherCoordinate = coordinate
+        homeWeatherTask?.cancel()
+        homeWeatherTask = Task {
+            await weatherStore.load(for: coordinate)
+            guard !Task.isCancelled else { return }
+            await weatherStore.updateLocationTitle(for: coordinate)
+        }
+    }
+
     /// 상세 화면 본문. 표시 방식과 분리해 둡니다.
     private func detailView(for presentation: SpotDetailPresentation) -> some View {
         SpotDetailView(
@@ -1022,6 +1282,10 @@ struct ContentView: View {
             source: presentation.source,
             isSaved: savedSpotStore.contains(presentation.spot),
             communityPosts: communityViewModel.posts(for: presentation.spot),
+            placePhotos: placePhotoGalleryStore.photos(for: presentation.spot),
+            placePhotoGalleryStore: placePhotoGalleryStore,
+            crowdReports: crowdReportStore.reports(for: presentation.spot),
+            crowdReportStore: crowdReportStore,
             currentUserID: authViewModel.currentUser?.id ?? "",
             spots: selectableSpots,
             userLocation: locationReader.coordinate,
@@ -1033,12 +1297,24 @@ struct ContentView: View {
                 openMap(presentation.spot)
             },
             onReportPhoto: {
-                performAuthenticatedAction { _ in
-                    detailPresentation = nil
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
-                        presentComposer(.addSpot, spot: presentation.spot)
+                performAuthenticatedAction(loginPresentationContext: .contributePhotos) { _ in
+                    pendingDetailDismissAction = {
+                        presentComposer(
+                            .contributePhotos(placeID: presentation.spot.id),
+                            spot: presentation.spot
+                        )
                     }
+                    detailPresentation = nil
                 }
+            },
+            onSubmitCrowdReport: { crowd in
+                guard let user = authViewModel.currentUser else { return }
+                crowdReportStore.toggle(
+                    placeID: presentation.spot.id,
+                    crowd: crowd,
+                    authorID: user.id,
+                    source: .placeDetail
+                )
             },
             onSubmitCommunity: { draft in
                 performAuthenticatedAction { user in
@@ -1054,11 +1330,30 @@ struct ContentView: View {
                 performAuthenticatedAction { _ in
                     communityViewModel.deletePost(post)
                 }
+            },
+            communityViewModel: communityViewModel,
+            onToggleCommunityLike: { post in
+                performAuthenticatedAction { _ in
+                    communityViewModel.toggleLike(post)
+                }
+            },
+            onToggleCommunityFollow: { post in
+                performAuthenticatedAction { _ in
+                    communityViewModel.toggleFollow(post)
+                }
+            },
+            onAddCommunityComment: { message, post in
+                performAuthenticatedAction(resumeAfterLogin: false) { user in
+                    communityViewModel.addComment(message, to: post, author: user)
+                }
             }
         )
     }
 
     private func showDetail(_ spot: PhotoSpot, source: SpotDetailSource) {
+        // 마커를 빠르게 연속 탭해도 이미 표시 중인 상세 시트를 중복으로
+        // 교체하거나 다시 띄우지 않습니다.
+        guard detailPresentation == nil else { return }
         detailPresentation = SpotDetailPresentation(spot: spot, source: source)
     }
 
@@ -1103,28 +1398,40 @@ struct ContentView: View {
         }
     }
 
-    private func logMapRecommendationResult() {
-        let result = currentMapRecommendation
-        let coordinateText = locationReader.coordinate.map {
-            String(format: "%.5f, %.5f", $0.latitude, $0.longitude)
-        } ?? "없음"
-        let radiusText = result.radius.map { "\(Int($0 / 1_000))km" } ?? "기본"
-        let finalNames = result.spots.map(\.name).joined(separator: ", ")
-        AppLog.recommendations.info(
-            "Map coordinate=\(coordinateText, privacy: .public) radius=\(radiusText, privacy: .public) candidates=\(result.candidateCount) final=[\(finalNames, privacy: .public)] fallback=\(result.fallbackUsed)"
-        )
-    }
-
     private func uniqueSpots(_ spots: [PhotoSpot]) -> [PhotoSpot] {
-        spots.reduce(into: [PhotoSpot]()) { result, spot in
-            if let existingIndex = result.firstIndex(where: {
-                $0.id == spot.id || $0.mapQuery == spot.mapQuery
-            }) {
-                result[existingIndex] = result[existingIndex].replacingDisplayImage(from: spot)
-                return
+        var result: [PhotoSpot] = []
+        var indexByID: [String: Int] = [:]
+        var indexByMapQuery: [String: Int] = [:]
+
+        for spot in spots {
+            let existingIndex = [indexByID[spot.id], indexByMapQuery[spot.mapQuery]]
+                .compactMap { $0 }
+                .min()
+
+            if let existingIndex {
+                let existing = result[existingIndex]
+                let replacement = existing.replacingDisplayImage(from: spot)
+
+                if indexByID[existing.id] == existingIndex {
+                    indexByID[existing.id] = nil
+                }
+                if indexByMapQuery[existing.mapQuery] == existingIndex {
+                    indexByMapQuery[existing.mapQuery] = nil
+                }
+
+                result[existingIndex] = replacement
+                indexByID[replacement.id] = existingIndex
+                indexByMapQuery[replacement.mapQuery] = existingIndex
+                continue
             }
+
+            let index = result.count
             result.append(spot)
+            indexByID[spot.id] = index
+            indexByMapQuery[spot.mapQuery] = index
         }
+
+        return result
     }
 
 }

@@ -1,5 +1,50 @@
+import ImageIO
 import SwiftUI
 import UIKit
+
+/// 큰 원본을 실제 표시 크기에 맞게 디코딩합니다.
+///
+/// 네트워크 응답이나 PhotosPicker의 `Data`를 `UIImage(data:)`로 바로 열면
+/// 작은 썸네일도 원본 픽셀 전체가 메모리에 올라옵니다. ImageIO가 썸네일을
+/// 만들면서 orientation까지 적용하게 해 목록/지도/상세가 같은 규칙을 씁니다.
+enum VFImageDownsampler {
+    static func image(from data: Data, maxPixelSize: Int) -> UIImage? {
+        guard maxPixelSize > 0,
+              let source = CGImageSourceCreateWithData(
+                data as CFData,
+                [kCGImageSourceShouldCache: false] as CFDictionary
+              ) else {
+            return nil
+        }
+
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+            kCGImageSourceShouldCacheImmediately: true
+        ]
+
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(
+            source,
+            0,
+            options as CFDictionary
+        ) else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgImage)
+    }
+
+    static func memoryCost(of image: UIImage) -> Int {
+        if let cgImage = image.cgImage {
+            return cgImage.bytesPerRow * cgImage.height
+        }
+
+        let pixelWidth = image.size.width * image.scale
+        let pixelHeight = image.size.height * image.scale
+        return Int(pixelWidth * pixelHeight * 4)
+    }
+}
 
 struct PhotoSpotImageView: View {
     let spot: PhotoSpot
@@ -11,25 +56,49 @@ struct PhotoSpotImageView: View {
     /// 디코딩 비용은 픽셀 수에 비례하므로 이게 스크롤 성능의 주 병목입니다.
     /// 쓰이는 크기에 맞게 요청하도록 파라미터로 뺐습니다.
     var targetPixelWidth: Int = VFPhotoDetail.card.pixelWidth
+    @State private var revealedRemoteImageKey: String?
 
     var body: some View {
         if let assetImage {
             fitted(Image(uiImage: assetImage))
         } else if let imageURL = spot.imageURL {
-            AsyncImage(url: imageURL.wikimediaPreviewURL(width: targetPixelWidth) ?? imageURL) { phase in
+            remoteImage(
+                for: imageURL.wikimediaPreviewURL(width: targetPixelWidth) ?? imageURL
+            )
+        } else {
+            placeholder
+        }
+    }
+
+    /// 데이터가 도착한 순간 회색 표면을 사진으로 교체하지 않고,
+    /// 같은 표면 위에서 짧게 opacity 를 올려 사진이 조용히 들어오게 합니다.
+    private func remoteImage(for url: URL) -> some View {
+        AsyncImage(url: url) { phase in
+            ZStack {
+                loadingPlaceholder
+
                 switch phase {
                 case .empty:
-                    loadingPlaceholder
+                    EmptyView()
                 case .success(let image):
                     fitted(image)
+                        .opacity(revealedRemoteImageKey == url.absoluteString ? 1 : 0)
+                        .onAppear {
+                            guard revealedRemoteImageKey != url.absoluteString else { return }
+                            withAnimation(.easeOut(duration: 0.18)) {
+                                revealedRemoteImageKey = url.absoluteString
+                            }
+                        }
                 case .failure:
                     placeholder
                 @unknown default:
                     placeholder
                 }
             }
-        } else {
-            placeholder
+        }
+        .onChange(of: url) { _, newURL in
+            guard revealedRemoteImageKey != newURL.absoluteString else { return }
+            revealedRemoteImageKey = nil
         }
     }
 
