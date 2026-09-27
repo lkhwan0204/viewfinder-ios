@@ -806,6 +806,18 @@ struct ContentView: View {
                     lastContentTab = .home
                     selectedTab = .home
                 },
+                // 마이 탭의 빈 "내가 추가한 장소" · "내 글" 에서 바로 작성으로 갑니다.
+                // 탭바 + 버튼, 커뮤니티 글쓰기 버튼과 같은 경로입니다.
+                onAddPlace: {
+                    performAuthenticatedAction(loginPresentationContext: .addSpot) { _ in
+                        presentComposer(.addSpot)
+                    }
+                },
+                onCompose: {
+                    performAuthenticatedAction(loginPresentationContext: .communityPost) { _ in
+                        presentComposer(.fieldReport)
+                    }
+                },
                 onResetTaste: {
                     isTasteResetPresented = true
                 },
