@@ -336,6 +336,18 @@ struct VFTextStyle {
         design: .rounded,
         usesMonospacedDigit: true
     )
+    /// 큰 계기판 숫자. 마이 탭의 저장·장소·글 개수처럼 "숫자가 주인공" 인 자리에만 씁니다.
+    ///
+    /// 크기는 display 와 같은 40pt 라 새 크기를 만든 것이 아닙니다.
+    /// mono 와 같은 둥근 글꼴 + 고정폭 숫자라서, 작은 계기판 숫자(mono)와 한 가족으로 읽힙니다.
+    static let gauge = VFTextStyle(
+        size: 40,
+        weight: .semibold,
+        tracking: -0.8,
+        relativeTo: .largeTitle,
+        design: .rounded,
+        usesMonospacedDigit: true
+    )
 }
 
 private struct VFTextModifier: ViewModifier {

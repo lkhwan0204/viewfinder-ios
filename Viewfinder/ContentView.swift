@@ -774,6 +774,8 @@ struct ContentView: View {
                     updateTabBarVisibility(shouldHide, source: .my)
                 },
                 onSelectSpot: { showDetail($0, source: .saved) },
+                // 마이 → 저장한 장소 화면에서 길게 눌러 저장을 해제합니다.
+                onToggleSave: { savedSpotStore.toggle($0) },
                 onEditPost: { post in
                     performAuthenticatedAction { _ in
                         composerPurpose = .fieldReport
