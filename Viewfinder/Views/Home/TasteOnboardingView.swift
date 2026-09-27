@@ -69,7 +69,7 @@ struct TasteOnboardingView: View {
                 .frame(width: 36, height: 28)
                 .accessibilityHidden(true)
 
-            Text("Viewfinder")
+            Text("뷰파인더")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(AppColors.primary)
         }

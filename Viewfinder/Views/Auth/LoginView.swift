@@ -107,7 +107,7 @@ struct LoginView: View {
                 }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("ViewFinder")
+                Text("뷰파인더")
                     .vfText(.headline)
                     .foregroundStyle(AppColors.primary)
 
@@ -117,7 +117,7 @@ struct LoginView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("ViewFinder, 사진 출사지 플랫폼")
+        .accessibilityLabel("뷰파인더, 사진 출사지 플랫폼")
     }
 
     private var loginHeroTitle: String {
