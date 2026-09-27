@@ -113,10 +113,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct ViewfinderApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.system.rawValue
+    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.defaultValue.rawValue
 
     private var appearance: AppAppearance {
-        AppAppearance(rawValue: appearanceRawValue) ?? .system
+        AppAppearance(rawValue: appearanceRawValue) ?? .defaultValue
     }
 
     var body: some Scene {

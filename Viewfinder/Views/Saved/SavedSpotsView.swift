@@ -36,7 +36,7 @@ struct MyTabView: View {
     let onResetTaste: () -> Void
     let onSignOut: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.system.rawValue
+    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.defaultValue.rawValue
     @State private var previousScrollOffset: CGFloat?
     @State private var isTabBarHidden = false
 
@@ -55,7 +55,7 @@ struct MyTabView: View {
     }
 
     private var appearance: AppAppearance {
-        AppAppearance(rawValue: appearanceRawValue) ?? .system
+        AppAppearance(rawValue: appearanceRawValue) ?? .defaultValue
     }
 
     var body: some View {

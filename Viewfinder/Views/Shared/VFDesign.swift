@@ -49,8 +49,11 @@ enum VFPalette {
 
     // MARK: Ink — 텍스트
     static let ink1 = dynamic(dark: 0xFFFFFF, light: 0x111111)
-    static let ink2 = dynamic(dark: 0x98989D, light: 0x6E6E73)
-    static let ink3 = dynamic(dark: 0x98989D, light: 0x6E6E73, darkAlpha: 0.62, lightAlpha: 0.70)
+    /// 보조 글자. 라이트 값은 #6E6E73 에서 #66666B 로 한 단계 내렸습니다. (개선안 40)
+    /// #6E6E73 은 surface2(#EBEBF0) 위에서 4.27:1 로 기준(4.5:1)에 못 미쳤고,
+    /// #66666B 는 캔버스 5.71 · surface1 5.24 · surface2 4.81 로 모두 통과합니다.
+    static let ink2 = dynamic(dark: 0x98989D, light: 0x66666B)
+    static let ink3 = dynamic(dark: 0x98989D, light: 0x66666B, darkAlpha: 0.62, lightAlpha: 0.70)
 
     /// 구분선. 아주 약하게. 기본 그룹핑 수단은 여백이다.
     static let separator = dynamic(dark: 0xFFFFFF, light: 0x000000, darkAlpha: 0.09, lightAlpha: 0.10)
@@ -72,14 +75,18 @@ enum VFPalette {
     /// 허용: 탭바 + (제보) / 저장된 상태 / 선택된 칩 / 지도 핀 / 주 동작
     /// 선택된 탭은 주황이 아니라 흰색입니다. + 와 겹쳐 주황이 두 개가 되기 때문입니다.
     /// 금지: 본문 대량 사용 / 큰 면적 배경 / 사진 위 오버레이
-    static let amber = dynamic(dark: 0xFF6D00, light: 0xD95A00)
+    ///
+    /// 라이트 값은 #D95A00 에서 #C04F00 으로 내렸습니다. (개선안 40)
+    /// #D95A00 은 흰 배경 위 글자·흰 글자를 올린 버튼 모두 3.88:1 로 기준 미달이었고,
+    /// #C04F00 은 두 경우 모두 4.82:1 입니다. 다크 값은 그대로입니다.
+    static let amber = dynamic(dark: 0xFF6D00, light: 0xC04F00)
     static let amberDim = dynamic(dark: 0xCC5700, light: 0xB04800)
 
     /// 오렌지 표면 위에 올라가는 텍스트/아이콘 색.
     ///
     /// #FF6D00 위 흰 글자는 대비가 2.8:1 로 기준 미달입니다.
     /// 어두운 잉크를 올리면 6.7:1 이 되어 통과합니다.
-    /// 라이트의 오렌지(#D95A00)는 어두우므로 흰 글자가 맞습니다.
+    /// 라이트의 오렌지(#C04F00)는 어두우므로 흰 글자가 맞습니다. (4.82:1)
     static let onAmber = dynamic(dark: 0x150A00, light: 0xFFFFFF)
 
     // MARK: Semantic — 혼잡도
@@ -95,15 +102,20 @@ enum VFPalette {
     //
     // 색 단독으로 정보를 전달하지는 않습니다.
     // VFCrowdBadge 가 점 개수(형태) + 라벨(텍스트)을 항상 함께 그립니다.
-    static let crowdCalm = dynamic(dark: 0x46C08A, light: 0x2E8F63)
-    static let crowdNormal = dynamic(dark: 0xF2B02E, light: 0xB07A10)
+    //
+    // 라이트 값의 "여유"(#2E8F63 → #237350)와 "보통"(#B07A10 → #8C6000)을 내렸습니다.
+    // (개선안 40) 흰 배경 위 글자가 4.02:1 · 3.73:1 로 기준(4.5:1) 미달이었습니다.
+    // 바꾼 값은 캔버스 5.77 · 5.54, surface2 4.86 · 4.67 이고, 흰 글자를 올린
+    // 선택 버튼(아래 *Button)도 같은 값이라 5.77 · 5.54 입니다.
+    static let crowdCalm = dynamic(dark: 0x46C08A, light: 0x237350)
+    static let crowdNormal = dynamic(dark: 0xF2B02E, light: 0x8C6000)
     static let crowdBusy = dynamic(dark: 0xF0453A, light: 0xC62A20)
 
     /// 흰색 라벨을 올리는 선택 버튼용 색상입니다.
     /// 일반 혼잡도 텍스트 색상보다 어둡게 잡아 다크 모드에서도
     /// 불투명한 배경 위의 흰색 라벨 대비를 확보합니다.
-    static let crowdCalmButton = dynamic(dark: 0x23724F, light: 0x2E8F63)
-    static let crowdNormalButton = dynamic(dark: 0x956000, light: 0xB07A10)
+    static let crowdCalmButton = dynamic(dark: 0x23724F, light: 0x237350)
+    static let crowdNormalButton = dynamic(dark: 0x956000, light: 0x8C6000)
     static let crowdBusyButton = dynamic(dark: 0xA92720, light: 0xC62A20)
 
     // MARK: Avatar
@@ -152,13 +164,23 @@ enum VFPalette {
 // ═══════════════════════════════════════════════════════════════════
 
 /// 앱 전체에 적용되는 화면 모드입니다.
-/// 기본값은 기기 설정을 따르며, 사용자가 마이 탭에서 언제든 덮어쓸 수 있습니다.
+/// 기본값은 다크이며(`defaultValue`), 사용자가 마이 탭에서 언제든 바꿀 수 있습니다.
 enum AppAppearance: String, CaseIterable, Identifiable {
     case system
     case light
     case dark
 
     static let storageKey = "viewfinder.appAppearance"
+
+    /// 화면 모드를 한 번도 고르지 않은 사용자의 기본값입니다. (개선안 40)
+    ///
+    /// 전에는 "시스템 설정" 이 기본이라 라이트 모드 사용자가 덜 다듬어진
+    /// 쪽을 먼저 봤습니다. 이 앱의 디자인은 사진 대비를 위해 검정 캔버스를
+    /// 기준으로 만들어졌으므로 다크로 시작합니다.
+    /// 이 값은 저장되지 않는 기본값이라, 직접 모드를 고른 사용자에게는
+    /// 영향이 없고 바꿔도 저장된 데이터는 그대로입니다.
+    /// 실행 화면(LaunchScreen)도 이 기본값에 맞춰 검정입니다.
+    static let defaultValue: AppAppearance = .dark
 
     var id: String { rawValue }
 
