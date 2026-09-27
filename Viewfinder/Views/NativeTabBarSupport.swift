@@ -23,8 +23,10 @@ import UIKit
 //   - finishInteraction(projectedDelta:)
 //   - setHidden(_:animated:)
 //
-//  Phase 3 에서 iOS 26 의 .tabBarMinimizeBehavior(.onScrollDown) 로
-//  이 파일 대부분을 대체할 예정입니다.
+//  iOS 26 에서는 이 컨트롤러를 탭바에 붙이지 않습니다. (개선안 38)
+//  시스템 .tabBarMinimizeBehavior(.onScrollDown) 이 스크롤 축소를 맡고,
+//  두 방식이 같은 탭바를 동시에 움직이지 않게 하기 위해서입니다.
+//  아래 코드는 iOS 17~18 에서만 동작합니다.
 // ─────────────────────────────────────────────────────────────────
 
 final class NativeTabBarVisibilityController: NSObject {
@@ -279,7 +281,12 @@ final class NativeTabBarVisibilityController: NSObject {
 // ─────────────────────────────────────────────────────────────────
 private struct VFOpaqueTabBar: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
+        if #available(iOS 26.0, *) {
+            // iOS 26 은 시스템 Liquid Glass 탭바를 그대로 씁니다. (개선안 38)
+            // 불투명 배경을 강제해도 확실히 적용되지 않았고,
+            // 시스템 재질과 싸우면 화면마다 탭바 색이 달라졌습니다.
+            content
+        } else if #available(iOS 18.0, *) {
             content
                 .toolbarBackground(Color(uiColor: VFPalette.surface2), for: .tabBar)
                 .toolbarBackgroundVisibility(.visible, for: .tabBar)
@@ -300,6 +307,29 @@ extension View {
     /// 경우가 있습니다. 한 번의 빌드로 판정하기 위해 양쪽 다 겁니다.
     func vfOpaqueTabBar() -> some View {
         modifier(VFOpaqueTabBar())
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  iOS 26: 스크롤을 내리면 탭바가 작은 캡슐로 줄어듭니다. (개선안 38)
+//
+//  시스템 동작이라 앱이 탭바 위치를 직접 계산하거나 옮기지 않습니다.
+//  iOS 17~18 에서는 아무 것도 하지 않습니다.
+// ─────────────────────────────────────────────────────────────────
+private struct VFTabBarMinimizeOnScroll: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    /// TabView 에 붙입니다. iOS 26 에서만 스크롤 시 탭바를 줄입니다.
+    func vfTabBarMinimizeOnScroll() -> some View {
+        modifier(VFTabBarMinimizeOnScroll())
     }
 }
 

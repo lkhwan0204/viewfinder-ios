@@ -861,10 +861,18 @@ struct ContentView: View {
         //  자식에 걸어야 반영되는 경우가 있습니다. 한 번의 빌드로
         //  판정하기 위해 양쪽 다 겁니다. 중복은 무해합니다.
         // ═══════════════════════════════════════════════════════════
+        // iOS 26 에서는 위 배경 강제를 적용하지 않고 시스템 유리 탭바를 씁니다. (개선안 38)
         .vfOpaqueTabBar()
+        .vfTabBarMinimizeOnScroll()
         .background {
-            NativeTabBarAnimator()
-            .allowsHitTesting(false)
+            if #available(iOS 26.0, *) {
+                // iOS 26 은 시스템이 탭바를 줄이므로 직접 옮기는 컨트롤러를 붙이지 않습니다.
+                // 두 방식이 같은 탭바를 동시에 건드리지 않게 합니다. (개선안 38)
+                EmptyView()
+            } else {
+                NativeTabBarAnimator()
+                .allowsHitTesting(false)
+            }
         }
         .animation(nil, value: selectedTab)
     }
