@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,15 +7,12 @@ const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? "0.0.0.0";
 const serverDirectory = dirname(fileURLToPath(import.meta.url));
 const submittedSpotsPath = join(serverDirectory, "submitted-spots.json");
-const bundledPhotoSpotsPath = join(serverDirectory, "..", "Viewfinder", "Data", "photo_spots_seed.json");
 
 loadLocalEnvironment();
 
 const kakaoRestApiKey = process.env.KAKAO_REST_API_KEY ?? process.env.KAKAO_API_KEY;
 const naverClientId = process.env.NAVER_CLIENT_ID;
 const naverClientSecret = process.env.NAVER_CLIENT_SECRET;
-const maxSubmittedPhotoCount = 5;
-const maxSubmittedPhotoBase64Length = 8_000_000;
 
 class ServiceConfigurationError extends Error {
   constructor(code, message) {
@@ -126,238 +123,6 @@ function loadSubmittedSpots() {
   } catch {
     return [];
   }
-}
-
-function loadBundledApprovedPlaces() {
-  try {
-    const file = JSON.parse(readFileSync(bundledPhotoSpotsPath, "utf8"));
-    return (Array.isArray(file) ? file : [])
-      .map((spot) => {
-        const name = String(spot?.name ?? "").trim();
-        const region = String(spot?.address ?? spot?.region ?? "").trim();
-        return {
-          id: String(spot?.id ?? ""),
-          name,
-          region,
-          mapQuery: [name, region].filter(Boolean).join(" "),
-          latitude: Number(spot?.latitude),
-          longitude: Number(spot?.longitude),
-          status: "approved",
-          provider: typeof spot?.provider === "string" ? spot.provider : undefined,
-          providerPlaceID: typeof spot?.providerPlaceID === "string" ? spot.providerPlaceID : undefined,
-        };
-      })
-      .filter((spot) => spot.id && spot.name && coordinatesAreValid(spot));
-  } catch {
-    return [];
-  }
-}
-
-function saveSubmittedSpots(spots) {
-  writeFileSync(
-    submittedSpotsPath,
-    JSON.stringify(
-      {
-        updatedAt: new Date().toISOString(),
-        spots,
-      },
-      null,
-      2,
-    ),
-  );
-}
-
-// 관리자 승인 흐름을 없애면서 기존 개발 데이터의 pending_review 레코드도
-// 삭제하지 않고 공개 상태로 한 번만 전환합니다. 사진·장소 ID·중복 검사
-// 정보는 그대로 보존하고 status만 바꿉니다.
-function migrateLegacyPendingSubmissions() {
-  const spots = loadSubmittedSpots();
-  let didMigrate = false;
-  const migratedSpots = spots.map((spot) => {
-    if (spot?.status !== "pending_review") return spot;
-
-    didMigrate = true;
-    return {
-      ...spot,
-      status: "approved",
-    };
-  });
-
-  if (didMigrate) {
-    saveSubmittedSpots(migratedSpots);
-  }
-}
-
-migrateLegacyPendingSubmissions();
-
-function normalizedIdentityText(value) {
-  return String(value ?? "")
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]/gu, "");
-}
-
-function coordinatesAreValid(value) {
-  return Number.isFinite(Number(value?.latitude))
-    && Number.isFinite(Number(value?.longitude))
-    && Math.abs(Number(value.latitude)) <= 90
-    && Math.abs(Number(value.longitude)) <= 180
-    && (Math.abs(Number(value.latitude)) > 0.000001 || Math.abs(Number(value.longitude)) > 0.000001);
-}
-
-function distanceInMeters(lhs, rhs) {
-  if (!coordinatesAreValid(lhs) || !coordinatesAreValid(rhs)) return Infinity;
-
-  const toRadians = (value) => (Number(value) * Math.PI) / 180;
-  const latitudeDelta = toRadians(Number(rhs.latitude) - Number(lhs.latitude));
-  const longitudeDelta = toRadians(Number(rhs.longitude) - Number(lhs.longitude));
-  const lhsLatitude = toRadians(lhs.latitude);
-  const rhsLatitude = toRadians(rhs.latitude);
-  const a = Math.sin(latitudeDelta / 2) ** 2
-    + Math.cos(lhsLatitude) * Math.cos(rhsLatitude) * Math.sin(longitudeDelta / 2) ** 2;
-  return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function textMatches(lhs, rhs) {
-  const left = normalizedIdentityText(lhs);
-  const right = normalizedIdentityText(rhs);
-  return Boolean(left && right && (left === right || left.includes(right) || right.includes(left)));
-}
-
-function placeIdentityMatches(lhs, rhs) {
-  const lhsProvider = normalizedIdentityText(lhs?.provider);
-  const rhsProvider = normalizedIdentityText(rhs?.provider);
-  const lhsProviderID = normalizedIdentityText(lhs?.providerPlaceID);
-  const rhsProviderID = normalizedIdentityText(rhs?.providerPlaceID);
-
-  if (lhsProvider && rhsProvider && lhsProvider === rhsProvider && lhsProviderID && lhsProviderID === rhsProviderID) {
-    return true;
-  }
-
-  const lhsID = normalizedIdentityText(lhs?.id);
-  const rhsID = normalizedIdentityText(rhs?.id);
-  if (lhsID && lhsID === rhsID) return true;
-
-  const nameMatches = textMatches(lhs?.name, rhs?.name);
-  const addressMatches = textMatches(lhs?.region, rhs?.region);
-  const mapQueryMatches = textMatches(lhs?.mapQuery, rhs?.mapQuery);
-
-  if (nameMatches && (addressMatches || mapQueryMatches)) return true;
-
-  const nearby = distanceInMeters(lhs, rhs) <= 60;
-  return nearby && (nameMatches || addressMatches);
-}
-
-function normalizedSubmittedSpot(payload) {
-  const name = String(payload?.name ?? "").trim();
-  const latitude = Number(payload?.latitude);
-  const longitude = Number(payload?.longitude);
-
-  if (!name) {
-    throw new Error("name is required");
-  }
-
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    throw new Error("valid coordinates are required");
-  }
-
-  const region = String(payload?.region ?? "").trim();
-  const mapQuery = String(payload?.mapQuery ?? `${name} ${region}`).trim();
-  const tags = Array.isArray(payload?.tags)
-    ? uniqueValues(payload.tags.map((tag) => String(tag ?? "").replace(/^#+/, "").trim()).filter(Boolean))
-    : [];
-  const photoDataBase64s = uniqueValues([
-    ...(Array.isArray(payload?.photoDataBase64s) ? payload.photoDataBase64s : []),
-    ...(typeof payload?.photoDataBase64 === "string" ? [payload.photoDataBase64] : []),
-  ]
-    .filter((value) => typeof value === "string")
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0 && value.length < maxSubmittedPhotoBase64Length))
-    .slice(0, maxSubmittedPhotoCount);
-  const photoDataBase64 = photoDataBase64s[0];
-  const submittedByID = String(payload?.submittedByID ?? "").trim().slice(0, 128) || "anonymous";
-  const submittedByName = String(payload?.submittedByName ?? "").trim().slice(0, 64) || "익명";
-
-  return {
-    id: String(payload?.id ?? verifiedSpotID("submitted", name, latitude, longitude)),
-    name,
-    region,
-    summary: String(payload?.summary ?? "").trim(),
-    tags,
-    mapQuery,
-    latitude,
-    longitude,
-    category: String(payload?.category ?? "spot").trim() || "spot",
-    imageURL: typeof payload?.imageURL === "string" ? payload.imageURL : undefined,
-    provider: typeof payload?.provider === "string" ? payload.provider.trim() : undefined,
-    providerPlaceID: typeof payload?.providerPlaceID === "string" ? payload.providerPlaceID.trim() : undefined,
-    photoDataBase64,
-    photoDataBase64s,
-    submittedByID,
-    submittedByName,
-    submittedAt: String(payload?.submittedAt ?? new Date().toISOString()),
-    // 장소 제보는 제출 즉시 공개합니다.
-    status: "approved",
-    source: "user-submitted",
-  };
-}
-
-function createSubmittedSpot(payload) {
-  const spot = normalizedSubmittedSpot(payload);
-  const spots = loadSubmittedSpots();
-  const knownPlaces = [
-    ...loadBundledApprovedPlaces(),
-    ...(Array.isArray(payload?.knownPlaces) ? payload.knownPlaces : []),
-  ]
-      .map((place) => ({
-        ...place,
-        status: "approved",
-      }))
-      .filter((place) => placeIdentityMatches(spot, place));
-
-  if (knownPlaces.length > 0) {
-    return {
-      ok: false,
-      conflict: true,
-      code: "place_already_registered",
-      status: "approved",
-      spot: knownPlaces[0],
-    };
-  }
-
-  const existingIndex = spots.findIndex((existing) => placeIdentityMatches(existing, spot));
-
-  if (existingIndex >= 0) {
-    const existingSpot = spots[existingIndex];
-
-    if (existingSpot?.status === "approved" || existingSpot?.status === "pending_review") {
-      return {
-        ok: false,
-        conflict: true,
-        code: "place_already_registered",
-        status: "approved",
-        spot: existingSpot,
-        count: spots.length,
-      };
-    }
-
-    spots[existingIndex] = {
-      ...existingSpot,
-      ...spot,
-      id: existingSpot.id,
-      submittedAt: existingSpot.submittedAt ?? spot.submittedAt,
-      resubmittedAt: new Date().toISOString(),
-      status: "approved",
-      reviewedAt: undefined,
-      reviewNote: undefined,
-      updatedAt: new Date().toISOString(),
-    };
-  } else {
-    spots.unshift(spot);
-  }
-
-  saveSubmittedSpots(spots);
-  return { ok: true, spot, count: spots.length };
 }
 
 function submittedSpotPhotoContentType(buffer) {
@@ -918,10 +683,17 @@ createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "POST" && requestPath === "/submitted-spots") {
+    sendJSON(response, 410, {
+      code: "place_submissions_moved_to_firestore",
+      error: "새 장소 등록은 Firestore places를 사용합니다.",
+    });
+    return;
+  }
+
   const postEndpoints = [
     "/verify-spots",
     "/search-places",
-    "/submitted-spots",
   ];
   if (request.method !== "POST" || !postEndpoints.includes(requestPath)) {
     sendJSON(response, 404, { error: "Not found" });
@@ -939,24 +711,6 @@ createServer(async (request, response) => {
     if (requestPath === "/search-places") {
       const places = await createPlaceSearchResults(context);
       sendJSON(response, 200, places);
-      return;
-    }
-
-    if (requestPath === "/submitted-spots") {
-      const submittedSpotResult = createSubmittedSpot(context);
-      if (submittedSpotResult.conflict) {
-        sendJSON(response, 409, {
-          code: submittedSpotResult.code,
-          status: submittedSpotResult.status,
-          spot: submittedSpotResponse(submittedSpotResult.spot, request),
-        });
-        return;
-      }
-
-      sendJSON(response, 201, {
-        ...submittedSpotResult,
-        spot: submittedSpotResponse(submittedSpotResult.spot, request),
-      });
       return;
     }
 

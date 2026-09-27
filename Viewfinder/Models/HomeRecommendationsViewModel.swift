@@ -53,8 +53,8 @@ struct HomeGeographicContext: Equatable, Sendable {
 }
 
 /// 홈 추천은 장소 ID와 추천 문구만 저장합니다.
-/// 장소의 실제 데이터는 앱에 이미 있는 LocalSeedDataService에서 다시 풀기 때문에
-/// 캐시가 오래되어도 장소 모델 전체를 복제하거나 영구적인 오래된 데이터를 만들지 않습니다.
+/// 실제 장소 모델은 ContentView가 PlacesRepository에서 공급하므로
+/// cache hit, Firestore refresh, seed fallback이 모두 같은 장소 목록을 사용합니다.
 private struct HomeRecommendationCache {
     var overrideFileURL: URL? = nil
     private struct CachedRecommendation: Codable {
@@ -215,6 +215,7 @@ final class HomeRecommendationsViewModel: ObservableObject {
     private var geographicContext: HomeGeographicContext?
     private var hasResolvedLocation = false
     private var communityPosts: [CommunityPost] = []
+    private var tastePreference: TastePreference?
     private var userLocation: CLLocationCoordinate2D?
     private var weatherContext: RecommendationWeatherContext?
     private var hasGeneratedInitialSnapshot = false
@@ -226,13 +227,16 @@ final class HomeRecommendationsViewModel: ObservableObject {
     private var generationWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
 
     init(
+        initialSpots: [PhotoSpot]? = nil,
         service: HomeRecommendationService = HomeRecommendationService(),
         seedService: LocalSeedDataService = LocalSeedDataService(),
-        cacheFileURL: URL? = nil
+        cacheFileURL: URL? = nil,
+        tastePreference: TastePreference? = TastePreferenceStore.load()
     ) {
         self.service = service
         self.cache = HomeRecommendationCache(overrideFileURL: cacheFileURL)
-        self.availableSpots = seedService.allPhotoSpots()
+        self.availableSpots = initialSpots ?? seedService.allPhotoSpots()
+        self.tastePreference = tastePreference
     }
 
     func prepareIfNeeded() {
@@ -256,6 +260,12 @@ final class HomeRecommendationsViewModel: ObservableObject {
         requestGeneration()
     }
 
+    func updateTastePreference(_ preference: TastePreference?) {
+        guard tastePreference != preference else { return }
+        tastePreference = preference
+        requestGeneration()
+    }
+
     func updateLocationContext(userLocation: CLLocationCoordinate2D?) {
         let wasResolved = hasResolvedLocation
         hasResolvedLocation = true
@@ -275,7 +285,7 @@ final class HomeRecommendationsViewModel: ObservableObject {
         weatherContext = nil
         if let nextContext, !hasUsableContent {
             let candidates = availableSpots.filter { nextContext.contains($0) }
-            if let cached = cache.load(availableSpots: candidates, contextKey: nextContext.key) {
+            if let cached = cache.load(availableSpots: candidates, contextKey: cacheKey(for: nextContext)) {
                 presentation = Presentation(snapshot: cached, candidates: candidates, state: .loaded)
             }
         }
@@ -333,6 +343,7 @@ final class HomeRecommendationsViewModel: ObservableObject {
         let communityPosts = communityPosts
         let userLocation = userLocation
         let weatherContext = weatherContext
+        let tastePreference = tastePreference
         let variationSeed = recommendationVariation
         let context = geographicContext
         let referenceDate = Date()
@@ -350,6 +361,7 @@ final class HomeRecommendationsViewModel: ObservableObject {
                     availableSpots: candidates,
                     userLocation: userLocation,
                     weatherContext: weatherContext,
+                    tastePreference: tastePreference,
                     timeZone: weatherContext.flatMap { TimeZone(identifier: $0.timeZoneIdentifier) } ?? .current,
                     referenceDate: referenceDate,
                     variationSeed: variationSeed
@@ -373,7 +385,7 @@ final class HomeRecommendationsViewModel: ObservableObject {
             candidates: candidates,
             state: context == nil ? .locationUnavailable : (candidates.isEmpty ? .empty : .loaded)
         )
-        if let context { cache.save(snapshot, contextKey: context.key) }
+        if let context { cache.save(snapshot, contextKey: cacheKey(for: context)) }
 
         appliedGeneration = generation
         resumeWaiters(upTo: generation)
@@ -382,6 +394,10 @@ final class HomeRecommendationsViewModel: ObservableObject {
     private var hasUsableContent: Bool {
         !todayRecommendations.isEmpty
             || sectionRecommendations.values.contains { !$0.isEmpty }
+    }
+
+    private func cacheKey(for context: HomeGeographicContext) -> String {
+        "\(context.key)|\(tastePreference?.cacheKey ?? "taste-none")"
     }
 
     private func waitUntilApplied(_ generation: Int) async {

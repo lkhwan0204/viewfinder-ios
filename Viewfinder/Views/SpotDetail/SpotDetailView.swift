@@ -52,9 +52,11 @@ struct SpotDetailView: View {
     let onOpenMap: () -> Void
     let onReportPhoto: () -> Void
     let onSubmitCrowdReport: (CommunityPost.Crowd) -> Void
-    let onSubmitCommunity: (CommunityPostDraft) -> Void
-    let onUpdateCommunity: (CommunityPost, CommunityPostDraft) -> Void
-    let onDeleteCommunity: (CommunityPost) -> Void
+    let onSubmitCommunity: (CommunityPostDraft, String) async throws -> Void
+    let onUpdateCommunity: (CommunityPost, CommunityPostDraft) async throws -> Void
+    let onDeleteCommunity: (CommunityPost) async throws -> Void
+    let onUpdatePlace: (PhotoSpot) async throws -> Void
+    let onDeletePlace: () async throws -> Void
     @ObservedObject var communityViewModel: CommunityViewModel
     let onToggleCommunityLike: (CommunityPost) -> Void
     let onToggleCommunityFollow: (CommunityPost) -> Void
@@ -66,6 +68,10 @@ struct SpotDetailView: View {
     @State private var isDirectionsDialogPresented = false
     @State private var isCommunityComposerPresented = false
     @State private var editingCommunityPost: CommunityPost?
+    @State private var isEditingUserPlace = false
+    @State private var isPlaceDeleteConfirmationPresented = false
+    @State private var isDeletingPlace = false
+    @State private var placeOperationError: String?
     @State private var authenticationDestination: AuthenticationDestination?
     @State private var pendingAuthenticatedAction: (() -> Void)?
     @State private var isVisitInformationExpanded = false
@@ -89,9 +95,11 @@ struct SpotDetailView: View {
         onOpenMap: @escaping () -> Void,
         onReportPhoto: @escaping () -> Void,
         onSubmitCrowdReport: @escaping (CommunityPost.Crowd) -> Void = { _ in },
-        onSubmitCommunity: @escaping (CommunityPostDraft) -> Void,
-        onUpdateCommunity: @escaping (CommunityPost, CommunityPostDraft) -> Void,
-        onDeleteCommunity: @escaping (CommunityPost) -> Void,
+        onSubmitCommunity: @escaping (CommunityPostDraft, String) async throws -> Void,
+        onUpdateCommunity: @escaping (CommunityPost, CommunityPostDraft) async throws -> Void,
+        onDeleteCommunity: @escaping (CommunityPost) async throws -> Void,
+        onUpdatePlace: @escaping (PhotoSpot) async throws -> Void = { _ in },
+        onDeletePlace: @escaping () async throws -> Void = {},
         communityViewModel: CommunityViewModel? = nil,
         onToggleCommunityLike: @escaping (CommunityPost) -> Void = { _ in },
         onToggleCommunityFollow: @escaping (CommunityPost) -> Void = { _ in },
@@ -116,6 +124,8 @@ struct SpotDetailView: View {
         self.onSubmitCommunity = onSubmitCommunity
         self.onUpdateCommunity = onUpdateCommunity
         self.onDeleteCommunity = onDeleteCommunity
+        self.onUpdatePlace = onUpdatePlace
+        self.onDeletePlace = onDeletePlace
         self._communityViewModel = ObservedObject(wrappedValue: communityViewModel ?? CommunityViewModel())
         self.onToggleCommunityLike = onToggleCommunityLike
         self.onToggleCommunityFollow = onToggleCommunityFollow
@@ -131,6 +141,8 @@ struct SpotDetailView: View {
         isDirectionsDialogPresented
             || isCommunityComposerPresented
             || authenticationDestination != nil
+            || isPlaceDeleteConfirmationPresented
+            || isDeletingPlace
     }
 
     private var isCrowdReportSubmitting: Bool {
@@ -201,9 +213,7 @@ struct SpotDetailView: View {
                                 }
                             },
                             onDelete: { post in
-                                requireAuthentication {
-                                    onDeleteCommunity(post)
-                                }
+                                try await onDeleteCommunity(post)
                             },
                             communityViewModel: communityViewModel,
                             onToggleLike: { post in
@@ -248,17 +258,40 @@ struct SpotDetailView: View {
 
             Button("취소", role: .cancel) {}
         }
+        .confirmationDialog("장소를 삭제할까요?", isPresented: $isPlaceDeleteConfirmationPresented, titleVisibility: .visible) {
+            Button("장소 삭제", role: .destructive) {
+                deleteOwnedPlace()
+            }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("장소를 공개 목록에서 숨깁니다. 게시물과 기존 사진은 삭제되지 않아요.")
+        }
+        .alert("장소 작업을 완료하지 못했어요", isPresented: Binding(
+            get: { placeOperationError != nil },
+            set: { if !$0 { placeOperationError = nil } }
+        )) {
+            Button("확인", role: .cancel) { placeOperationError = nil }
+        } message: {
+            Text(placeOperationError ?? "다시 시도해 주세요.")
+        }
         .sheet(isPresented: $isCommunityComposerPresented) {
             CommunityComposerView(
                 spots: spots,
                 selectedSpot: spot,
                 locksSelectedSpot: true,
                 editingPost: editingCommunityPost,
-                onSubmit: { draft in
-                    if let editingCommunityPost {
-                        onUpdateCommunity(editingCommunityPost, draft)
+                purpose: isEditingUserPlace ? .editPlace(placeID: spot.id) : .fieldReport,
+                onSubmit: { draft, submissionID in
+                    if isEditingUserPlace {
+                        guard let updatedSpot = draft.spot, updatedSpot.id == spot.id else {
+                            throw PlacesRepositoryError.invalidDocument
+                        }
+                        try await onUpdatePlace(updatedSpot)
+                        isEditingUserPlace = false
+                    } else if let editingCommunityPost {
+                        try await onUpdateCommunity(editingCommunityPost, draft)
                     } else {
-                        onSubmitCommunity(draft)
+                        try await onSubmitCommunity(draft, submissionID)
                     }
                     self.editingCommunityPost = nil
                 }
@@ -413,16 +446,44 @@ struct SpotDetailView: View {
 
                 Spacer(minLength: 0)
 
-                // 저장은 하단 액션 바에서 여기로 옮겼습니다.
-                // 액션 바의 "지도에서 보기 / 길찾기" 는 장소로 이동하는 동작이고,
-                // 저장은 장소 자체에 대한 상태 토글이라 성격이 다릅니다.
-                // 제목 반대편에 두면 "이 장소를 저장한다" 는 관계가 분명해집니다.
-                VFSaveButton(
-                    isSaved: isSaved,
-                    action: onToggleSave,
-                    diameter: 30,
-                    style: .plain
-                )
+                HStack(spacing: 8) {
+                    VFSaveButton(
+                        isSaved: isSaved,
+                        action: onToggleSave,
+                        diameter: 30,
+                        style: .plain
+                    )
+
+                    if isCurrentUserPlace {
+                        Menu {
+                            Button {
+                                requireAuthentication {
+                                    editingCommunityPost = nil
+                                    isEditingUserPlace = true
+                                    isCommunityComposerPresented = true
+                                }
+                            } label: {
+                                Label("장소 정보 수정", systemImage: "pencil")
+                            }
+
+                            Button(role: .destructive) {
+                                isPlaceDeleteConfirmationPresented = true
+                            } label: {
+                                Label("장소 삭제", systemImage: "trash")
+                            }
+                            .disabled(isDeletingPlace)
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(AppColors.primary)
+                                .frame(width: 36, height: 36)
+                                .background(.thinMaterial, in: Circle())
+                                .contentShape(Circle())
+                        }
+                        .menuStyle(.borderlessButton)
+                        .accessibilityLabel("내 장소 관리")
+                    }
+                }
                 .offset(y: -4)
             }
 
@@ -440,6 +501,25 @@ struct SpotDetailView: View {
                         .font(AppTypography.caption)
                         .foregroundStyle(AppColors.secondaryText)
                 }
+            }
+        }
+    }
+
+    private var isCurrentUserPlace: Bool {
+        spot.isOwned(by: currentUserID)
+    }
+
+    private func deleteOwnedPlace() {
+        guard isCurrentUserPlace, !isDeletingPlace else { return }
+        isDeletingPlace = true
+        Task { @MainActor in
+            do {
+                try await onDeletePlace()
+                isDeletingPlace = false
+                dismiss()
+            } catch {
+                isDeletingPlace = false
+                placeOperationError = error.localizedDescription
             }
         }
     }
@@ -895,7 +975,7 @@ struct SpotDetailCommunitySection: View {
     let isCrowdReportLoading: Bool
     let onReportCrowd: (CommunityPost.Crowd) -> Void
     let onEdit: (CommunityPost) -> Void
-    let onDelete: (CommunityPost) -> Void
+    let onDelete: (CommunityPost) async throws -> Void
     @ObservedObject var communityViewModel: CommunityViewModel
     let onToggleLike: (CommunityPost) -> Void
     let onToggleFollow: (CommunityPost) -> Void
@@ -1039,7 +1119,7 @@ private struct SpotCommunityPostsSheet: View {
     let currentUserID: String
     @ObservedObject var communityViewModel: CommunityViewModel
     let onEdit: (CommunityPost) -> Void
-    let onDelete: (CommunityPost) -> Void
+    let onDelete: (CommunityPost) async throws -> Void
     let onToggleLike: (CommunityPost) -> Void
     let onToggleFollow: (CommunityPost) -> Void
     let onAddComment: (String, CommunityPost) -> Bool

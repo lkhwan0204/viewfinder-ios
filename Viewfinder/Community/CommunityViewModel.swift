@@ -1,8 +1,18 @@
 import Foundation
 
+enum CommunityFeedState: Equatable {
+    case initialLoading
+    case loaded
+    case empty
+    case failed
+    case refreshing
+}
+
 @MainActor
 final class CommunityViewModel: ObservableObject {
     @Published private(set) var posts: [CommunityPost] = []
+    @Published private(set) var feedState: CommunityFeedState = .initialLoading
+    @Published private(set) var deletingPostIDs: Set<String> = []
     @Published private(set) var likedPostIDs: Set<String> = []
     @Published private(set) var followedAuthorIDs: Set<String> = []
     @Published private(set) var commentsByPostID: [String: [CommunityComment]] = [:]
@@ -14,6 +24,9 @@ final class CommunityViewModel: ObservableObject {
     private let remoteStore: FirebaseCommunityPostStore?
     private let placePhotoGalleryStore: PlacePhotoGalleryStore
     private let crowdReportStore: CrowdReportStore
+    private var isLoadingRemotePosts = false
+    private var hasLoadedFeed = false
+    private var localPostRevision = 0
 
     init(
         service: CommunityService = MockCommunityService(),
@@ -25,7 +38,13 @@ final class CommunityViewModel: ObservableObject {
         self.remoteStore = remoteStore
         self.placePhotoGalleryStore = placePhotoGalleryStore ?? .shared
         self.crowdReportStore = crowdReportStore ?? .shared
-        posts = service.fetchPosts()
+        // Mock posts are only shown when a caller explicitly opts out of the
+        // remote store (for previews). A real empty Firestore feed must be empty.
+        posts = remoteStore == nil ? service.fetchPosts() : []
+        feedState = remoteStore == nil
+            ? (posts.isEmpty ? .empty : .loaded)
+            : .initialLoading
+        hasLoadedFeed = remoteStore == nil
 
         guard remoteStore != nil else { return }
         Task { [weak self] in
@@ -108,96 +127,115 @@ final class CommunityViewModel: ObservableObject {
         return selectedSpotForComposer
     }
 
-    func addPost(_ draft: CommunityPostDraft, author: AuthUser) {
-        let localPost = service.addPost(draft, author: author)
-        refreshLocalPosts()
-        publishLocalPostEffects(localPost, draft: draft, authorID: author.id)
-        selectedSpotForComposer = nil
-        editingPostForComposer = nil
-        isComposerPresented = false
+    private var isSavingPost = false
 
-        guard let remoteStore else { return }
-        Task { [weak self] in
-            do {
-                let remotePost = try await remoteStore.addPost(draft, author: author, id: localPost.id)
-                await MainActor.run {
-                    self?.replace(localPost, with: remotePost)
-                }
-                await self?.placePhotoGalleryStore.syncCommunityContribution(post: remotePost)
-            } catch {
-                AppLog.persistence.error(
-                    "Community post upload failed: \(error.localizedDescription, privacy: .public)"
-                )
-            }
+    func addPost(_ draft: CommunityPostDraft, author: AuthUser, id: String) async throws {
+        guard !isSavingPost else { throw FirebaseCommunityError.emptyResponse }
+        guard let remoteStore else { throw FirebaseCommunityError.notConfigured }
+        isSavingPost = true
+        defer { isSavingPost = false }
+        let post = try await remoteStore.addPost(draft, author: author, id: id)
+        // The post is already public at this point, even if the optional
+        // crowd-report write fails. Reflect the server's post state now.
+        mergeRemotePosts([post])
+        localPostRevision += 1
+        hasLoadedFeed = true
+        feedState = .loaded
+        placePhotoGalleryStore.applyLocalContribution(post: post)
+        try await saveCrowdReport(for: post, draft: draft, authorID: author.id)
+
+        // Place Gallery 동기화는 게시물 본체의 성공 조건이 아닙니다.
+        // 특히 관련 출사지가 없는 자유 글에서는 placePhotos 조회가 필요하지
+        // 않으므로, 게시 성공 후 백그라운드에서만 처리합니다.
+        if post.relatedSpotID != nil,
+           post.photoAttachments.contains(where: \.sharesToPlaceGallery) {
+            let galleryStore = placePhotoGalleryStore
+            Task { await galleryStore.syncCommunityContribution(post: post) }
         }
     }
 
-    func updatePost(_ post: CommunityPost, draft: CommunityPostDraft) {
-        let localPost = service.updatePost(id: post.id, draft: draft)
-        refreshLocalPosts()
-        if let localPost {
-            placePhotoGalleryStore.removeLocalContribution(postID: post.id)
-            // 같은 Community 글의 혼잡도 제보는 안정적인 report ID로 upsert합니다.
-            // 새 선택값이 있는 수정에서는 먼저 삭제하지 않아 원격 삭제 작업이
-            // 새 제보를 뒤늦게 지우는 경합을 피합니다.
-            if draft.crowd == nil || draft.spot == nil {
-                crowdReportStore.removeCommunityReport(postID: post.id)
+    func updatePost(_ post: CommunityPost, draft: CommunityPostDraft) async throws {
+        guard !isSavingPost else { throw FirebaseCommunityError.emptyResponse }
+        guard let remoteStore else { throw FirebaseCommunityError.notConfigured }
+        isSavingPost = true
+        defer { isSavingPost = false }
+        let updated = try await remoteStore.updatePost(post, draft: draft)
+        mergeRemotePosts([updated])
+        localPostRevision += 1
+        hasLoadedFeed = true
+        feedState = .loaded
+        placePhotoGalleryStore.removeLocalContribution(postID: post.id)
+        placePhotoGalleryStore.applyLocalContribution(post: updated)
+        do {
+            if post.relatedSpotID != draft.relatedSpotID || draft.crowd == nil {
+                try await crowdReportStore.removeCommunityReportConfirmed(postID: post.id)
             }
-            publishLocalPostEffects(localPost, draft: draft, authorID: post.authorID)
+            try await saveCrowdReport(for: updated, draft: draft, authorID: post.authorID)
+        } catch {
+            throw FirebaseCommunityError.crowdReportPending
         }
-        selectedSpotForComposer = nil
-        editingPostForComposer = nil
-        isComposerPresented = false
-
-        guard let remoteStore, localPost != nil else { return }
-        Task { [weak self] in
-            do {
-                let remotePost = try await remoteStore.updatePost(post, draft: draft)
-                await MainActor.run {
-                    self?.replace(post, with: remotePost)
-                }
-                await self?.placePhotoGalleryStore.syncCommunityContribution(post: remotePost)
-            } catch {
-                AppLog.persistence.error(
-                    "Community post update failed: \(error.localizedDescription, privacy: .public)"
-                )
-            }
-        }
+        let galleryStore = placePhotoGalleryStore
+        Task { await galleryStore.syncCommunityContribution(post: updated) }
     }
 
-    func deletePost(_ post: CommunityPost) {
+    func deletePost(_ post: CommunityPost, currentUserID: String?) async throws {
+        guard currentUserID == post.authorID else { throw FirebaseCommunityError.notAuthorized }
+        guard let remoteStore else { throw FirebaseCommunityError.notConfigured }
+        guard deletingPostIDs.insert(post.id).inserted else {
+            throw FirebaseCommunityError.alreadyInProgress
+        }
+        defer { deletingPostIDs.remove(post.id) }
+
+        // Keep the post visible until Firestore confirms the hard delete.
+        try await remoteStore.deletePost(post)
         service.deletePost(id: post.id)
-        refreshLocalPosts()
+        posts.removeAll { $0.id == post.id }
+        localPostRevision += 1
+        hasLoadedFeed = true
+        feedState = posts.isEmpty ? .empty : .loaded
         placePhotoGalleryStore.removeLocalContribution(postID: post.id)
         crowdReportStore.removeCommunityReport(postID: post.id)
         if editingPostForComposer?.id == post.id {
             editingPostForComposer = nil
         }
-        isComposerPresented = false
+        let galleryStore = placePhotoGalleryStore
+        Task {
+            await galleryStore.removeCommunityContribution(postID: post.id)
+        }
+    }
 
-        guard let remoteStore else { return }
+    func refreshPosts() {
+        guard !isLoadingRemotePosts else { return }
         Task { [weak self] in
-            do {
-                try await remoteStore.deletePost(post)
-                guard let self else { return }
-                await self.placePhotoGalleryStore.removeCommunityContribution(postID: post.id)
-            } catch {
-                AppLog.persistence.error(
-                    "Community post delete failed: \(error.localizedDescription, privacy: .public)"
-                )
-            }
+            await self?.loadRemotePosts()
         }
     }
 
     private func loadRemotePosts() async {
-        guard let remoteStore else { return }
+        guard let remoteStore, !isLoadingRemotePosts else { return }
+        isLoadingRemotePosts = true
+        feedState = hasLoadedFeed ? .refreshing : .initialLoading
+        let startingRevision = localPostRevision
+        var shouldReload = false
+        defer {
+            isLoadingRemotePosts = false
+            if shouldReload { refreshPosts() }
+        }
 
         do {
             let remotePosts = try await remoteStore.fetchPosts()
-            mergeRemotePosts(remotePosts)
+            hasLoadedFeed = true
+            if startingRevision == localPostRevision {
+                posts = remotePosts
+                feedState = posts.isEmpty ? .empty : .loaded
+            } else {
+                // A post changed while this query was in flight. Fetch again
+                // after it completes instead of applying an older snapshot.
+                feedState = posts.isEmpty ? .empty : .loaded
+                shouldReload = true
+            }
         } catch {
-            // Firebase가 아직 연결되지 않은 개발 환경에서도
-            // 기존 로컬 피드는 그대로 사용할 수 있어야 합니다.
+            feedState = .failed
             AppLog.persistence.error(
                 "Community post fetch failed: \(error.localizedDescription, privacy: .public)"
             )
@@ -216,40 +254,25 @@ final class CommunityViewModel: ObservableObject {
         posts = merged.sorted { $0.createdAt > $1.createdAt }
     }
 
-    private func replace(_ original: CommunityPost, with replacement: CommunityPost) {
-        guard let index = posts.firstIndex(where: { $0.id == original.id }) else {
-            posts.insert(replacement, at: 0)
-            return
-        }
-        posts[index] = replacement
-    }
-
-    private func refreshLocalPosts() {
-        let existingByID = Dictionary(uniqueKeysWithValues: posts.map { ($0.id, $0) })
-        let localPosts = service.fetchPosts().map { existingByID[$0.id] ?? $0 }
-        let localIDs = Set(localPosts.map(\.id))
-        let remoteOnlyPosts = posts.filter { !localIDs.contains($0.id) }
-        posts = (localPosts + remoteOnlyPosts).sorted { $0.createdAt > $1.createdAt }
-    }
-
-    private func publishLocalPostEffects(
-        _ post: CommunityPost,
+    private func saveCrowdReport(
+        for post: CommunityPost,
         draft: CommunityPostDraft,
         authorID: String
-    ) {
-        placePhotoGalleryStore.applyLocalContribution(post: post)
-
+    ) async throws {
         guard let crowd = draft.crowd,
               let placeID = draft.spot?.id else {
             return
         }
 
-        crowdReportStore.submit(
-            placeID: placeID,
-            crowd: crowd,
-            authorID: authorID,
-            source: .community,
-            communityPostID: post.id
-        )
+        do {
+            try await crowdReportStore.submitCommunityReport(
+                placeID: placeID,
+                crowd: crowd,
+                authorID: authorID,
+                postID: post.id
+            )
+        } catch {
+            throw FirebaseCommunityError.crowdReportPending
+        }
     }
 }

@@ -93,6 +93,8 @@ final class MockCommunityService: CommunityService {
         let post = CommunityPost(
             id: UUID().uuidString,
             spot: draft.spot,
+            relatedSpotID: draft.relatedSpotID,
+            relatedSpotName: draft.relatedSpotName,
             title: draft.title,
             captureLocation: draft.captureLocation,
             crowd: draft.crowd,
@@ -118,6 +120,8 @@ final class MockCommunityService: CommunityService {
         let updated = CommunityPost(
             id: original.id,
             spot: draft.spot,
+            relatedSpotID: draft.relatedSpotID,
+            relatedSpotName: draft.relatedSpotName,
             title: draft.title,
             captureLocation: draft.captureLocation,
             crowd: draft.crowd,
@@ -159,7 +163,7 @@ final class FirebaseCommunityPostStore {
     }
 
     func fetchPosts() async throws -> [CommunityPost] {
-        guard FirebaseApp.app() != nil else { return [] }
+        guard FirebaseApp.app() != nil else { throw FirebaseCommunityError.notConfigured }
 
         let snapshot = try await getDocuments(
             from: firestore.collection("communityPosts")
@@ -174,8 +178,42 @@ final class FirebaseCommunityPostStore {
         guard FirebaseApp.app() != nil else {
             throw FirebaseCommunityError.notConfigured
         }
+        guard !draft.photoAttachments.contains(where: { $0.imageData != nil }) else {
+            throw FirebaseCommunityError.photoUploadUnavailable
+        }
 
         let postReference = firestore.collection("communityPosts").document(id)
+        // A retry keeps the same ID. If the first write reached Firestore but
+        // its acknowledgement was lost, return that document rather than
+        // attempting a second create with a new timestamp.
+        let existing = try await getDocument(postReference)
+        if existing.exists {
+            guard existing.data()?["authorID"] as? String == author.id else {
+                throw FirebaseCommunityError.notAuthorized
+            }
+            guard let post = Self.decodePost(existing) else {
+                throw FirebaseCommunityError.emptyResponse
+            }
+            // The original create may have succeeded while a later crowd
+            // write failed. Retry the same document, including edits the user
+            // made while the composer stayed open; never create another post.
+            let title = draft.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedTitle = title?.isEmpty == true ? nil : title
+            let sameCrowd = draft.crowd == nil
+                ? !post.hasStatusInfo
+                : post.hasStatusInfo && post.crowd == draft.crowd
+            if post.title == normalizedTitle,
+               post.message == draft.message,
+               post.tags == draft.tags,
+               post.relatedSpotID == draft.relatedSpotID,
+               post.relatedSpotName == draft.relatedSpotName,
+               post.captureLocation == draft.captureLocation,
+               post.publicPhotoAttachments == draft.photoAttachments,
+               sameCrowd {
+                return post
+            }
+            return try await updatePost(post, draft: draft)
+        }
         let attachments = try await uploadAttachments(
             draft.photoAttachments,
             authorID: author.id,
@@ -185,6 +223,8 @@ final class FirebaseCommunityPostStore {
         let post = CommunityPost(
             id: id,
             spot: draft.spot,
+            relatedSpotID: draft.relatedSpotID,
+            relatedSpotName: draft.relatedSpotName,
             title: draft.title,
             captureLocation: draft.captureLocation,
             crowd: draft.crowd,
@@ -203,6 +243,9 @@ final class FirebaseCommunityPostStore {
     }
 
     func updatePost(_ post: CommunityPost, draft: CommunityPostDraft) async throws -> CommunityPost {
+        guard !draft.photoAttachments.contains(where: { $0.imageData != nil }) else {
+            throw FirebaseCommunityError.photoUploadUnavailable
+        }
         let attachments = try await uploadAttachments(
             draft.photoAttachments,
             authorID: post.authorID,
@@ -211,6 +254,8 @@ final class FirebaseCommunityPostStore {
         let updated = CommunityPost(
             id: post.id,
             spot: draft.spot,
+            relatedSpotID: draft.relatedSpotID,
+            relatedSpotName: draft.relatedSpotName,
             title: draft.title,
             captureLocation: draft.captureLocation,
             crowd: draft.crowd,
@@ -223,8 +268,18 @@ final class FirebaseCommunityPostStore {
             createdAt: post.createdAt,
             updatedAt: Date()
         )
+        var updatedData = Self.firestoreData(for: updated)
+        // merge writes must explicitly remove optional values cleared in the editor.
+        for key in ["title", "relatedSpotID", "relatedSpotName", "captureLocation", "crowd"]
+            where updatedData[key] == nil {
+            updatedData[key] = FieldValue.delete()
+        }
+        updatedData["spotID"] = FieldValue.delete()
+        updatedData["spotName"] = FieldValue.delete()
+        // Editing content must not overwrite reactions changed by other users.
+        updatedData.removeValue(forKey: "likeCount")
         try await setData(
-            Self.firestoreData(for: updated),
+            updatedData,
             on: firestore.collection("communityPosts").document(post.id)
         )
         return updated
@@ -261,11 +316,11 @@ final class FirebaseCommunityPostStore {
                 }
             }
 
-            var result: [CommunityPhotoAttachment] = []
+            var result: [(Int, CommunityPhotoAttachment)] = []
             result.reserveCapacity(attachments.count)
 
-            while let (_, attachment) = try await group.next() {
-                result.append(attachment)
+            while let (index, attachment) = try await group.next() {
+                result.append((index, attachment))
 
                 if nextIndex < attachments.count {
                     let index = nextIndex
@@ -284,8 +339,8 @@ final class FirebaseCommunityPostStore {
                 }
             }
 
-            // 기존 저장 결과의 정렬 규칙을 유지합니다.
-            return result.sorted { $0.id < $1.id }
+            // 비동기 완료 순서와 무관하게 사용자가 선택한 사진 순서를 유지합니다.
+            return result.sorted { $0.0 < $1.0 }.map { $0.1 }
         }
     }
 
@@ -325,6 +380,20 @@ final class FirebaseCommunityPostStore {
     private func getDocuments(from query: Query) async throws -> QuerySnapshot {
         try await withCheckedThrowingContinuation { continuation in
             query.getDocuments { snapshot, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let snapshot {
+                    continuation.resume(returning: snapshot)
+                } else {
+                    continuation.resume(throwing: FirebaseCommunityError.emptyResponse)
+                }
+            }
+        }
+    }
+
+    private func getDocument(_ reference: DocumentReference) async throws -> DocumentSnapshot {
+        try await withCheckedThrowingContinuation { continuation in
+            reference.getDocument(source: .server) { snapshot, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else if let snapshot {
@@ -442,8 +511,8 @@ final class FirebaseCommunityPostStore {
         return data
     }
 
-    private static func decodePost(_ document: QueryDocumentSnapshot) -> CommunityPost? {
-        let data = document.data()
+    private static func decodePost(_ document: DocumentSnapshot) -> CommunityPost? {
+        guard let data = document.data() else { return nil }
         guard let message = data["message"] as? String,
               let authorID = data["authorID"] as? String,
               let authorName = data["authorName"] as? String else {
@@ -646,6 +715,10 @@ private extension CommunityPost {
 enum FirebaseCommunityError: LocalizedError {
     case notConfigured
     case emptyResponse
+    case notAuthorized
+    case alreadyInProgress
+    case photoUploadUnavailable
+    case crowdReportPending
 
     var errorDescription: String? {
         switch self {
@@ -653,6 +726,14 @@ enum FirebaseCommunityError: LocalizedError {
             return "Firebase가 구성되지 않았어요."
         case .emptyResponse:
             return "Firebase 응답이 비어 있어요."
+        case .notAuthorized:
+            return "이 게시글을 변경할 권한이 없어요."
+        case .alreadyInProgress:
+            return "이 게시글을 처리하는 중이에요."
+        case .photoUploadUnavailable:
+            return "사진 업로드는 현재 준비 중입니다. 사진을 제거하면 텍스트 글을 게시할 수 있어요."
+        case .crowdReportPending:
+            return "게시글은 저장됐지만 혼잡도 제보를 완료하지 못했어요. 같은 글로 다시 시도해 주세요."
         }
     }
 }
@@ -1113,6 +1194,12 @@ final class FirebaseCrowdReportStore {
             .max { $0.updatedAt < $1.updatedAt }
     }
 
+    func canonicalReport(placeID: String, authorID: String, id: String) async throws -> CrowdReport? {
+        guard FirebaseApp.app() != nil else { throw FirebaseCommunityError.notConfigured }
+        let documents = try await userReportDocuments(placeID: placeID, authorID: authorID)
+        return documents.first(where: { $0.documentID == id }).flatMap(Self.decode)
+    }
+
     /// 사용자+장소 조합의 canonical 문서를 upsert합니다.
     ///
     /// 문서 ID는 CrowdReportStore가 결정적으로 만들기 때문에 동시에 여러
@@ -1471,6 +1558,47 @@ final class CrowdReportStore: ObservableObject {
             }
             _ = self
         }
+    }
+
+    /// Community composer waits for this write before reporting a fully saved
+    /// post. The canonical ID stays stable across retries of the same post.
+    func submitCommunityReport(
+        placeID: String,
+        crowd: CommunityPost.Crowd,
+        authorID: String,
+        postID: String
+    ) async throws {
+        let key = submissionKey(placeID: placeID, authorID: authorID)
+        guard submittingKeys.insert(key).inserted else {
+            throw FirebaseCommunityError.alreadyInProgress
+        }
+        defer { submittingKeys.remove(key) }
+
+        let canonicalID = Self.deterministicReportID(placeID: placeID, authorID: authorID)
+        let existing = try await remoteStore.canonicalReport(
+            placeID: placeID,
+            authorID: authorID,
+            id: canonicalID
+        )
+        let now = Date()
+        let report = CrowdReport(
+            id: canonicalID,
+            placeID: placeID,
+            crowd: crowd,
+            authorID: authorID,
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now,
+            source: .community,
+            communityPostID: postID
+        )
+        try await remoteStore.upsert(report)
+        reports.removeAll { $0.placeID == placeID && $0.authorID == authorID }
+        merge([report])
+    }
+
+    func removeCommunityReportConfirmed(postID: String) async throws {
+        try await remoteStore.removeCommunityReport(postID: postID)
+        reports.removeAll { $0.communityPostID == postID }
     }
 
     private func persist(

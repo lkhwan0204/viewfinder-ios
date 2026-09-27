@@ -1129,48 +1129,6 @@
     "nearbyParkingInfo": "용산구 공영주차장 확인"
   },
   {
-    "id": "seed-starbucks-gyeongju-daereungwon",
-    "name": "스타벅스 경주대릉원점",
-    "region": "경북",
-    "regions": [
-      "경북",
-      "경상북도",
-      "경주",
-      "경주시"
-    ],
-    "address": "경상북도 경주시 첨성로 125",
-    "description": "한옥형 외관과 경주 여행 동선을 함께 담기 좋은 카페 출사지",
-    "bestTime": "오전, 오후 늦은 빛",
-    "reason": "대릉원 주변 한옥형 카페 외관이 경주 여행 사진의 분위기를 살려줘요",
-    "tags": [
-      "카페",
-      "한옥",
-      "경주",
-      "여행"
-    ],
-    "category": "cafe",
-    "season": [
-      "spring",
-      "autumn"
-    ],
-    "weather": [],
-    "mood": [
-      "한옥",
-      "여행"
-    ],
-    "crowdLevel": "crowded",
-    "latitude": 35.8379,
-    "longitude": 129.2116,
-    "source": "local",
-    "imageURL": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Starbucks_Gyeongju_Daereungwon_branch.jpg?width=960",
-    "imageName": null,
-    "theme": "indoor",
-    "openingHours": "매장 운영시간 확인 필요",
-    "feeInfo": "매장 이용 시 비용 발생",
-    "parkingInfo": "주변 공영주차장 이용",
-    "nearbyParkingInfo": "대릉원 인근 공영주차장 확인"
-  },
-  {
     "id": "seed-guro-hangdong-railroad",
     "name": "항동철길",
     "region": "구로",

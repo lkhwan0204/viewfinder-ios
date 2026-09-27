@@ -709,6 +709,7 @@ struct HomeRecommendationService: Sendable {
         availableSpots: [PhotoSpot]? = nil,
         userLocation: CLLocationCoordinate2D? = nil,
         weatherContext: RecommendationWeatherContext? = nil,
+        tastePreference: TastePreference? = nil,
         timeZone: TimeZone = .current,
         referenceDate: Date = Date(),
         variationSeed: Int = 0
@@ -736,6 +737,7 @@ struct HomeRecommendationService: Sendable {
                 communitySignal: communitySignal,
                 userLocation: userLocation,
                 weatherContext: weatherContext,
+                tastePreference: tastePreference,
                 timeContext: timeContext
             ),
             count: maxItemsPerSection,
@@ -754,6 +756,7 @@ struct HomeRecommendationService: Sendable {
                 communitySignal: communitySignal,
                 userLocation: userLocation,
                 weatherContext: weatherContext,
+                tastePreference: tastePreference,
                 timeContext: timeContext
             )
                 .filter { !existingTodayIDs.contains($0.id) }
@@ -795,6 +798,7 @@ struct HomeRecommendationService: Sendable {
                     communitySignal: communitySignal,
                     userLocation: userLocation,
                     weatherContext: weatherContext,
+                    tastePreference: tastePreference,
                     timeContext: timeContext
                 ),
                 count: maxItemsPerSection,
@@ -838,6 +842,7 @@ struct HomeRecommendationService: Sendable {
                 communitySignal: communitySignal,
                 userLocation: userLocation,
                 weatherContext: weatherContext,
+                tastePreference: tastePreference,
                 timeContext: timeContext
             )
                 .filter { !featuredIDs.contains($0.id) }
@@ -853,6 +858,7 @@ struct HomeRecommendationService: Sendable {
                 communitySignal: communitySignal,
                 userLocation: userLocation,
                 weatherContext: weatherContext,
+                tastePreference: tastePreference,
                 timeContext: timeContext
             )
                 .filter { !featuredIDs.contains($0.id) && !strictExtraIDs.contains($0.id) }
@@ -955,6 +961,7 @@ struct HomeRecommendationService: Sendable {
         communitySignal: HomeCommunitySignal,
         userLocation: CLLocationCoordinate2D?,
         weatherContext: RecommendationWeatherContext?,
+        tastePreference: TastePreference?,
         timeContext: RecommendationTimeContext
     ) -> [PhotoSpot] {
         spots
@@ -968,6 +975,7 @@ struct HomeRecommendationService: Sendable {
                         communitySignal: communitySignal,
                         userLocation: userLocation,
                         weatherContext: weatherContext,
+                        tastePreference: tastePreference,
                         timeContext: timeContext
                     ),
                     originalIndex: index
@@ -1008,6 +1016,7 @@ struct HomeRecommendationService: Sendable {
         communitySignal: HomeCommunitySignal,
         userLocation: CLLocationCoordinate2D?,
         weatherContext: RecommendationWeatherContext?,
+        tastePreference: TastePreference?,
         timeContext: RecommendationTimeContext
     ) -> Int {
         var score = communitySignal.score(for: spot)
@@ -1015,6 +1024,7 @@ struct HomeRecommendationService: Sendable {
         score += proximityScore(for: spot, userLocation: userLocation)
         score += weatherScore(for: spot, weatherContext: weatherContext)
         score += timeScore(for: spot, timeContext: timeContext)
+        score += tastePreference?.affinityBonus(for: spot) ?? 0
 
         if let kind, matches(spot, kind: kind) {
             score += 3

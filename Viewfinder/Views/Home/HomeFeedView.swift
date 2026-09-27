@@ -370,11 +370,8 @@ struct HomeFeedView: View {
     }
 
     private var verifiedRecommendations: [RecommendedSpot] {
-        searchViewModel.verifiedSpots.map { verifiedSpot in
-            RecommendedSpot(
-                spot: verifiedSpot.photoSpot,
-                reason: verifiedSpot.reason
-            )
+        searchViewModel.registeredSpots.map { spot in
+            RecommendedSpot(spot: spot, reason: spot.eventPeriod)
         }
     }
 
@@ -782,7 +779,7 @@ struct HomeFeedView: View {
         )
 
         Task {
-            await searchViewModel.search(userLocation: userLocation)
+            await searchViewModel.search(places: searchableSpots, userLocation: userLocation)
             await MainActor.run {
                 keywordSearchResults = searchProvider.search(
                     query: query,
@@ -1377,6 +1374,11 @@ struct HomeSearchResultsView: View {
 
                         // 실제 장소 검색은 디바운스됩니다.
                         placeFinder.search(trimmed, near: nil, knownSpots: spots)
+                    }
+                    .onChange(of: spots) { _, _ in
+                        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                        // Firestore가 입력 이후 도착해도 현재 query 결과를 새 source로 다시 계산합니다.
+                        onQueryChange()
                     }
                     .padding(.bottom, 28)
                 }

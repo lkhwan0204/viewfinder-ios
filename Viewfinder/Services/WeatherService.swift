@@ -9,20 +9,37 @@ struct WeatherService {
         self.client = client
     }
 
-    func snapshot(for coordinate: CLLocationCoordinate2D) async throws -> WeatherSnapshot {
+    func snapshot(
+        for coordinate: CLLocationCoordinate2D,
+        diagnosticStartedAt: TimeInterval? = nil
+    ) async throws -> WeatherSnapshot {
         guard let url = weatherURL(for: coordinate) else {
             throw URLError(.badURL)
         }
 
+        let forecastRequestStartedAt = ProcessInfo.processInfo.systemUptime
+        logHomeWeather("forecast API request started", since: diagnosticStartedAt)
         let (data, response) = try await client.data(from: url)
+        logHomeWeather(
+            "forecast API response received",
+            since: diagnosticStartedAt,
+            detail: "request=\(elapsed(since: forecastRequestStartedAt))s"
+        )
         try validate(response)
         let decoded = try JSONDecoder().decode(OpenMeteoResponse.self, from: data)
         let timeZone = TimeZone(identifier: decoded.timezone ?? "")
             ?? decoded.utc_offset_seconds.flatMap { TimeZone(secondsFromGMT: $0) }
             ?? .current
+        let fineDustRequestStartedAt = ProcessInfo.processInfo.systemUptime
+        logHomeWeather("fine dust API request started", since: diagnosticStartedAt)
         let fineDust = try? await fineDust(for: coordinate)
+        logHomeWeather(
+            "fine dust API finished",
+            since: diagnosticStartedAt,
+            detail: "request=\(elapsed(since: fineDustRequestStartedAt))s result=\(fineDust == nil ? "unavailable" : "available")"
+        )
 
-        return WeatherSnapshot(
+        let snapshot = WeatherSnapshot(
             condition: weatherDescription(for: decoded.current.weatherCode),
             temperature: Int(decoded.current.temperature2M.rounded()),
             highTemperature: Int(
@@ -44,6 +61,27 @@ struct WeatherService {
             sunset: solarDate(decoded.daily.sunset, at: 0, timeZone: timeZone),
             tomorrowSunrise: solarDate(decoded.daily.sunrise, at: 1, timeZone: timeZone)
         )
+        logHomeWeather("weather payload ready", since: diagnosticStartedAt)
+        return snapshot
+    }
+
+    private func logHomeWeather(
+        _ event: String,
+        since startedAt: TimeInterval?,
+        detail: String? = nil
+    ) {
+#if DEBUG
+        guard let startedAt else { return }
+        let totalElapsed = elapsed(since: startedAt)
+        let suffix = detail.map { " \($0)" } ?? ""
+        AppLog.network.debug(
+            "[HomeWeather] \(event) +\(totalElapsed)s\(suffix, privacy: .public)"
+        )
+#endif
+    }
+
+    private func elapsed(since startedAt: TimeInterval) -> String {
+        String(format: "%.2f", max(0, ProcessInfo.processInfo.systemUptime - startedAt))
     }
 
     /// Open-Meteo 의 "yyyy-MM-dd'T'HH:mm" 문자열을 Date 로 변환합니다.
@@ -182,9 +220,29 @@ struct WeatherService {
     }
 }
 
+/// The rounded location key used by both the request coalescer and the cache.
+struct WeatherContextKey: Hashable {
+    let latitude: Int
+    let longitude: Int
+
+    init(_ coordinate: CLLocationCoordinate2D) {
+        latitude = Int((coordinate.latitude * 100).rounded())
+        longitude = Int((coordinate.longitude * 100).rounded())
+    }
+
+    var logDescription: String {
+        "\(latitude)/100,\(longitude)/100"
+    }
+}
+
 @MainActor
 final class WeatherStore: ObservableObject {
     private static let defaultLocationTitle = "현재 위치 기반"
+
+    private struct CachedWeather {
+        let snapshot: WeatherSnapshot
+        let locationTitle: String
+    }
 
     @Published private(set) var snapshot: WeatherSnapshot?
     @Published private(set) var locationTitle = WeatherStore.defaultLocationTitle
@@ -197,6 +255,9 @@ final class WeatherStore: ObservableObject {
     private var lastFetchDate: Date?
     private var loadRevision = 0
     private var locationContextRevision = 0
+    private(set) var inFlightRequestID: Int?
+    private(set) var inFlightRequestContextKey: WeatherContextKey?
+    private var cachedSnapshots: [WeatherContextKey: CachedWeather] = [:]
 
     init(service: WeatherService = WeatherService()) {
         self.service = service
@@ -214,16 +275,29 @@ final class WeatherStore: ObservableObject {
         return Date().timeIntervalSince(snapshot.fetchedAt) < 30 * 60
     }
 
+    func hasInFlightRequest(for coordinate: CLLocationCoordinate2D) -> Bool {
+        state.isLoading && inFlightRequestContextKey == WeatherContextKey(coordinate)
+    }
+
     func load(
         for coordinate: CLLocationCoordinate2D,
         fallbackTitle: String? = nil,
-        force: Bool = false
+        force: Bool = false,
+        diagnosticStartedAt: TimeInterval? = nil
     ) async {
+        let requestedContextKey = WeatherContextKey(coordinate)
         let isSameContext = isCurrentLocationContext(coordinate)
+
+        guard !Task.isCancelled else {
+            logHomeWeather("cancelled before request start", since: diagnosticStartedAt)
+            return
+        }
 
         // GPS가 같은 생활권 안에서 연속 값을 내보낼 때 동일한 네트워크 요청을
         // 겹쳐 시작하지 않습니다. force도 이미 진행 중인 요청을 복제하지 않습니다.
-        if state.isLoading, isSameContext {
+        if state.isLoading, inFlightRequestContextKey == requestedContextKey {
+            logHomeWeather("cache lookup finished", since: diagnosticStartedAt, detail: "result=in-flight request")
+            debugLog("request coalesced context=\(requestedContextKey.logDescription)")
             return
         }
 
@@ -233,6 +307,7 @@ final class WeatherStore: ObservableObject {
            state == .loaded,
            let lastFetchDate,
            Date().timeIntervalSince(lastFetchDate) < 30 * 60 {
+            logHomeWeather("cache lookup finished", since: diagnosticStartedAt, detail: "result=fresh current snapshot")
             return
         }
 
@@ -242,39 +317,89 @@ final class WeatherStore: ObservableObject {
             locationContextRevision &+= 1
         }
 
-        if contextChanged {
-            // 새 지역을 불러오는 동안 이전 지역의 날씨나 지명이 현재 정보처럼
-            // 보이지 않게 즉시 제거합니다.
-            snapshot = nil
-            lastFetchDate = nil
-            locationTitle = fallbackTitle ?? Self.defaultLocationTitle
+        var cacheLookupResult = snapshot == nil ? "miss" : "current snapshot stale"
+        if contextChanged || snapshot == nil {
+            if let cached = freshCachedWeather(for: requestedContextKey) {
+                snapshot = cached.snapshot
+                lastFetchDate = cached.snapshot.fetchedAt
+                locationTitle = cached.locationTitle
+                cacheLookupResult = "context cache hit"
+                debugLog("using cached weather context=\(requestedContextKey.logDescription)")
+            } else if contextChanged {
+                // 다른 생활권의 이전 날씨를 현재 위치처럼 보여주지 않습니다.
+                // 다만 동일 context의 캐시가 있으면 위에서 먼저 복원합니다.
+                clearSnapshot(reason: "context changed without matching cache")
+                locationTitle = fallbackTitle ?? Self.defaultLocationTitle
+            }
         } else if let fallbackTitle,
                   locationTitle == Self.defaultLocationTitle {
             locationTitle = fallbackTitle
         }
+        logHomeWeather("cache lookup finished", since: diagnosticStartedAt, detail: "result=\(cacheLookupResult)")
 
         loadRevision &+= 1
         let revision = loadRevision
         state = .loading
+        inFlightRequestID = revision
+        inFlightRequestContextKey = requestedContextKey
+        logHomeWeather("weather request started", since: diagnosticStartedAt, detail: "id=\(revision)")
+        debugLog("request started id=\(revision) context=\(requestedContextKey.logDescription)")
 
         do {
-            let newSnapshot = try await service.snapshot(for: coordinate)
-            guard !Task.isCancelled, revision == loadRevision,
+            let newSnapshot = try await service.snapshot(
+                for: coordinate,
+                diagnosticStartedAt: diagnosticStartedAt
+            )
+            logHomeWeather("weather response received", since: diagnosticStartedAt, detail: "id=\(revision) snapshot assembled")
+            guard !Task.isCancelled,
+                  revision == loadRevision,
                   isCurrentLocationContext(coordinate) else {
+                if revision == loadRevision {
+                    finishRequest(revision: revision, state: snapshot == nil ? .idle : .loaded)
+                    logHomeWeather("request cancelled", since: diagnosticStartedAt, detail: "id=\(revision) reason=task or context")
+                    debugLog("request cancelled id=\(revision)")
+                } else {
+                    logHomeWeather("stale response ignored", since: diagnosticStartedAt, detail: "id=\(revision) current=\(loadRevision)")
+                    debugLog("ignored stale response id=\(revision)")
+                }
                 return
             }
             snapshot = newSnapshot
             lastFetchDate = Date()
+            cachedSnapshots[requestedContextKey] = CachedWeather(
+                snapshot: newSnapshot,
+                locationTitle: locationTitle
+            )
             state = .loaded
+            clearInFlightRequest(revision: revision)
+            logHomeWeather("weather state updated", since: diagnosticStartedAt, detail: "id=\(revision)")
+            debugLog("request success id=\(revision) context=\(requestedContextKey.logDescription)")
         } catch {
+            if Task.isCancelled {
+                guard revision == loadRevision else {
+                    logHomeWeather("cancelled request ignored", since: diagnosticStartedAt, detail: "id=\(revision) current=\(loadRevision)")
+                    debugLog("request cancelled as stale id=\(revision)")
+                    return
+                }
+                finishRequest(revision: revision, state: snapshot == nil ? .idle : .loaded)
+                logHomeWeather("request cancelled", since: diagnosticStartedAt, detail: "id=\(revision)")
+                debugLog("request cancelled id=\(revision)")
+                return
+            }
+
             guard revision == loadRevision,
                   isCurrentLocationContext(coordinate) else {
+                logHomeWeather("stale failure ignored", since: diagnosticStartedAt, detail: "id=\(revision) current=\(loadRevision)")
+                debugLog("ignored stale failure id=\(revision)")
                 return
             }
             AppLog.network.error(
                 "Weather fetch failed: \(error.localizedDescription, privacy: .public)"
             )
+            logHomeWeather("weather request failed", since: diagnosticStartedAt, detail: "id=\(revision)")
             state = .failed(message: "날씨 정보를 불러오지 못했어요")
+            clearInFlightRequest(revision: revision)
+            debugLog("request failed id=\(revision)")
         }
     }
 
@@ -313,6 +438,8 @@ final class WeatherStore: ObservableObject {
 
         loadRevision &+= 1
         locationContextRevision &+= 1
+        inFlightRequestID = nil
+        inFlightRequestContextKey = nil
         geocoder.cancelGeocode()
         contextCoordinate = nil
 
@@ -321,12 +448,63 @@ final class WeatherStore: ObservableObject {
             locationTitle = preservedLocationTitle
             lastFetchDate = preservedSnapshot.fetchedAt
             state = .loaded
+            debugLog("using cached weather after location invalidation")
         } else {
-            snapshot = nil
+            clearSnapshot(reason: "location context invalidated")
             locationTitle = Self.defaultLocationTitle
             lastFetchDate = nil
             state = .idle
         }
+    }
+
+    private func freshCachedWeather(for key: WeatherContextKey) -> CachedWeather? {
+        guard let cached = cachedSnapshots[key],
+              Date().timeIntervalSince(cached.snapshot.fetchedAt) < 30 * 60 else {
+            return nil
+        }
+        return cached
+    }
+
+    private func clearSnapshot(reason: String) {
+        snapshot = nil
+        lastFetchDate = nil
+        debugLog("state cleared reason=\(reason)")
+    }
+
+    private func finishRequest(revision: Int, state nextState: AsyncLoadState) {
+        guard revision == loadRevision else { return }
+        state = nextState
+        clearInFlightRequest(revision: revision)
+    }
+
+    private func clearInFlightRequest(revision: Int) {
+        guard revision == loadRevision else { return }
+        inFlightRequestID = nil
+        inFlightRequestContextKey = nil
+    }
+
+    private func debugLog(_ message: String) {
+#if DEBUG
+        AppLog.network.debug("[HomeWeather] \(message, privacy: .public)")
+#endif
+    }
+
+    private func logHomeWeather(
+        _ event: String,
+        since startedAt: TimeInterval?,
+        detail: String? = nil
+    ) {
+#if DEBUG
+        guard let startedAt else { return }
+        let elapsed = String(
+            format: "%.2f",
+            max(0, ProcessInfo.processInfo.systemUptime - startedAt)
+        )
+        let suffix = detail.map { " \($0)" } ?? ""
+        AppLog.network.debug(
+            "[HomeWeather] \(event) +\(elapsed)s\(suffix, privacy: .public)"
+        )
+#endif
     }
 
     private func isCurrentLocationContext(_ coordinate: CLLocationCoordinate2D) -> Bool {

@@ -20,8 +20,8 @@
 삼각대 가능 여부)은 글로 존재하지 않고 유명함은 존재합니다. 그래서 항상
 유명함으로 회귀하고, 금지 목록은 상위 몇 개만 지웁니다. 21번째가 올라옵니다.
 
-출사지 발굴은 커뮤니티가 합니다. 사용자가 직접 제보하는 경로가
-`POST /submitted-spots` 입니다.
+사용자 장소 제보는 Firebase Authentication과 Firestore로 처리합니다.
+이 서버의 `submitted-spots.json`은 이전 데이터 확인용 읽기 전용 백업입니다.
 
 그래서 **OpenAI·Gemini 키가 더 이상 필요하지 않습니다.**
 
@@ -71,27 +71,21 @@ curl http://localhost:8787/health
 GET   /health
 POST  /search-places                     네이버 장소검색. 앱의 모든 장소 검색
 POST  /verify-spots                      카카오/네이버로 장소 확인
-GET   /submitted-spots                   공개된 사용자 추가 장소
-POST  /submitted-spots                   장소 즉시 추가
-GET   /submitted-spots/:id/photo         공개 장소 사진
+GET   /submitted-spots                   이전 사용자 장소 데이터(읽기 전용)
+POST  /submitted-spots                   410 Gone — 새 제보는 Firestore 사용
+GET   /submitted-spots/:id/photo         이전 장소 사진(읽기 전용)
 ```
 
 `POST /search-places` 는 네이버 지역검색 결과만 돌려줍니다. Apple MapKit 이나
 카카오 검색은 쓰지 않습니다.
 
-## 장소 즉시 추가
+## 기존 사용자 장소 백업
 
-사용자가 `POST /submitted-spots`로 추가한 장소는 `approved` 상태로 저장되고,
-응답 직후 공개 `GET /submitted-spots`와 사진 URL에서 사용할 수 있습니다. 앱은
-성공 응답 뒤 목록을 새로 받아 홈·지도·검색에 반영합니다.
-
-장소 데이터와 대표 사진은 현재 이 개발 서버의
-`RecommendationServer/submitted-spots.json`에 저장됩니다. Community 게시물과
-사진 갤러리처럼 Firebase Firestore를 사용하는 기능과는 별도 저장소입니다.
-
-기존 파일에 남아 있는 `pending_review` 레코드는 서버 시작 시 삭제하지 않고
-`approved`로 한 번만 전환합니다. 장소 ID, 사진, 좌표, provider 정보는 유지되며
-새 제보에는 pending 상태가 생성되지 않습니다.
+새 장소는 앱에서 Firestore `places/{placeID}`에 저장됩니다. 이전 데이터와
+사진을 보존하기 위해 `RecommendationServer/submitted-spots.json` 및
+`GET /submitted-spots`는 읽기 전용으로 남겨두었습니다. 서버 시작 시 파일을
+정규화하거나 다시 쓰지 않으며, 이전 `POST /submitted-spots` 요청에는
+`410 Gone`을 반환합니다. Firebase Storage 사진 업로드는 별도 작업입니다.
 
 ## 출시 전에 반드시 할 일
 
@@ -103,7 +97,9 @@ Debug    http://gyuhyeons-MacBook-Pro.local:8787/recommendations
 Release  ""      <- 비어 있습니다
 ```
 
-**Release 가 비어 있으면 장소 검색과 장소 제보가 동작하지 않습니다.**
+**Release 가 비어 있으면 RecommendationServer를 사용하는 외부 장소 검색과
+장소 검증이 동작하지 않습니다.** Firestore를 통한 새 장소 저장·수정·삭제는
+Firebase 설정과 인증을 사용하며 이 endpoint와 별개입니다.
 릴리스 빌드는 HTTPS 가 아닌 주소를 의도적으로 무시하므로
 (`AppInfrastructure.swift`), 로컬 주소를 넣어도 소용없습니다.
 

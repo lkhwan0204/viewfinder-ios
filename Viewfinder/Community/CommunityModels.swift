@@ -621,6 +621,8 @@ struct CommunityPost: Identifiable, Equatable, Sendable {
     init(
         id: String,
         spot: PhotoSpot?,
+        relatedSpotID: String? = nil,
+        relatedSpotName: String? = nil,
         title: String?,
         captureLocation: CommunityCaptureLocation? = nil,
         crowd: Crowd? = nil,
@@ -635,8 +637,8 @@ struct CommunityPost: Identifiable, Equatable, Sendable {
         hasStatusInfo: Bool = false
     ) {
         self.id = id
-        self.spotID = spot?.id ?? ""
-        self.spotName = spot?.name ?? ""
+        self.spotID = relatedSpotID ?? spot?.id ?? ""
+        self.spotName = relatedSpotName ?? spot?.name ?? ""
         self.title = title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true
             ? nil
             : title?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -704,6 +706,8 @@ struct CrowdReportSummary: Equatable, Sendable {
 
 struct CommunityPostDraft {
     let spot: PhotoSpot?
+    let relatedSpotID: String?
+    let relatedSpotName: String?
     let title: String?
     let captureLocation: CommunityCaptureLocation?
     let message: String
@@ -721,6 +725,8 @@ struct CommunityPostDraft {
         photoAttachments: [CommunityPhotoAttachment] = []
     ) {
         self.spot = spot
+        self.relatedSpotID = spot.id
+        self.relatedSpotName = spot.name
         self.title = nil
         self.captureLocation = nil
         self.message = message
@@ -733,6 +739,8 @@ struct CommunityPostDraft {
     init(
         spot: PhotoSpot?,
         title: String?,
+        relatedSpotID: String? = nil,
+        relatedSpotName: String? = nil,
         captureLocation: CommunityCaptureLocation? = nil,
         message: String,
         tags: [String] = [],
@@ -740,6 +748,8 @@ struct CommunityPostDraft {
         crowd: CommunityPost.Crowd? = nil
     ) {
         self.spot = spot
+        self.relatedSpotID = relatedSpotID ?? spot?.id
+        self.relatedSpotName = relatedSpotName ?? spot?.name
         self.title = title
         self.captureLocation = captureLocation
         self.message = message

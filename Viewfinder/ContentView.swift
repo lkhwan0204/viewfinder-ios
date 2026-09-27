@@ -6,6 +6,7 @@ import UIKit
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(TastePreferenceStore.completionKey) private var hasCompletedTasteOnboarding = false
     private enum AppTab: Hashable {
         case home
         case map
@@ -72,13 +73,17 @@ struct ContentView: View {
     @State private var selectedSpot = PhotoSpotSampleData.spots[0]
     @State private var selectedSpotRevision = 0
     @State private var aiSpots: [PhotoSpot] = []
-    @State private var registeredHomeSpots: [PhotoSpot] = []
     @State private var homeWeatherCoordinate: CLLocationCoordinate2D?
     @State private var homeWeatherTask: Task<Void, Never>?
+    @State private var homeWeatherTaskID: UUID?
+    @State private var homeWeatherTaskContextKey: WeatherContextKey?
+    @State private var homeWeatherTraceStartedAt: TimeInterval?
+    @State private var homeWeatherTraceLocationLogged = false
+    @State private var homeWeatherTraceContextLogged = false
     @State private var detailPresentation: SpotDetailPresentation?
     @State private var isWeatherDetailPresented = false
+    @State private var isTasteResetPresented = false
     @State private var composerPurpose: CommunityComposerPurpose = .fieldReport
-    @State private var submittedSpotsState: AsyncLoadState = .idle
     @State private var appErrorMessage: String?
     @State private var submissionConfirmation: PlaceSubmissionReceipt?
     @State private var photoContributionConfirmationSpot: PhotoSpot?
@@ -90,7 +95,8 @@ struct ContentView: View {
     @State private var shouldRestoreHomeSearch = false
     @State private var pendingHomeSearchAction: (() -> Void)?
     @State private var pendingDetailDismissAction: (() -> Void)?
-    @StateObject private var homeRecommendations = HomeRecommendationsViewModel()
+    @StateObject private var homeRecommendations: HomeRecommendationsViewModel
+    @StateObject private var placesRepository: PlacesRepository
     @StateObject private var locationReader = RecommendationLocationReader()
     @StateObject private var mapState = MapExperienceState()
     @StateObject private var weatherStore = WeatherStore()
@@ -101,17 +107,23 @@ struct ContentView: View {
     @StateObject private var placePhotoGalleryStore = PlacePhotoGalleryStore.shared
     @StateObject private var crowdReportStore = CrowdReportStore.shared
     @StateObject private var placeSubmissionStore = PlaceSubmissionStore()
-    private let localSeedDataService = LocalSeedDataService()
-    private let placeSubmissionService = PlaceSubmissionService()
+
+    init() {
+        let placesRepository = PlacesRepository()
+        _placesRepository = StateObject(wrappedValue: placesRepository)
+        _homeRecommendations = StateObject(
+            wrappedValue: HomeRecommendationsViewModel(initialSpots: placesRepository.places)
+        )
+    }
 
     private var homePresentationState: HomeRecommendationState {
         if homeRecommendations.recommendationState == .empty {
-            switch submittedSpotsState {
-            case .idle, .loading:
+            switch placesRepository.state {
+            case .initialLoading:
                 return .initialLoading
             case .failed(let message):
                 return .failed(message: message)
-            case .loaded:
+            case .cached, .loaded, .refreshing, .fallbackSeed:
                 break
             }
         }
@@ -127,7 +139,7 @@ struct ContentView: View {
     /// 지도는 홈의 일부 추천 결과가 아니라 앱이 알고 있는 전체 장소를 후보로 사용합니다.
     /// 실제 marker 생성은 Naver Map의 현재 viewport 안으로 다시 좁혀집니다.
     private var allMapSpots: [PhotoSpot] {
-        uniqueSpots(localSeedDataService.allPhotoSpots() + recommendedSpots + aiSpots)
+        uniqueSpots(placesRepository.places + recommendedSpots + aiSpots)
             .map { resolvedSpotWithContributedCover($0) }
     }
 
@@ -202,6 +214,7 @@ struct ContentView: View {
         detailPresentation != nil
             || communityViewModel.isComposerPresented
             || isWeatherDetailPresented
+            || isTasteResetPresented
             || authenticationDestination != nil
     }
 
@@ -257,23 +270,50 @@ struct ContentView: View {
     }
 
     var body: some View {
+        Group {
+            if hasCompletedTasteOnboarding {
+                launchedAppContent
+            } else {
+                TasteOnboardingView(
+                    onComplete: completeTasteOnboarding,
+                    onSkip: skipTasteOnboarding
+                )
+            }
+        }
+    }
+
+    private var launchedAppContent: some View {
         mainContent
         .task {
+            await placesRepository.loadIfNeeded()
+        }
+        .task {
+            beginHomeWeatherTrace(trigger: "initial")
             // Restore only after a trustworthy regional context is available.
             // Never infer today's country from the recommendation cache itself.
             if let recentCoordinate = locationReader.recentCoordinateForRecommendation() {
+                logHomeWeatherMilestone("location available", detail: "source=cached")
                 homeRecommendations.updateLocationContext(userLocation: recentCoordinate)
+                logHomeWeatherContextReady(source: "cached location")
                 // `onReceive($coordinate)` does not replay a value that was
                 // published before this view subscribed. Start the weather
                 // request explicitly for the cached coordinate as well.
                 refreshHomeWeatherIfNeeded(at: recentCoordinate)
+            } else {
+                logHomeWeather("waiting for location")
             }
+            logHomeWeather("fresh location request started")
             let coordinate = await locationReader.coordinateForRecommendation(forceRefresh: true)
             homeRecommendations.updateLocationContext(userLocation: coordinate)
             if let coordinate {
+                logHomeWeatherMilestone("location available", detail: "source=fresh location")
+                logHomeWeatherContextReady(source: "fresh location")
                 refreshHomeWeatherIfNeeded(at: coordinate)
+            } else {
+                logHomeWeather("location unavailable")
             }
             homeRecommendations.prepareIfNeeded()
+            logHomeWeatherMilestone("recommendation generation prepared")
         }
         .fullScreenCover(
             item: $authenticationDestination,
@@ -287,6 +327,30 @@ struct ContentView: View {
                 presentationContext: loginPresentationContext
             )
         }
+        .sheet(isPresented: $isTasteResetPresented) {
+            TasteOnboardingView(
+                initialSelection: TastePreferenceStore.load()?.selectedPhotoIDs ?? [],
+                onComplete: completeTasteOnboarding,
+                onSkip: skipTasteOnboarding
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    private func completeTasteOnboarding(_ preference: TastePreference) -> Bool {
+        guard TastePreferenceStore.save(preference) else { return false }
+        homeRecommendations.updateTastePreference(preference)
+        hasCompletedTasteOnboarding = true
+        isTasteResetPresented = false
+        return true
+    }
+
+    private func skipTasteOnboarding() {
+        TastePreferenceStore.skip()
+        homeRecommendations.updateTastePreference(nil)
+        hasCompletedTasteOnboarding = true
+        isTasteResetPresented = false
     }
 
     private var mainContent: some View {
@@ -316,10 +380,13 @@ struct ContentView: View {
                 .presentationDragIndicator(.visible)
         }
 
-        .sheet(isPresented: $communityViewModel.isComposerPresented, onDismiss: restoreHomeSearchIfPossible) {
+        .sheet(isPresented: $communityViewModel.isComposerPresented, onDismiss: {
+            communityViewModel.finishComposing()
+            restoreHomeSearchIfPossible()
+        }) {
             CommunityComposerView(
-                spots: selectableSpots,
-                selectedSpot: communityViewModel.composerSpot(in: selectableSpots),
+                spots: composerPurpose == .fieldReport ? placesRepository.places : selectableSpots,
+                selectedSpot: communityViewModel.composerSpot(in: composerPurpose == .fieldReport ? placesRepository.places : selectableSpots),
                 locksSelectedSpot: (composerPurpose == .addSpot || composerPurpose.isPhotoContribution)
                     && communityViewModel.composerSpot(in: selectableSpots) != nil,
                 editingPost: communityViewModel.editingPostForComposer,
@@ -327,10 +394,10 @@ struct ContentView: View {
                 onShowRegisteredSpot: { spot in
                     showDetail(spot, source: .search)
                 },
-                onSubmit: { draft in
+                onSubmit: { draft, submissionID in
                     guard let authenticatedUser = authViewModel.currentUser else {
                         requestAuthentication()
-                        return
+                        throw FirebaseCommunityError.notConfigured
                     }
 
                     if composerPurpose.isPhotoContribution {
@@ -348,14 +415,32 @@ struct ContentView: View {
                         )
                         communityViewModel.finishComposing()
                     } else if composerPurpose == .addSpot {
-                        if let spot = submittedSpot(from: draft) {
-                            submitAddedSpot(spot, draft: draft, submitter: authenticatedUser)
+                        guard let spot = submittedSpot(from: draft) else {
+                            throw PlacesRepositoryError.invalidDocument
                         }
+                        let savedSpot = try await placesRepository.createUserPlace(
+                            spot,
+                            createdBy: authenticatedUser.id
+                        )
+                        let receipt = PlaceSubmissionReceipt(
+                            id: savedSpot.id,
+                            name: savedSpot.name,
+                            submittedAt: ISO8601DateFormatter().string(from: Date()),
+                            alreadyApproved: false,
+                            region: savedSpot.region,
+                            mapQuery: savedSpot.mapQuery,
+                            latitude: savedSpot.latitude,
+                            longitude: savedSpot.longitude,
+                            provider: savedSpot.provider,
+                            providerPlaceID: savedSpot.providerPlaceID
+                        )
+                        placeSubmissionStore.record(receipt)
+                        submissionConfirmation = receipt
                         communityViewModel.finishComposing()
                     } else if let post = communityViewModel.editingPostForComposer {
-                        communityViewModel.updatePost(post, draft: draft)
+                        try await communityViewModel.updatePost(post, draft: draft)
                     } else {
-                        communityViewModel.addPost(draft, author: authenticatedUser)
+                        try await communityViewModel.addPost(draft, author: authenticatedUser, id: submissionID)
                     }
                 }
             )
@@ -428,7 +513,9 @@ struct ContentView: View {
         .onReceive(locationReader.$coordinate) { newCoordinate in
             guard let newCoordinate else { return }
 
+            logHomeWeatherMilestone("location available", detail: "source=location update")
             homeRecommendations.updateLocationContext(userLocation: newCoordinate)
+            logHomeWeatherContextReady(source: "location update")
             refreshHomeWeatherIfNeeded(at: newCoordinate)
 
             if mapState.mode == .recommendations {
@@ -439,6 +526,10 @@ struct ContentView: View {
             if case .failed = state, locationReader.coordinate == nil {
                 homeRecommendations.updateLocationContext(userLocation: nil)
                 homeWeatherTask?.cancel()
+                logHomeWeather("request cancel requested reason=location context invalidated")
+                homeWeatherTask = nil
+                homeWeatherTaskID = nil
+                homeWeatherTaskContextKey = nil
                 homeWeatherCoordinate = nil
                 // A transient location failure should not erase a still-valid
                 // weather snapshot that can keep the Home pill useful.
@@ -453,19 +544,35 @@ struct ContentView: View {
         .onReceive(weatherStore.$snapshot) { snapshot in
             homeRecommendations.updateWeatherContext(snapshot?.recommendationContext)
         }
-        .onReceive(searchViewModel.$verifiedSpots) { verifiedSpots in
-            mergeAISpots(from: verifiedSpots.map(\.photoSpot))
+        .onReceive(searchViewModel.$registeredSpots) { registeredSpots in
+            mergeAISpots(from: registeredSpots)
+        }
+        .onChange(of: placesRepository.places) { _, places in
+            homeRecommendations.updateAvailableSpots(
+                uniqueSpots(places)
+            )
         }
         .onReceive(communityViewModel.$posts) { posts in
             homeRecommendations.updateCommunityContext(posts: posts)
         }
-        .task {
-            await loadSubmittedSpotsIfNeeded()
-        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
+                Task { await placesRepository.refreshIfStale() }
+                if selectedTab == .home {
+                    beginHomeWeatherTrace(trigger: "foreground")
+                }
                 homeRecommendations.refreshTimeContextIfNeeded()
                 locationReader.requestLocation()
+                if let coordinate = locationReader.coordinate {
+                    logHomeWeatherMilestone("location available", detail: "source=foreground")
+                    homeRecommendations.updateLocationContext(userLocation: coordinate)
+                    logHomeWeatherContextReady(source: "foreground location")
+                    refreshHomeWeatherIfNeeded(at: coordinate)
+                }
+            } else {
+                // 같은 위치 요청은 백그라운드 전환만으로 취소하지 않습니다.
+                // Foreground에서 같은 context가 들어오면 기존 요청을 재사용합니다.
+                logHomeWeather("weather request retained reason=scene inactive")
             }
         }
         .onChange(of: selectedTab) { _, newTab in
@@ -476,7 +583,16 @@ struct ContentView: View {
             }
 
             if newTab == .home {
+                beginHomeWeatherTrace(trigger: "home tab")
                 locationReader.requestLocation()
+                if let coordinate = locationReader.coordinate {
+                    logHomeWeatherMilestone("location available", detail: "source=tab return")
+                    homeRecommendations.updateLocationContext(userLocation: coordinate)
+                    logHomeWeatherContextReady(source: "tab return")
+                    refreshHomeWeatherIfNeeded(at: coordinate)
+                } else {
+                    logHomeWeather("waiting for location")
+                }
             }
 
             if newTab == .map {
@@ -544,8 +660,8 @@ struct ContentView: View {
                     )
                 },
                 onRefreshRecommendations: {
-                    if case .failed = submittedSpotsState {
-                        await loadSubmittedSpotsIfNeeded()
+                    if case .failed = placesRepository.state {
+                        await placesRepository.refreshIfStale(minimumInterval: 0)
                     }
                     let coordinate = await locationReader.coordinateForRecommendation(forceRefresh: true)
                     homeRecommendations.updateLocationContext(userLocation: coordinate)
@@ -580,7 +696,7 @@ struct ContentView: View {
 
             CommunityTabView(
                 posts: communityViewModel.posts,
-                spots: selectableSpots,
+                spots: placesRepository.places,
                 currentUserID: authViewModel.currentUser?.id ?? "",
                 likedPostIDs: communityViewModel.likedPostIDs,
                 followedAuthorIDs: communityViewModel.followedAuthorIDs,
@@ -601,9 +717,7 @@ struct ContentView: View {
                     }
                 },
                 onDeletePost: { post in
-                    performAuthenticatedAction { _ in
-                        communityViewModel.deletePost(post)
-                    }
+                    try await communityViewModel.deletePost(post, currentUserID: authViewModel.currentUser?.id)
                 },
                 onToggleLike: { post in
                     performAuthenticatedAction { _ in
@@ -633,7 +747,7 @@ struct ContentView: View {
                 savedSpots: savedSpots,
                 submissionReceipts: placeSubmissionStore.receipts,
                 posts: communityViewModel.posts,
-                spots: selectableSpots,
+                spots: placesRepository.places,
                 likedPostIDs: communityViewModel.likedPostIDs,
                 followedAuthorIDs: communityViewModel.followedAuthorIDs,
                 commentsByPostID: communityViewModel.commentsByPostID,
@@ -649,9 +763,7 @@ struct ContentView: View {
                     }
                 },
                 onDeletePost: { post in
-                    performAuthenticatedAction { _ in
-                        communityViewModel.deletePost(post)
-                    }
+                    try await communityViewModel.deletePost(post, currentUserID: authViewModel.currentUser?.id)
                 },
                 onToggleLike: { post in
                     performAuthenticatedAction { _ in
@@ -675,6 +787,9 @@ struct ContentView: View {
                     setHomeTabBarHidden(false)
                     lastContentTab = .home
                     selectedTab = .home
+                },
+                onResetTaste: {
+                    isTasteResetPresented = true
                 },
                 onSignOut: {
                     authViewModel.signOut()
@@ -816,33 +931,7 @@ struct ContentView: View {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    //  할 수 없는 일을 제안하지 않습니다.
-    //
-    //  [문제였던 상황]
-    //  장소 제보는 서버에 저장됩니다. 릴리스 빌드에서
-    //  VIEWFINDER_RECOMMENDATION_ENDPOINT 가 비어 있으면(지금 상태입니다)
-    //  이 기능은 동작하지 않습니다.
-    //
-    //  그런데 앱은 제보 양식을 그대로 열어줬습니다. 사용자는 장소를
-    //  검색하고, 사진을 고르고, 태그를 넣고, 제출을 누른 뒤에야
-    //  실패했습니다. 그리고 받는 문구가
-    //  "장소 등록 서버 주소가 설정되지 않았어요" 였습니다.
-    //
-    //  문구를 다듬는 것으로는 부족합니다. 문구가 아무리 좋아도 작업을
-    //  다 시킨 뒤에 버리는 것은 같습니다.
-    //
-    //  [지금]
-    //  서버를 부를 수 없으면 양식을 열지 않고 먼저 말합니다.
-    //  현장 정보(fieldReport)는 서버가 필요 없으므로 막지 않습니다.
-    //  커뮤니티 글은 기기 안에서 관리됩니다.
-    // ═══════════════════════════════════════════════════════════════
     private func presentComposer(_ purpose: CommunityComposerPurpose, spot: PhotoSpot? = nil) {
-        if purpose == .addSpot, !AppBackendConfiguration.current.isConfigured {
-            appErrorMessage = "장소 등록은 아직 준비 중이에요. 조금만 기다려주세요."
-            return
-        }
-
         setHomeTabBarHidden(false)
         composerPurpose = purpose
         communityViewModel.beginComposing(spot: spot)
@@ -871,33 +960,6 @@ struct ContentView: View {
         shouldRestoreHomeSearch = false
         guard selectedTab == .home else { return }
         isHomeSearchPresented = true
-    }
-
-    /// 장소 제보가 실패했을 때 사용자에게 할 말.
-    ///
-    /// 전에는 error.localizedDescription 을 그대로 띄웠습니다.
-    /// PhotoSpotSearchError 가 문자열을 들고 있었고 그 문자열이 서버
-    /// 응답이었기 때문에, 서버가 보낸 영문 메시지가 그대로 보일 수
-    /// 있었습니다. 이제 그 타입은 문자열을 들고 있지 않지만, 남은 문제가
-    /// 하나 있습니다. 그 타입은 자기가 검색에서 났는지 제보에서 났는지
-    /// 모르므로 문구에 기능 이름을 넣을 수 없습니다.
-    /// 그래서 기능 이름은 이 자리에서 붙입니다.
-    private func submissionFailureMessage(for error: Error) -> String {
-        if let submissionError = error as? PlaceSubmissionError {
-            return submissionError.localizedDescription
-        }
-
-        guard let searchError = error as? PhotoSpotSearchError else {
-            return "장소를 등록하지 못했어요. 잠시 후 다시 시도해주세요."
-        }
-
-        switch searchError {
-        case .notConfigured:
-            // 다시 시도를 권하지 않습니다. 주소가 없는 상태는 반복해도 같습니다.
-            return "장소 등록은 아직 준비 중이에요. 조금만 기다려주세요."
-        case .server, .malformedResponse, .empty:
-            return "장소를 등록하지 못했어요. 잠시 후 다시 시도해주세요."
-        }
     }
 
     private func requestAuthentication(
@@ -1132,55 +1194,6 @@ struct ContentView: View {
             .joined()
     }
 
-    private func submitAddedSpot(
-        _ spot: PhotoSpot,
-        draft: CommunityPostDraft,
-        submitter: AuthUser
-    ) {
-        Task {
-            do {
-                let photoDatas = draft.photoAttachments.compactMap(\.imageData)
-                let submission = try await placeSubmissionService.submit(
-                    spot: spot,
-                    tags: draft.tags,
-                    photoData: draft.photoData,
-                    submitter: submitter,
-                    registeredSpots: selectableSpots,
-                    photoDatas: photoDatas
-                )
-                await MainActor.run {
-                    placeSubmissionStore.record(submission.receipt)
-                    mergeAISpots(from: [submission.publishedSpot])
-                    mergeRegisteredHomeSpots(from: [submission.publishedSpot])
-                    submissionConfirmation = submission.receipt
-                }
-                let refreshedSpots: [PhotoSpot]
-                do {
-                    refreshedSpots = try await placeSubmissionService.fetchSubmittedSpots()
-                } catch {
-                    refreshedSpots = []
-                    AppLog.network.error(
-                        "Published submitted spot refresh failed: \(error.localizedDescription, privacy: .public)"
-                    )
-                }
-                await MainActor.run {
-                    mergeAISpots(from: refreshedSpots)
-                    mergeRegisteredHomeSpots(from: refreshedSpots)
-                }
-            } catch {
-                // 원인은 로그로, 사용자에게는 사용자 문구로.
-                let diagnostic = (error as? PhotoSpotSearchError)?.diagnosticDescription
-                    ?? error.localizedDescription
-                AppLog.network.error(
-                    "Place submission failed: \(diagnostic, privacy: .public)"
-                )
-                await MainActor.run {
-                    appErrorMessage = submissionFailureMessage(for: error)
-                }
-            }
-        }
-    }
-
     private func submitPlacePhotoContribution(
         spot: PhotoSpot,
         draft: CommunityPostDraft,
@@ -1215,93 +1228,150 @@ struct ContentView: View {
         }
     }
 
-    @MainActor
-    private func loadSubmittedSpotsIfNeeded() async {
-        guard submittedSpotsState != .loading,
-              submittedSpotsState != .loaded else {
-            return
-        }
-        submittedSpotsState = .loading
-
-        do {
-            let submittedSpots = try await placeSubmissionService.fetchSubmittedSpots()
-            mergeAISpots(from: submittedSpots)
-            mergeRegisteredHomeSpots(from: submittedSpots)
-            submittedSpotsState = .loaded
-        } catch {
-            // 사용자 추가 장소를 가져오는 것은 배경 작업입니다.
-            // 실패해도 앱은 시드 131곳으로 정상 동작하므로, 사용자에게
-            // 서버 사정을 알릴 이유가 없습니다. 원인은 로그로만 갑니다.
-            let diagnostic = (error as? PhotoSpotSearchError)?.diagnosticDescription
-                ?? error.localizedDescription
-            AppLog.network.error(
-                "Submitted spots fetch failed: \(diagnostic, privacy: .public)"
-            )
-            submittedSpotsState = .failed(message: "등록된 장소를 불러오지 못했어요")
-        }
-    }
-
     private func mergeAISpots(from spots: [PhotoSpot]) {
         for spot in spots {
             addAISpot(spot)
         }
     }
 
-    private func mergeRegisteredHomeSpots(from spots: [PhotoSpot]) {
-        var merged = Dictionary(registeredHomeSpots.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
-        for spot in spots { merged[spot.id] = spot }
-        registeredHomeSpots = merged.values.sorted { $0.id < $1.id }
-        homeRecommendations.updateAvailableSpots(
-            uniqueSpots(localSeedDataService.allPhotoSpots() + registeredHomeSpots)
-        )
-    }
-
     private func refreshHomeWeatherIfNeeded(at coordinate: CLLocationCoordinate2D) {
+        let requestedContextKey = WeatherContextKey(coordinate)
+
+        if homeWeatherTaskID != nil,
+           homeWeatherTaskContextKey == requestedContextKey {
+            logHomeWeather("request coalesced context=\(requestedContextKey.logDescription) source=home task")
+            return
+        }
+
+        if weatherStore.hasInFlightRequest(for: coordinate) {
+            logHomeWeather("request coalesced context=\(requestedContextKey.logDescription) source=weather store")
+            return
+        }
+
+        let hasDifferentHomeTask = homeWeatherTaskID != nil
+            && homeWeatherTaskContextKey != requestedContextKey
+        let hasDifferentStoreRequest = weatherStore.inFlightRequestContextKey.map {
+            $0 != requestedContextKey
+        } ?? false
+        let hasDifferentInFlightContext = hasDifferentHomeTask || hasDifferentStoreRequest
+
         if let previous = homeWeatherCoordinate {
             let distance = CLLocation(latitude: previous.latitude, longitude: previous.longitude)
                 .distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
             let weatherIsFresh = weatherStore.snapshot.map {
                 Date().timeIntervalSince($0.fetchedAt) < 30 * 60
             } ?? false
-            guard distance >= 15_000 || (!weatherIsFresh && weatherStore.state != .loading) else { return }
+            guard hasDifferentInFlightContext
+                    || distance >= 15_000
+                    || (!weatherIsFresh && weatherStore.state != .loading) else {
+                logHomeWeatherMilestone(
+                    "cache lookup finished",
+                    detail: weatherIsFresh ? "result=fresh snapshot" : "result=request already loading"
+                )
+                logHomeWeather("weather request skipped distance=\(Int(distance))m fresh=\(weatherIsFresh) state=\(String(describing: weatherStore.state))")
+                return
+            }
         }
+
+        if hasDifferentInFlightContext {
+            let previousKey = homeWeatherTaskContextKey
+                ?? weatherStore.inFlightRequestContextKey
+            let requestID = weatherStore.inFlightRequestID.map(String.init) ?? "pending"
+            logHomeWeather(
+                "context changed \(previousKey?.logDescription ?? "unknown") -> \(requestedContextKey.logDescription)"
+            )
+            if homeWeatherTaskID != nil {
+                logHomeWeather("request cancelled id=\(requestID) reason=context changed")
+                homeWeatherTask?.cancel()
+            }
+        }
+
         homeWeatherCoordinate = coordinate
-        homeWeatherTask?.cancel()
-        homeWeatherTask = Task {
-            await weatherStore.load(for: coordinate)
+        let traceStartedAt = homeWeatherTraceStartedAt
+        let taskID = UUID()
+        homeWeatherTaskID = taskID
+        homeWeatherTaskContextKey = requestedContextKey
+        homeWeatherTask = Task { @MainActor in
+            defer { finishHomeWeatherTask(id: taskID) }
+            guard !Task.isCancelled else {
+                logHomeWeather("request cancelled before task began reason=context changed")
+                return
+            }
+            await weatherStore.load(for: coordinate, diagnosticStartedAt: traceStartedAt)
             guard !Task.isCancelled else { return }
             await weatherStore.updateLocationTitle(for: coordinate)
         }
     }
 
+    private func finishHomeWeatherTask(id: UUID) {
+        guard homeWeatherTaskID == id else { return }
+        homeWeatherTask = nil
+        homeWeatherTaskID = nil
+        homeWeatherTaskContextKey = nil
+    }
+
+    private func beginHomeWeatherTrace(trigger: String) {
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        homeWeatherTraceStartedAt = startedAt
+        homeWeatherTraceLocationLogged = false
+        homeWeatherTraceContextLogged = false
+        logHomeWeather("Home appeared", detail: "trigger=\(trigger)")
+    }
+
+    private func logHomeWeatherMilestone(_ name: String, detail: String? = nil) {
+        if name == "location available" {
+            guard !homeWeatherTraceLocationLogged else { return }
+            homeWeatherTraceLocationLogged = true
+        }
+        logHomeWeather(name, detail: detail)
+    }
+
+    private func logHomeWeatherContextReady(source: String) {
+        guard !homeWeatherTraceContextLogged else { return }
+        homeWeatherTraceContextLogged = true
+        logHomeWeatherMilestone("recommendation context ready", detail: "source=\(source)")
+    }
+
+    private func logHomeWeather(_ event: String, detail: String? = nil) {
+#if DEBUG
+        guard let startedAt = homeWeatherTraceStartedAt else { return }
+        let elapsed = max(0, ProcessInfo.processInfo.systemUptime - startedAt)
+        let suffix = detail.map { " \($0)" } ?? ""
+        AppLog.network.debug(
+            "[HomeWeather] \(event) +\(String(format: "%.2f", elapsed))s\(suffix, privacy: .public)"
+        )
+#endif
+    }
+
     /// 상세 화면 본문. 표시 방식과 분리해 둡니다.
     private func detailView(for presentation: SpotDetailPresentation) -> some View {
-        SpotDetailView(
+        let spot = placesRepository.place(id: presentation.spot.id) ?? presentation.spot
+        return SpotDetailView(
             authViewModel: authViewModel,
-            spot: presentation.spot,
+            spot: spot,
             source: presentation.source,
-            isSaved: savedSpotStore.contains(presentation.spot),
-            communityPosts: communityViewModel.posts(for: presentation.spot),
-            placePhotos: placePhotoGalleryStore.photos(for: presentation.spot),
+            isSaved: savedSpotStore.contains(spot),
+            communityPosts: communityViewModel.posts(for: spot),
+            placePhotos: placePhotoGalleryStore.photos(for: spot),
             placePhotoGalleryStore: placePhotoGalleryStore,
-            crowdReports: crowdReportStore.reports(for: presentation.spot),
+            crowdReports: crowdReportStore.reports(for: spot),
             crowdReportStore: crowdReportStore,
             currentUserID: authViewModel.currentUser?.id ?? "",
             spots: selectableSpots,
             userLocation: locationReader.coordinate,
             onToggleSave: {
-                savedSpotStore.toggle(presentation.spot)
+                savedSpotStore.toggle(spot)
             },
             onOpenMap: {
                 detailPresentation = nil
-                openMap(presentation.spot)
+                openMap(spot)
             },
             onReportPhoto: {
                 performAuthenticatedAction(loginPresentationContext: .contributePhotos) { _ in
                     pendingDetailDismissAction = {
                         presentComposer(
-                            .contributePhotos(placeID: presentation.spot.id),
-                            spot: presentation.spot
+                            .contributePhotos(placeID: spot.id),
+                            spot: spot
                         )
                     }
                     detailPresentation = nil
@@ -1310,26 +1380,36 @@ struct ContentView: View {
             onSubmitCrowdReport: { crowd in
                 guard let user = authViewModel.currentUser else { return }
                 crowdReportStore.toggle(
-                    placeID: presentation.spot.id,
+                    placeID: spot.id,
                     crowd: crowd,
                     authorID: user.id,
                     source: .placeDetail
                 )
             },
-            onSubmitCommunity: { draft in
-                performAuthenticatedAction { user in
-                    communityViewModel.addPost(draft, author: user)
-                }
+            onSubmitCommunity: { draft, submissionID in
+                guard let user = authViewModel.currentUser else { throw FirebaseCommunityError.notConfigured }
+                try await communityViewModel.addPost(draft, author: user, id: submissionID)
             },
             onUpdateCommunity: { post, draft in
-                performAuthenticatedAction { _ in
-                    communityViewModel.updatePost(post, draft: draft)
-                }
+                guard authViewModel.currentUser != nil else { throw FirebaseCommunityError.notConfigured }
+                try await communityViewModel.updatePost(post, draft: draft)
             },
             onDeleteCommunity: { post in
-                performAuthenticatedAction { _ in
-                    communityViewModel.deletePost(post)
+                try await communityViewModel.deletePost(post, currentUserID: authViewModel.currentUser?.id)
+            },
+            onUpdatePlace: { updatedSpot in
+                guard let user = authViewModel.currentUser else {
+                    throw PlacesRepositoryError.notAuthenticated
                 }
+                _ = try await placesRepository.updateUserPlace(updatedSpot, updatedBy: user.id)
+            },
+            onDeletePlace: {
+                guard let user = authViewModel.currentUser else {
+                    throw PlacesRepositoryError.notAuthenticated
+                }
+                try await placesRepository.softDeleteUserPlace(id: spot.id, deletedBy: user.id)
+                placeSubmissionStore.remove(id: spot.id)
+                detailPresentation = nil
             },
             communityViewModel: communityViewModel,
             onToggleCommunityLike: { post in

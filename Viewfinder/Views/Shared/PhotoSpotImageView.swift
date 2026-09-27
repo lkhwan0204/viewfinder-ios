@@ -59,12 +59,12 @@ struct PhotoSpotImageView: View {
     @State private var revealedRemoteImageKey: String?
 
     var body: some View {
-        if let assetImage {
-            fitted(Image(uiImage: assetImage))
-        } else if let imageURL = spot.imageURL {
+        if let imageURL = spot.imageURL {
             remoteImage(
                 for: imageURL.wikimediaPreviewURL(width: targetPixelWidth) ?? imageURL
             )
+        } else if let assetImage {
+            fitted(Image(uiImage: assetImage))
         } else {
             placeholder
         }
@@ -90,9 +90,17 @@ struct PhotoSpotImageView: View {
                             }
                         }
                 case .failure:
-                    placeholder
+                    if let assetImage {
+                        fitted(Image(uiImage: assetImage))
+                    } else {
+                        placeholder
+                    }
                 @unknown default:
-                    placeholder
+                    if let assetImage {
+                        fitted(Image(uiImage: assetImage))
+                    } else {
+                        placeholder
+                    }
                 }
             }
         }

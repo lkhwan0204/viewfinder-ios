@@ -27,12 +27,13 @@ struct MyTabView: View {
     let onTabBarVisibilityChange: (Bool) -> Void
     let onSelectSpot: (PhotoSpot) -> Void
     let onEditPost: (CommunityPost) -> Void
-    let onDeletePost: (CommunityPost) -> Void
+    let onDeletePost: (CommunityPost) async throws -> Void
     let onToggleLike: (CommunityPost) -> Void
     let onToggleFollow: (CommunityPost) -> Void
     let onAddComment: (String, CommunityPost) -> Bool
     let onRequestSignIn: () -> Void
     let onExploreSpots: () -> Void
+    let onResetTaste: () -> Void
     let onSignOut: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.system.rawValue
@@ -282,6 +283,28 @@ struct MyTabView: View {
                     title: "계정 활동",
                     detail: "글, 댓글, 좋아요와 장소 제보가 필요할 때만 로그인하세요."
                 )
+
+                Divider()
+                    .padding(.leading, 52)
+
+                Button(action: onResetTaste) {
+                    HStack(spacing: 4) {
+                        MyInformationRow(
+                            symbolName: "photo.on.rectangle.angled",
+                            title: "사진 취향 다시 설정",
+                            detail: "홈 추천의 시작점을 다시 고를 수 있어요."
+                        )
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(AppColors.secondaryText)
+                            .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
+                            .accessibilityHidden(true)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("사진 취향 다시 설정")
 
                 Divider()
                     .padding(.leading, 52)

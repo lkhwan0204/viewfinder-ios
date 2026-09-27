@@ -1,0 +1,550 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owns(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function nonEmptyText(value, maxLength) {
+      return value is string
+        && value.trim().size() > 0
+        && value.size() <= maxLength;
+    }
+
+    function optionalText(data, key, maxLength) {
+      return !(key in data)
+        || (data[key] is string && data[key].size() <= maxLength);
+    }
+
+    function optionalNonEmptyText(data, key, maxLength) {
+      return !(key in data) || nonEmptyText(data[key], maxLength);
+    }
+
+    function optionalTimestamp(data, key) {
+      return !(key in data) || data[key] is timestamp;
+    }
+
+    // Foundation Date <-> Firestore Timestamp can round at sub-millisecond
+    // precision. This is only used to preserve an existing timestamp, never
+    // to compare client-generated dates with request.time.
+    function sameTimestampWithinPrecision(before, after) {
+      return before is timestamp
+        && after is timestamp
+        && after >= before - duration.value(1, 'ms')
+        && after <= before + duration.value(1, 'ms');
+    }
+
+    function validTagAt(tags, index) {
+      return tags.size() <= index
+        || nonEmptyText(tags[index], 20);
+    }
+
+    function validTags(tags) {
+      return tags is list
+        && tags.size() <= 8
+        && validTagAt(tags, 0)
+        && validTagAt(tags, 1)
+        && validTagAt(tags, 2)
+        && validTagAt(tags, 3)
+        && validTagAt(tags, 4)
+        && validTagAt(tags, 5)
+        && validTagAt(tags, 6)
+        && validTagAt(tags, 7);
+    }
+
+    function validAttachment(data) {
+      return data is map
+        && data.keys().hasOnly([
+          'id', 'downloadURL', 'metadata', 'sharesToPlaceGallery'
+        ])
+        && data.id is string
+        && data.downloadURL is string
+        && data.downloadURL.size() <= 4096
+        && data.downloadURL.matches('https://.*')
+        && (!('metadata' in data)
+          || (data.metadata is map
+            // GPS fields are intentionally not publishable Community metadata.
+            && data.metadata.keys().hasOnly([
+              'cameraMake', 'cameraModel', 'lensMake', 'lensModel',
+              'focalLengthMillimeters', 'focalLength35mm', 'aperture',
+              'exposureTime', 'iso', 'capturedAt'
+            ])))
+        && (!('sharesToPlaceGallery' in data)
+          || data.sharesToPlaceGallery is bool);
+    }
+
+    function validAttachmentAt(attachments, index) {
+      return attachments.size() <= index
+        || validAttachment(attachments[index]);
+    }
+
+    function validAttachments(attachments) {
+      return attachments is list
+        && attachments.size() <= 8
+        && validAttachmentAt(attachments, 0)
+        && validAttachmentAt(attachments, 1)
+        && validAttachmentAt(attachments, 2)
+        && validAttachmentAt(attachments, 3)
+        && validAttachmentAt(attachments, 4)
+        && validAttachmentAt(attachments, 5)
+        && validAttachmentAt(attachments, 6)
+        && validAttachmentAt(attachments, 7);
+    }
+
+    function validCaptureLocation(data) {
+      return data is map
+        && data.keys().hasAll(['name'])
+        && data.keys().hasOnly(['name', 'placeID', 'region', 'address'])
+        && nonEmptyText(data.name, 200)
+        && optionalNonEmptyText(data, 'placeID', 256)
+        && optionalText(data, 'region', 200)
+        && optionalText(data, 'address', 500);
+    }
+
+    function validOptionalCaptureLocation(data) {
+      return !('captureLocation' in data)
+        || validCaptureLocation(data.captureLocation);
+    }
+
+    function validOptionalPhotoURL(data) {
+      return !('photoURL' in data)
+        || (data.photoURL is string
+          && data.photoURL.size() <= 4096
+          && data.photoURL.matches('https://.*'));
+    }
+
+    // The text/name limits below are server-side policy limits. The current
+    // composer does not enforce all of them yet; UI-side matching validation
+    // is intentionally a separate follow-up.
+    function validCommunityPost(data, postID) {
+      return data is map
+        && data.keys().hasAll([
+          'id', 'authorID', 'authorName', 'message', 'tags',
+          'hasStatusInfo', 'likeCount', 'createdAt', 'attachments'
+        ])
+        && data.keys().hasOnly([
+          'id', 'authorID', 'authorName', 'message', 'tags',
+          'hasStatusInfo', 'likeCount', 'createdAt', 'attachments',
+          'crowd', 'title', 'relatedSpotID', 'relatedSpotName', 'captureLocation',
+          'updatedAt', 'photoURL'
+        ])
+        && data.id == postID
+        && data.authorID is string
+        && data.authorName is string
+        && nonEmptyText(data.authorName, 100)
+        && data.message is string
+        && data.message.trim().size() > 0
+        && data.message.size() <= 20000
+        && validTags(data.tags)
+        && data.hasStatusInfo is bool
+        && data.hasStatusInfo == ('crowd' in data)
+        && (!('crowd' in data)
+          || (data.crowd is string
+            && data.crowd in ['여유', '보통', '많음']))
+        && data.likeCount is int
+        && data.likeCount >= 0
+        && data.createdAt is timestamp
+        && optionalTimestamp(data, 'updatedAt')
+        && optionalNonEmptyText(data, 'title', 200)
+        && optionalNonEmptyText(data, 'relatedSpotID', 256)
+        && optionalNonEmptyText(data, 'relatedSpotName', 200)
+        && validOptionalCaptureLocation(data)
+        && validOptionalPhotoURL(data)
+        && validAttachments(data.attachments);
+    }
+
+    function validPlacePhoto(data, photoID) {
+      return data is map
+        && data.keys().hasAll([
+          'id', 'placeID', 'source', 'imageURL', 'uploaderID',
+          'uploaderName', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'placeID', 'source', 'imageURL', 'uploaderID',
+          'uploaderName', 'createdAt', 'communityPostID'
+        ])
+        && data.id == photoID
+        && nonEmptyText(data.placeID, 256)
+        && data.source in ['communityContribution', 'placeContribution']
+        && data.imageURL is string
+        && data.imageURL.size() <= 4096
+        && data.imageURL.matches('https://.*')
+        && data.uploaderID is string
+        && data.uploaderName is string
+        && nonEmptyText(data.uploaderName, 100)
+        && data.createdAt is timestamp
+        && optionalNonEmptyText(data, 'communityPostID', 256)
+        && (data.source != 'communityContribution'
+          || 'communityPostID' in data)
+        && (data.source != 'placeContribution'
+          || !('communityPostID' in data));
+    }
+
+    function canonicalCrowdReportID(placeID, uid) {
+      let rawID = placeID + '|' + uid;
+      let encodedID = rawID.toUtf8().toBase64();
+      return 'user-' + encodedID.replace('=', '');
+    }
+
+    function validCrowdReport(data, reportID) {
+      return data is map
+        && data.keys().hasAll([
+          'id', 'placeID', 'crowd', 'authorID', 'createdAt',
+          'updatedAt', 'source'
+        ])
+        && data.keys().hasOnly([
+          'id', 'placeID', 'crowd', 'authorID', 'createdAt',
+          'updatedAt', 'source', 'communityPostID'
+        ])
+        && data.id == reportID
+        && nonEmptyText(data.placeID, 256)
+        && data.crowd in ['여유', '보통', '많음']
+        && data.authorID is string
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.source in ['placeDetail', 'community']
+        && optionalNonEmptyText(data, 'communityPostID', 256);
+    }
+
+    function validUser(data, uid) {
+      return data is map
+        && data.keys().hasAll([
+          'uid', 'provider', 'displayName', 'email',
+          'createdAt', 'lastLoginAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'provider', 'displayName', 'email',
+          'createdAt', 'lastLoginAt'
+        ])
+        && data.uid == uid
+        && data.provider in ['apple', 'google']
+        && nonEmptyText(data.displayName, 100)
+        && (data.email == null
+          || (data.email is string && data.email.size() <= 320))
+        && data.createdAt is timestamp
+        && data.lastLoginAt is timestamp;
+    }
+
+    function validPlaceTagAt(tags, index) {
+      return tags.size() <= index
+        || nonEmptyText(tags[index], 50);
+    }
+
+    function validPlaceTags(tags) {
+      return tags is list
+        && tags.size() <= 12
+        && validPlaceTagAt(tags, 0)
+        && validPlaceTagAt(tags, 1)
+        && validPlaceTagAt(tags, 2)
+        && validPlaceTagAt(tags, 3)
+        && validPlaceTagAt(tags, 4)
+        && validPlaceTagAt(tags, 5)
+        && validPlaceTagAt(tags, 6)
+        && validPlaceTagAt(tags, 7)
+        && validPlaceTagAt(tags, 8)
+        && validPlaceTagAt(tags, 9)
+        && validPlaceTagAt(tags, 10)
+        && validPlaceTagAt(tags, 11);
+    }
+
+    function optionalPlaceText(data, key, maxLength) {
+      return !(key in data)
+        || (data[key] is string && data[key].size() <= maxLength);
+    }
+
+    function optionalPlaceTextList(data, key, maxCount) {
+      return !(key in data)
+        || (data[key] is list && data[key].size() <= maxCount);
+    }
+
+    function optionalPlaceURL(data, key) {
+      return !(key in data)
+        || (data[key] is string
+          && data[key].size() <= 4096
+          && data[key].matches('https?://.*'));
+    }
+
+    function sameOptionalField(before, after, key) {
+      return ((key in before) == (key in after))
+        && (!(key in before) || before[key] == after[key]);
+    }
+
+    function validPlace(data) {
+      return data is map
+        && data.keys().hasAll([
+          'name', 'address', 'summary', 'tags', 'latitude', 'longitude',
+          'primaryTheme', 'source', 'schemaVersion'
+        ])
+        && data.keys().hasOnly([
+          'name', 'address', 'summary', 'tags', 'latitude', 'longitude',
+          'primaryTheme', 'source', 'schemaVersion', 'region', 'regions',
+          'bestTime', 'reason', 'category', 'season', 'weather', 'mood',
+          'crowdLevelCode', 'isHiddenSpot', 'imageURL', 'imageName',
+          'imageCredit', 'imageLicense', 'imageSourceURL', 'openingHours',
+          'feeInfo', 'parkingInfo', 'nearbyParkingInfo', 'provider',
+          'providerPlaceID', 'createdBy', 'createdAt', 'updatedAt', 'status',
+          'deletedAt', 'deletedBy'
+        ])
+        && nonEmptyText(data.name, 200)
+        && nonEmptyText(data.address, 1000)
+        && data.summary is string
+        && data.summary.size() <= 20000
+        && validPlaceTags(data.tags)
+        && data.latitude is number
+        && data.latitude >= -90
+        && data.latitude <= 90
+        && data.longitude is number
+        && data.longitude >= -180
+        && data.longitude <= 180
+        && data.primaryTheme in [
+          'cityArchitecture', 'landscape', 'retroAlley',
+          'historyTradition', 'viewpoint', 'cafeIndoor'
+        ]
+        && data.source in ['local', 'user-submitted']
+        && data.schemaVersion == 1
+        && optionalPlaceText(data, 'region', 1000)
+        && optionalPlaceTextList(data, 'regions', 32)
+        && optionalPlaceText(data, 'bestTime', 2000)
+        && optionalPlaceText(data, 'reason', 2000)
+        && optionalPlaceText(data, 'category', 200)
+        && optionalPlaceTextList(data, 'season', 32)
+        && optionalPlaceTextList(data, 'weather', 32)
+        && optionalPlaceTextList(data, 'mood', 32)
+        && optionalPlaceText(data, 'crowdLevelCode', 100)
+        && (!('isHiddenSpot' in data) || data.isHiddenSpot is bool)
+        && optionalPlaceURL(data, 'imageURL')
+        && optionalPlaceText(data, 'imageName', 500)
+        && optionalPlaceText(data, 'imageCredit', 500)
+        && optionalPlaceText(data, 'imageLicense', 500)
+        && optionalPlaceURL(data, 'imageSourceURL')
+        && optionalPlaceText(data, 'openingHours', 2000)
+        && optionalPlaceText(data, 'feeInfo', 2000)
+        && optionalPlaceText(data, 'parkingInfo', 2000)
+        && optionalPlaceText(data, 'nearbyParkingInfo', 2000)
+        && optionalPlaceText(data, 'provider', 100)
+        && optionalPlaceText(data, 'providerPlaceID', 500)
+        && (!('createdBy' in data)
+          || (data.source == 'user-submitted' && nonEmptyText(data.createdBy, 128)))
+        && optionalTimestamp(data, 'createdAt')
+        && optionalTimestamp(data, 'updatedAt')
+        && (!('status' in data) || data.status in ['active', 'deleted'])
+        && (!('deletedAt' in data)
+          || (('status' in data) && data.status == 'deleted' && data.deletedAt is timestamp))
+        && (!('deletedBy' in data)
+          || (('status' in data) && data.status == 'deleted' && nonEmptyText(data.deletedBy, 128)));
+    }
+
+    function placeCreatorIs(uid) {
+      return signedIn()
+        && resource.data.source == 'user-submitted'
+        && resource.data.createdBy == uid
+        && owns(uid)
+        && (!('status' in resource.data) || resource.data.status == 'active');
+    }
+
+    function validPlaceEditableFields(data) {
+      return data.summary is string
+        && data.summary.size() <= 20000
+        && validPlaceTags(data.tags)
+        && data.primaryTheme in [
+          'cityArchitecture', 'landscape', 'retroAlley',
+          'historyTradition', 'viewpoint', 'cafeIndoor'
+        ]
+        && optionalPlaceText(data, 'reason', 2000)
+        && optionalPlaceText(data, 'bestTime', 2000)
+        && optionalPlaceText(data, 'openingHours', 2000)
+        && optionalPlaceText(data, 'feeInfo', 2000)
+        && optionalPlaceText(data, 'parkingInfo', 2000)
+        && optionalPlaceText(data, 'nearbyParkingInfo', 2000)
+        && optionalPlaceTextList(data, 'season', 32)
+        && optionalPlaceTextList(data, 'weather', 32)
+        && optionalPlaceTextList(data, 'mood', 32)
+        && optionalPlaceText(data, 'crowdLevelCode', 100)
+        && (!('isHiddenSpot' in data) || data.isHiddenSpot is bool);
+    }
+
+    function immutablePlaceFieldsPreserved() {
+      return request.resource.data.name == resource.data.name
+        && request.resource.data.address == resource.data.address
+        && request.resource.data.latitude == resource.data.latitude
+        && request.resource.data.longitude == resource.data.longitude
+        && request.resource.data.source == resource.data.source
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.schemaVersion == resource.data.schemaVersion
+        && sameOptionalField(resource.data, request.resource.data, 'provider')
+        && sameOptionalField(resource.data, request.resource.data, 'providerPlaceID');
+    }
+
+    function ownerPlaceEdit() {
+      return placeCreatorIs(resource.data.createdBy)
+        && immutablePlaceFieldsPreserved()
+        && request.resource.data.status == 'active'
+        && !('deletedAt' in request.resource.data)
+        && !('deletedBy' in request.resource.data)
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'summary', 'tags', 'primaryTheme', 'reason', 'bestTime',
+          'openingHours', 'feeInfo', 'parkingInfo', 'nearbyParkingInfo',
+          'season', 'weather', 'mood', 'crowdLevelCode', 'isHiddenSpot',
+          'updatedAt'
+        ])
+        // The base place schema was validated at create time. Updates are
+        // restricted to editable fields below, so revalidating every immutable
+        // field here only burns the Rules expression budget (especially when
+        // this branch is evaluated alongside the soft-delete branch).
+        && validPlaceEditableFields(request.resource.data);
+    }
+
+    function ownerPlaceSoftDelete() {
+      return placeCreatorIs(resource.data.createdBy)
+        && immutablePlaceFieldsPreserved()
+        && request.resource.data.status == 'deleted'
+        && request.resource.data.deletedBy == request.auth.uid
+        && request.resource.data.deletedAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'deletedAt', 'deletedBy', 'updatedAt'
+        ]);
+    }
+
+    match /places/{placeID} {
+      // Public content remains readable. Legacy documents without createdBy
+      // (including migrated user-submitted places) are read-only to clients.
+      allow get, list: if true;
+      allow create: if signedIn()
+        && request.resource.data.source == 'user-submitted'
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == 'active'
+        && !('deletedAt' in request.resource.data)
+        && !('deletedBy' in request.resource.data)
+        && !('imageURL' in request.resource.data)
+        && !('imageName' in request.resource.data)
+        && !('imageCredit' in request.resource.data)
+        && !('imageLicense' in request.resource.data)
+        && !('imageSourceURL' in request.resource.data)
+        && validPlace(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if ownerPlaceEdit() || ownerPlaceSoftDelete();
+      allow delete: if false;
+    }
+
+    match /communityPosts/{postID} {
+      allow get, list: if true;
+
+      allow create: if owns(request.resource.data.authorID)
+        && request.resource.data.authorID == request.auth.uid
+        && validCommunityPost(request.resource.data, postID)
+        && request.resource.data.likeCount == 0
+        && !('updatedAt' in request.resource.data)
+        && !('photoURL' in request.resource.data);
+
+      allow update: if owns(resource.data.authorID)
+        && request.resource.data.authorID == resource.data.authorID
+        && request.resource.data.authorName == resource.data.authorName
+        && validCommunityPost(request.resource.data, postID)
+        && request.resource.data.updatedAt is timestamp
+        && sameTimestampWithinPrecision(
+          resource.data.createdAt,
+          request.resource.data.createdAt
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title', 'message', 'tags', 'hasStatusInfo', 'crowd',
+          'attachments', 'relatedSpotID', 'relatedSpotName',
+          'captureLocation', 'createdAt', 'updatedAt',
+          // The app removes these two legacy fields when editing old posts.
+          'spotID', 'spotName'
+        ]);
+
+      allow delete: if owns(resource.data.authorID);
+    }
+
+    match /placePhotos/{photoID} {
+      allow get, list: if true;
+
+      allow create: if owns(request.resource.data.uploaderID)
+        && request.resource.data.uploaderID == request.auth.uid
+        && validPlacePhoto(request.resource.data, photoID);
+
+      allow update: if owns(resource.data.uploaderID)
+        && request.resource.data.uploaderID == resource.data.uploaderID
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.placeID == resource.data.placeID
+        && request.resource.data.source == resource.data.source
+        && validPlacePhoto(request.resource.data, photoID)
+        && sameTimestampWithinPrecision(
+          resource.data.createdAt,
+          request.resource.data.createdAt
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'imageURL', 'uploaderName', 'createdAt', 'communityPostID'
+        ]);
+
+      allow delete: if owns(resource.data.uploaderID);
+    }
+
+    match /crowdReports/{reportID} {
+      allow get, list: if true;
+
+      allow create: if owns(request.resource.data.authorID)
+        && request.resource.data.authorID == request.auth.uid
+        && validCrowdReport(request.resource.data, reportID)
+        && reportID == canonicalCrowdReportID(
+          request.resource.data.placeID,
+          request.auth.uid
+        );
+
+      allow update: if owns(resource.data.authorID)
+        && request.resource.data.authorID == resource.data.authorID
+        && request.resource.data.placeID == resource.data.placeID
+        && request.resource.data.id == resource.data.id
+        && reportID == canonicalCrowdReportID(
+          resource.data.placeID,
+          request.auth.uid
+        )
+        && validCrowdReport(request.resource.data, reportID)
+        && sameTimestampWithinPrecision(
+          resource.data.createdAt,
+          request.resource.data.createdAt
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'crowd', 'createdAt', 'updatedAt', 'source', 'communityPostID'
+        ]);
+
+      // Owners may remove old random-ID reports while migrating to canonical IDs.
+      allow delete: if owns(resource.data.authorID);
+    }
+
+    match /users/{uid} {
+      allow get: if owns(uid);
+      allow list: if false;
+
+      allow create: if owns(uid)
+        && validUser(request.resource.data, uid)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.lastLoginAt == request.time;
+
+      allow update: if owns(uid)
+        && validUser(request.resource.data, uid)
+        && request.resource.data.lastLoginAt == request.time
+        && (request.resource.data.createdAt == resource.data.createdAt
+          || request.resource.data.createdAt == request.time)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'provider', 'displayName', 'email', 'createdAt', 'lastLoginAt'
+        ]);
+
+      allow delete: if false;
+    }
+
+    // Explicitly deny all other documents and collections.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

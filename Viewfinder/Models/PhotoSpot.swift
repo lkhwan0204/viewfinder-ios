@@ -248,6 +248,15 @@ struct PhotoSpot: Identifiable, Equatable, Sendable {
     /// 장소 상세에서 사용할 추가 사진 풀입니다. 기존 장소는 대표 사진 하나를
     /// 로컬 seed 변환 과정에서 자동으로 채웁니다.
     let galleryPhotos: [PlacePhoto]
+    /// Firestore Place lifecycle fields. Bundled seed and legacy records use
+    /// the defaults and remain non-editable unless an owner UID is present.
+    let source: String
+    let createdBy: String?
+    let createdAt: Date?
+    let updatedAt: Date?
+    let status: String
+    let deletedAt: Date?
+    let deletedBy: String?
 
     init(
         id: String,
@@ -285,7 +294,14 @@ struct PhotoSpot: Identifiable, Equatable, Sendable {
         isHiddenSpot: Bool = false,
         provider: String? = nil,
         providerPlaceID: String? = nil,
-        galleryPhotos: [PlacePhoto] = []
+        galleryPhotos: [PlacePhoto] = [],
+        source: String = "local",
+        createdBy: String? = nil,
+        createdAt: Date? = nil,
+        updatedAt: Date? = nil,
+        status: String = "active",
+        deletedAt: Date? = nil,
+        deletedBy: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -323,6 +339,13 @@ struct PhotoSpot: Identifiable, Equatable, Sendable {
         self.provider = provider
         self.providerPlaceID = providerPlaceID
         self.galleryPhotos = galleryPhotos
+        self.source = source
+        self.createdBy = createdBy
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.status = status
+        self.deletedAt = deletedAt
+        self.deletedBy = deletedBy
     }
 
     var coordinate: CLLocationCoordinate2D {
@@ -380,7 +403,14 @@ struct PhotoSpot: Identifiable, Equatable, Sendable {
             isHiddenSpot: isHiddenSpot,
             provider: provider,
             providerPlaceID: providerPlaceID,
-            galleryPhotos: galleryPhotos.isEmpty ? source.galleryPhotos : galleryPhotos
+            galleryPhotos: galleryPhotos.isEmpty ? source.galleryPhotos : galleryPhotos,
+            source: self.source,
+            createdBy: createdBy,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            status: status,
+            deletedAt: deletedAt,
+            deletedBy: deletedBy
         )
     }
 
@@ -428,8 +458,137 @@ struct PhotoSpot: Identifiable, Equatable, Sendable {
             isHiddenSpot: isHiddenSpot,
             provider: provider,
             providerPlaceID: providerPlaceID,
-            galleryPhotos: [photo] + galleryPhotos
+            galleryPhotos: [photo] + galleryPhotos,
+            source: source,
+            createdBy: createdBy,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            status: status,
+            deletedAt: deletedAt,
+            deletedBy: deletedBy
         )
+    }
+
+    func replacingPlaceLifecycle(
+        source: String,
+        createdBy: String?,
+        createdAt: Date?,
+        updatedAt: Date?,
+        status: String,
+        deletedAt: Date? = nil,
+        deletedBy: String? = nil,
+        removeImages: Bool = false
+    ) -> PhotoSpot {
+        PhotoSpot(
+            id: id,
+            name: name,
+            region: region,
+            summary: summary,
+            hashtags: hashtags,
+            eventTitle: eventTitle,
+            eventPeriod: eventPeriod,
+            feeInfo: feeInfo,
+            openingHours: openingHours,
+            bestTime: bestTime,
+            crowdLevel: crowdLevel,
+            lensSuggestion: lensSuggestion,
+            weatherFit: weatherFit,
+            parkingInfo: parkingInfo,
+            nearbyParkingInfo: nearbyParkingInfo,
+            communityTitle: communityTitle,
+            communitySubtitle: communitySubtitle,
+            mapQuery: mapQuery,
+            latitude: latitude,
+            longitude: longitude,
+            theme: theme,
+            imageURL: removeImages ? nil : imageURL,
+            category: category,
+            season: season,
+            weather: weather,
+            mood: mood,
+            crowdLevelCode: crowdLevelCode,
+            imageName: removeImages ? nil : imageName,
+            imageCredit: removeImages ? nil : imageCredit,
+            imageLicense: removeImages ? nil : imageLicense,
+            imageSourceURL: removeImages ? nil : imageSourceURL,
+            recommendationRegions: recommendationRegions,
+            isHiddenSpot: isHiddenSpot,
+            provider: provider,
+            providerPlaceID: providerPlaceID,
+            galleryPhotos: removeImages ? [] : galleryPhotos,
+            source: source,
+            createdBy: createdBy,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            status: status,
+            deletedAt: deletedAt,
+            deletedBy: deletedBy
+        )
+    }
+
+    func replacingEditablePlaceDetails(
+        summary: String,
+        hashtags: [String],
+        theme: SpotTheme,
+        reason: String,
+        bestTime: String,
+        openingHours: String,
+        feeInfo: String,
+        parkingInfo: String,
+        nearbyParkingInfo: String
+    ) -> PhotoSpot {
+        PhotoSpot(
+            id: id,
+            name: name,
+            region: region,
+            summary: summary,
+            hashtags: hashtags,
+            eventTitle: eventTitle,
+            eventPeriod: reason,
+            feeInfo: feeInfo,
+            openingHours: openingHours,
+            bestTime: bestTime,
+            crowdLevel: crowdLevel,
+            lensSuggestion: lensSuggestion,
+            weatherFit: weatherFit,
+            parkingInfo: parkingInfo,
+            nearbyParkingInfo: nearbyParkingInfo,
+            communityTitle: communityTitle,
+            communitySubtitle: summary,
+            mapQuery: mapQuery,
+            latitude: latitude,
+            longitude: longitude,
+            theme: theme,
+            imageURL: imageURL,
+            category: category,
+            season: season,
+            weather: weather,
+            mood: mood,
+            crowdLevelCode: crowdLevelCode,
+            imageName: imageName,
+            imageCredit: imageCredit,
+            imageLicense: imageLicense,
+            imageSourceURL: imageSourceURL,
+            recommendationRegions: recommendationRegions,
+            isHiddenSpot: isHiddenSpot,
+            provider: provider,
+            providerPlaceID: providerPlaceID,
+            galleryPhotos: galleryPhotos,
+            source: source,
+            createdBy: createdBy,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            status: status,
+            deletedAt: deletedAt,
+            deletedBy: deletedBy
+        )
+    }
+
+    func isOwned(by uid: String) -> Bool {
+        source == "user-submitted"
+            && createdBy == uid
+            && !uid.isEmpty
+            && status != "deleted"
     }
 
     func matches(_ rawQuery: String) -> Bool {

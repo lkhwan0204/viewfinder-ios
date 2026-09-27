@@ -1,0 +1,15 @@
+{
+  "name": "viewfinder-firestore-rules-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "migrate:places": "node scripts/migrate-places-to-firestore.mjs",
+    "test:rules": "firebase emulators:exec --project demo-viewfinder-rules --only firestore \"node --test test/firestore.rules.test.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.10.0",
+    "firebase-admin": "^14.4.0",
+    "firebase-tools": "^14.9.0"
+  }
+}

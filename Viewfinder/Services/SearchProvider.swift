@@ -58,7 +58,7 @@ struct LocalKeywordSearchProvider: SearchProvider {
         let regionScope = SearchRegionPolicy.scope(for: query)
         let spotsByID = Dictionary(spots.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
-        return KeywordSearchResults(
+        let results = KeywordSearchResults(
             spots: rankedSpots(
                 spots.filter {
                     SearchRegionPolicy.matches($0, query: query)
@@ -88,6 +88,16 @@ struct LocalKeywordSearchProvider: SearchProvider {
                 }
             }
         )
+
+#if DEBUG
+        AppLog.network.debug("[PlaceSearch] query=\(query, privacy: .public)")
+        AppLog.network.debug("[PlaceSearch] sourceCount=\(spots.count, privacy: .public)")
+        let resultNames = results.spots.map(\.name).joined(separator: ", ")
+        AppLog.network.debug(
+            "[PlaceSearch] results=\(results.spots.count, privacy: .public) names=[\(resultNames, privacy: .public)]"
+        )
+#endif
+        return results
     }
 
     private func rankedSpots(_ spots: [PhotoSpot], query: String) -> [PhotoSpot] {
@@ -131,7 +141,10 @@ struct LocalKeywordSearchProvider: SearchProvider {
             return 1
         }
 
-        if containsQuery(in: spot.hashtags + [spot.category] + spot.mood, queryVariants: queryVariants) {
+        if containsQuery(
+            in: spot.hashtags + [spot.category, spot.theme.title] + spot.mood,
+            queryVariants: queryVariants
+        ) {
             return 2
         }
 

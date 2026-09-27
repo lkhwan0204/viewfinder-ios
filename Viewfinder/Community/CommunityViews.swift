@@ -19,7 +19,7 @@ struct CommunityTabView: View {
     let onCompose: () -> Void
     let onSelectSpot: (PhotoSpot) -> Void
     let onEditPost: (CommunityPost) -> Void
-    let onDeletePost: (CommunityPost) -> Void
+    let onDeletePost: (CommunityPost) async throws -> Void
     let onToggleLike: (CommunityPost) -> Void
     let onToggleFollow: (CommunityPost) -> Void
     let onAddComment: (String, CommunityPost) -> Bool
@@ -51,7 +51,20 @@ struct CommunityTabView: View {
 
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                if posts.isEmpty {
+                if communityViewModel.feedState == .initialLoading {
+                    ProgressView("게시글을 불러오는 중…")
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, VFSpace.xl)
+                } else if communityViewModel.feedState == .failed && posts.isEmpty {
+                    VStack(spacing: VFSpace.md) {
+                        Text("게시글을 불러오지 못했어요")
+                            .vfText(.body)
+                        Button("다시 시도") { communityViewModel.refreshPosts() }
+                            .foregroundStyle(AppColors.accent)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, VFSpace.xl)
+                } else if posts.isEmpty {
                     EmptyCommunityView(onCompose: onCompose)
                         .padding(.top, VFSpace.xl)
                         .vfScreenMargin()
@@ -61,6 +74,19 @@ struct CommunityTabView: View {
                     // 여백입니다. 12pt 로는 앞 글의 액션 줄과 다음 글의
                     // 작성자 줄이 한 덩어리로 읽힙니다.
                     LazyVStack(alignment: .leading, spacing: VFSpace.xl) {
+                        if communityViewModel.feedState == .refreshing {
+                            ProgressView("새 게시글 확인 중…")
+                                .controlSize(.small)
+                                .foregroundStyle(AppColors.secondaryText)
+                        }
+                        if communityViewModel.feedState == .failed {
+                            Button("새 게시글을 불러오지 못했어요 · 다시 시도") {
+                                communityViewModel.refreshPosts()
+                            }
+                            .vfText(.caption)
+                            .foregroundStyle(AppColors.secondaryText)
+                        }
+
                         CommunityFeedContextHeader(postCount: feedPosts.count)
 
                         ForEach(feedPosts) { post in
@@ -91,6 +117,7 @@ struct CommunityTabView: View {
                 }
             }
             .background(AppColors.background.ignoresSafeArea())
+            .refreshable { communityViewModel.refreshPosts() }
             .navigationTitle("커뮤니티")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -103,6 +130,7 @@ struct CommunityTabView: View {
             }
             .onAppear {
                 onTabBarVisibilityChange(false)
+                communityViewModel.refreshPosts()
             }
         }
     }
@@ -321,7 +349,7 @@ struct CommunityPlaceTag: View {
         }
         .buttonStyle(.plain)
         .disabled(spot == nil)
-        .accessibilityLabel("\(spotName) 장소 상세 보기")
+        .accessibilityLabel(spot == nil ? "\(spotName), 현재 연결된 장소를 찾을 수 없음" : "\(spotName) 장소 상세 보기")
     }
 }
 
@@ -378,12 +406,15 @@ struct CommunityPostCard: View {
     let isFollowing: Bool
     let comments: [CommunityComment]
     let onEdit: (CommunityPost) -> Void
-    let onDelete: (CommunityPost) -> Void
+    let onDelete: (CommunityPost) async throws -> Void
     let onToggleLike: (CommunityPost) -> Void
     let onToggleFollow: (CommunityPost) -> Void
     let onAddComment: (String, CommunityPost) -> Bool
     let onSelectSpot: (PhotoSpot) -> Void
     let communityViewModel: CommunityViewModel
+    @State private var isDeleteConfirmationPresented = false
+    @State private var deleteError: String?
+    @State private var isDeleting = false
 
     // ═══════════════════════════════════════════════════════════════
     //  게시판 행 -> 사진 카드
@@ -486,11 +517,25 @@ struct CommunityPostCard: View {
                 }
 
                 Button(role: .destructive) {
-                    onDelete(post)
+                    isDeleteConfirmationPresented = true
                 } label: {
                     Label("삭제", systemImage: "trash")
                 }
             }
+        }
+        .alert("게시글을 삭제할까요?", isPresented: $isDeleteConfirmationPresented) {
+            Button("삭제", role: .destructive) { deletePost() }
+            Button("취소", role: .cancel) { }
+        } message: {
+            Text("삭제한 게시글은 다시 복구할 수 없습니다.")
+        }
+        .alert("게시글을 삭제하지 못했어요", isPresented: Binding(
+            get: { deleteError != nil },
+            set: { if !$0 { deleteError = nil } }
+        )) {
+            Button("확인", role: .cancel) { deleteError = nil }
+        } message: {
+            Text(deleteError ?? "다시 시도해 주세요.")
         }
     }
 
@@ -591,7 +636,7 @@ struct CommunityPostCard: View {
                     }
 
                     Button(role: .destructive) {
-                        onDelete(post)
+                        isDeleteConfirmationPresented = true
                     } label: {
                         Label("삭제", systemImage: "trash")
                     }
@@ -663,6 +708,19 @@ struct CommunityPostCard: View {
             onDelete: onDelete,
             communityViewModel: communityViewModel
         )
+    }
+
+    private func deletePost() {
+        guard !isDeleting else { return }
+        isDeleting = true
+        Task {
+            defer { isDeleting = false }
+            do {
+                try await onDelete(post)
+            } catch {
+                deleteError = "삭제하지 못했어요. 다시 시도해 주세요."
+            }
+        }
     }
 }
 
@@ -740,7 +798,7 @@ struct CommunityPostDetailView: View {
     let onAddComment: (String, CommunityPost) -> Bool
     let onSelectSpot: (PhotoSpot) -> Void
     let onEdit: (CommunityPost) -> Void
-    let onDelete: (CommunityPost) -> Void
+    let onDelete: (CommunityPost) async throws -> Void
     @ObservedObject var communityViewModel: CommunityViewModel
 
     @State private var draft = ""
@@ -748,6 +806,8 @@ struct CommunityPostDetailView: View {
     @State private var selectedPhotoIndex = 0
     @State private var viewerPresentation: CommunityPhotoViewerPresentation?
     @State private var isDeleteConfirmationPresented = false
+    @State private var isDeleting = false
+    @State private var deleteError: String?
     @Environment(\.dismiss) private var dismiss
     private let commentComposerAnchorID = "community-comment-composer"
 
@@ -867,12 +927,29 @@ struct CommunityPostDetailView: View {
             }
             .alert("게시글을 삭제할까요?", isPresented: $isDeleteConfirmationPresented) {
                 Button("삭제", role: .destructive) {
-                    onDelete(currentPost)
-                    dismiss()
+                    guard !isDeleting else { return }
+                    isDeleting = true
+                    Task {
+                        defer { isDeleting = false }
+                        do {
+                            try await onDelete(currentPost)
+                            dismiss()
+                        } catch {
+                            deleteError = "삭제하지 못했어요. 다시 시도해 주세요."
+                        }
+                    }
                 }
                 Button("취소", role: .cancel) { }
             } message: {
-                Text("삭제한 게시글은 되돌릴 수 없어요.")
+                Text("삭제한 게시글은 다시 복구할 수 없습니다.")
+            }
+            .alert("게시글을 삭제하지 못했어요", isPresented: Binding(
+                get: { deleteError != nil },
+                set: { if !$0 { deleteError = nil } }
+            )) {
+                Button("확인", role: .cancel) { deleteError = nil }
+            } message: {
+                Text(deleteError ?? "다시 시도해 주세요.")
             }
             .fullScreenCover(item: $viewerPresentation) { presentation in
                 CommunityPhotoViewer(
@@ -1826,6 +1903,7 @@ struct EmptyCommunityView: View {
 enum CommunityComposerPurpose: Equatable {
     case fieldReport
     case addSpot
+    case editPlace(placeID: String)
     case contributePhotos(placeID: String)
 
     var isPhotoContribution: Bool {
@@ -1839,9 +1917,14 @@ enum CommunityComposerPurpose: Equatable {
         switch self {
         case .fieldReport:
             return false
-        case .addSpot, .contributePhotos:
+        case .addSpot, .editPlace, .contributePhotos:
             return true
         }
+    }
+
+    var isPlaceEdit: Bool {
+        if case .editPlace = self { return true }
+        return false
     }
 
     var photoContributionPlaceID: String? {
@@ -1855,6 +1938,8 @@ enum CommunityComposerPurpose: Equatable {
             return "글쓰기"
         case .addSpot:
             return "장소 추가"
+        case .editPlace:
+            return "장소 수정"
         case .contributePhotos:
             return "사진 등록"
         }
@@ -1866,6 +1951,8 @@ enum CommunityComposerPurpose: Equatable {
             return "본문"
         case .addSpot:
             return "추천 이유"
+        case .editPlace:
+            return "소개"
         case .contributePhotos:
             return ""
         }
@@ -1877,6 +1964,8 @@ enum CommunityComposerPurpose: Equatable {
             return "사진, 카메라, 장비, 촬영 후기를 자유롭게 적어보세요"
         case .addSpot:
             return "예: 저녁빛이 좋은 골목이고 오래된 간판이 많아 필름 사진에 잘 어울려요"
+        case .editPlace:
+            return "장소 소개를 입력하세요"
         case .contributePhotos:
             return ""
         }
@@ -1891,6 +1980,52 @@ private struct CommunityPlaceSelectionCheck: View {
             .frame(width: 26, height: 26)
             .background(AppColors.accent, in: Circle())
             .accessibilityHidden(true)
+    }
+}
+
+private struct CommunityDismissAttemptObserver: UIViewControllerRepresentable {
+    let preventsDismissal: Bool
+    let onAttempt: () -> Void
+
+    func makeUIViewController(context: Context) -> Controller {
+        Controller()
+    }
+
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.preventsDismissal = preventsDismissal
+        controller.onAttempt = onAttempt
+        DispatchQueue.main.async { [weak controller] in
+            controller?.installDismissDelegate()
+        }
+    }
+
+    final class Controller: UIViewController, UIAdaptivePresentationControllerDelegate {
+        var preventsDismissal = false
+        var onAttempt: (() -> Void)?
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            installDismissDelegate()
+        }
+
+        func installDismissDelegate() {
+            var ancestor: UIViewController? = self
+            while let controller = ancestor {
+                if let presentationController = controller.presentationController {
+                    presentationController.delegate = self
+                    return
+                }
+                ancestor = controller.parent
+            }
+        }
+
+        func presentationControllerShouldDismiss(_ presentationController: UIPresentationController) -> Bool {
+            !preventsDismissal
+        }
+
+        func presentationControllerDidAttemptToDismiss(_ presentationController: UIPresentationController) {
+            onAttempt?()
+        }
     }
 }
 
@@ -1929,7 +2064,7 @@ struct CommunityComposerView: View {
     let editingPost: CommunityPost?
     let purpose: CommunityComposerPurpose
     let onShowRegisteredSpot: (PhotoSpot) -> Void
-    let onSubmit: (CommunityPostDraft) -> Void
+    let onSubmit: (CommunityPostDraft, String) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedField: ComposerField?
@@ -1944,9 +2079,15 @@ struct CommunityComposerView: View {
     @State private var message = ""
     @State private var crowd: CommunityPost.Crowd = .normal
     @State private var selectedCommunityCrowd: CommunityPost.Crowd?
-    @State private var selectedTags: Set<String> = []
     @State private var customTags: [String]
     @State private var customTagText = ""
+    @State private var editedTheme: SpotTheme
+    @State private var editedReason: String
+    @State private var editedBestTime: String
+    @State private var editedOpeningHours: String
+    @State private var editedFeeInfo: String
+    @State private var editedParkingInfo: String
+    @State private var editedNearbyParkingInfo: String
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var photoDrafts: [CommunityPhotoDraft]
     @State private var retainedRemoteAttachments: [CommunityPhotoAttachment]
@@ -1961,12 +2102,16 @@ struct CommunityComposerView: View {
     @State private var showExifConsent = false
     @State private var promptedExifPhotoIDs: Set<String> = []
     @State private var isPreparingSubmission = false
+    @State private var isPostSavedRemotely = false
+    @State private var submissionID = UUID().uuidString
+    @State private var submissionError: String?
+    @State private var isDiscardConfirmationPresented = false
+    @State private var isPhotoUnavailablePresented = false
     @State private var submissionPreparationTask: Task<Void, Never>?
     /// 결과를 골라 검색어를 장소명으로 바꿀 때, 그 변경이 다시 검색을
     /// 일으키지 않게 막습니다.
     @State private var suppressPlaceSearch = false
 
-    private let statusTags = ["노을 좋음", "꽃 만개", "안개 있음", "사람 적음", "야경 좋음", "사진 찍기 좋음", "비 분위기 좋음", "반영 예쁨", "단풍 절정", "조명 좋음"]
     /// Community 글의 기존 사진 첨부 한도는 유지하되, 장소 추가와 같은
     /// 사진 개수·추가 진입점을 사용합니다.
     private static let maxCommunityPhotoCount = 8
@@ -1979,7 +2124,7 @@ struct CommunityComposerView: View {
         editingPost: CommunityPost? = nil,
         purpose: CommunityComposerPurpose = .fieldReport,
         onShowRegisteredSpot: @escaping (PhotoSpot) -> Void = { _ in },
-        onSubmit: @escaping (CommunityPostDraft) -> Void
+        onSubmit: @escaping (CommunityPostDraft, String) async throws -> Void
     ) {
         self.spots = spots
         self.initialSpot = selectedSpot
@@ -1992,16 +2137,30 @@ struct CommunityComposerView: View {
         _selectedSearchedSpot = State(initialValue: nil)
         _placeSearchText = State(initialValue: editingPost?.spotName ?? selectedSpot?.name ?? "")
         _title = State(initialValue: editingPost?.title ?? "")
-        _message = State(initialValue: editingPost?.message ?? "")
+        _message = State(
+            initialValue: editingPost?.message ?? (purpose.isPlaceEdit ? selectedSpot?.summary : nil) ?? ""
+        )
         _crowd = State(initialValue: editingPost?.crowd ?? .normal)
         _selectedCommunityCrowd = State(
             initialValue: purpose == .fieldReport && editingPost?.hasStatusInfo == true
                 ? editingPost?.crowd
                 : nil
         )
-        _selectedTags = State(initialValue: Set(editingPost?.tags ?? []))
-        _customTags = State(initialValue: purpose == .addSpot ? Self.normalizedTags(editingPost?.tags ?? []) : [])
+        _customTags = State(
+            initialValue: purpose == .fieldReport
+                ? Self.normalizedTags(editingPost?.tags ?? [])
+                : (purpose == .addSpot
+                ? Self.normalizedTags(editingPost?.tags ?? [])
+                : (purpose.isPlaceEdit ? Self.normalizedTags(selectedSpot?.hashtags ?? []) : []))
+        )
         _customTagText = State(initialValue: "")
+        _editedTheme = State(initialValue: selectedSpot?.theme ?? .cityArchitecture)
+        _editedReason = State(initialValue: selectedSpot?.eventPeriod ?? "")
+        _editedBestTime = State(initialValue: selectedSpot?.bestTime ?? "")
+        _editedOpeningHours = State(initialValue: selectedSpot?.openingHours ?? "")
+        _editedFeeInfo = State(initialValue: selectedSpot?.feeInfo ?? "")
+        _editedParkingInfo = State(initialValue: selectedSpot?.parkingInfo ?? "")
+        _editedNearbyParkingInfo = State(initialValue: selectedSpot?.nearbyParkingInfo ?? "")
         _photoDrafts = State(
             initialValue: Self.drafts(
                 from: editingPost,
@@ -2029,16 +2188,74 @@ struct CommunityComposerView: View {
                         communityPostForm
                     } else if purpose == .addSpot {
                         placeSubmissionForm
+                    } else if purpose.isPlaceEdit {
+                        placeEditForm
                     } else {
                         contributePhotosForm
                     }
                 }
                 .padding(.top, VFSpace.md)
                 .padding(.horizontal, 20)
+                .disabled(isPreparingSubmission)
             }
             .background(AppColors.background.ignoresSafeArea())
             .navigationTitle(editingPost == nil ? purpose.navigationTitle : "글 수정")
+            .interactiveDismissDisabled(isPreparingSubmission || hasUnsavedCommunityChanges)
+            .background {
+                if purpose == .fieldReport {
+                    CommunityDismissAttemptObserver(
+                        preventsDismissal: isPreparingSubmission || hasUnsavedCommunityChanges,
+                        onAttempt: { if !isPreparingSubmission { isDiscardConfirmationPresented = true } }
+                    )
+                    .frame(width: 0, height: 0)
+                }
+            }
+            .alert("저장하지 못했어요", isPresented: Binding(
+                get: { submissionError != nil },
+                set: { if !$0 { submissionError = nil } }
+            )) {
+                Button("확인", role: .cancel) { submissionError = nil }
+            } message: {
+                Text(submissionError ?? "다시 시도해 주세요.")
+            }
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if purpose == .fieldReport {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            requestComposerDismissal()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
+                        }
+                        .disabled(isPreparingSubmission)
+                        .accessibilityLabel("글쓰기 닫기")
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("완료") { dismissComposerKeyboard() }
+                }
+            }
+            .confirmationDialog(
+                isPostSavedRemotely
+                    ? "게시글은 저장됐어요. 혼잡도 제보를 중단하고 나갈까요?"
+                    : "작성 중인 내용을 삭제할까요?",
+                isPresented: $isDiscardConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                if isPostSavedRemotely {
+                    Button("나가기") { dismiss() }
+                } else {
+                    Button("삭제하고 나가기", role: .destructive) { dismiss() }
+                }
+                Button("계속 작성", role: .cancel) { }
+            }
+            .alert("사진 업로드 안내", isPresented: $isPhotoUnavailablePresented) {
+                Button("확인", role: .cancel) { }
+            } message: {
+                Text("사진 업로드는 현재 준비 중입니다. 사진을 제거하면 글을 게시할 수 있어요.")
+            }
             .scrollDismissesKeyboard(.interactively)
             .contentShape(Rectangle())
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -2060,7 +2277,7 @@ struct CommunityComposerView: View {
             }
             .simultaneousGesture(
                 TapGesture().onEnded {
-                    focusedField = nil
+                    dismissComposerKeyboard()
                 }
             )
             .alert("촬영 정보 공개", isPresented: $showExifConsent) {
@@ -2133,6 +2350,10 @@ struct CommunityComposerView: View {
                 }
             }
 
+            ComposerFormSection(title: "태그", detail: "") {
+                CustomTagInputSection(tags: $customTags, text: $customTagText)
+            }
+
             placeGallerySharingSection
             communityCrowdSection
         }
@@ -2192,6 +2413,69 @@ struct CommunityComposerView: View {
         }
     }
 
+    private var placeEditForm: some View {
+        Group {
+            ComposerFormSection(title: "장소명", detail: "") {
+                if let selectedSpot {
+                    selectedPlaceRow(selectedSpot)
+                }
+            }
+
+            ComposerFormSection(title: "소개", detail: "") {
+                messageField
+            }
+
+            ComposerFormSection(title: "테마", detail: "") {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 112), spacing: 8)], spacing: 8) {
+                    ForEach(SpotTheme.allCases) { theme in
+                        Button {
+                            editedTheme = theme
+                        } label: {
+                            Text(theme.title)
+                                .vfText(.caption.weight(.semibold))
+                                .foregroundStyle(editedTheme == theme ? AppColors.onAccent : AppColors.primary)
+                                .frame(maxWidth: .infinity, minHeight: 40)
+                                .background(
+                                    editedTheme == theme ? AppColors.accent : AppColors.mutedSurface,
+                                    in: Capsule()
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            ComposerFormSection(title: "태그", detail: "") {
+                CustomTagInputSection(tags: $customTags, text: $customTagText)
+            }
+
+            placeEditTextInput(title: "추천 이유", placeholder: "추천 이유", text: $editedReason)
+            placeEditTextInput(title: "추천 시간", placeholder: "추천 시간", text: $editedBestTime)
+            placeEditTextInput(title: "이용 시간", placeholder: "이용 시간", text: $editedOpeningHours)
+            placeEditTextInput(title: "입장/비용", placeholder: "입장/비용", text: $editedFeeInfo)
+            placeEditTextInput(title: "주차", placeholder: "주차 정보", text: $editedParkingInfo)
+            placeEditTextInput(title: "주변 주차", placeholder: "주변 주차 정보", text: $editedNearbyParkingInfo)
+        }
+    }
+
+    private func placeEditTextInput(
+        title: String,
+        placeholder: String,
+        text: Binding<String>
+    ) -> some View {
+        ComposerFormSection(title: title, detail: "") {
+            TextField(placeholder, text: text, axis: .vertical)
+                .vfText(.body)
+                .lineLimit(1...3)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 13)
+                .background(
+                    AppColors.mutedSurface,
+                    in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
+                )
+        }
+    }
+
     private var messageField: some View {
         ZStack(alignment: .topLeading) {
             TextEditor(text: $message)
@@ -2229,14 +2513,20 @@ struct CommunityComposerView: View {
                 // 전에는 AppColors.primary 였는데 다크에서 흰색이라
                 // 제출 버튼이 화면에서 가장 밝은 면이 됐습니다.
                 // VFDesign 의 앰버 허용 목록에 "주 동작" 이 있습니다.
-                Text(submitButtonTitle)
+                HStack(spacing: 8) {
+                    if isPreparingSubmission { ProgressView() }
+                    Text(isPreparingSubmission
+                         ? submissionProgressTitle
+                         : submitButtonTitle)
+                }
                     .vfText(.headline)
-                    .foregroundStyle(canSubmit ? AppColors.onAccent : AppColors.secondaryText.opacity(0.45))
+                    .foregroundStyle((canSubmit || isPreparingSubmission) ? AppColors.onAccent : AppColors.secondaryText.opacity(0.45))
+                    .tint(AppColors.onAccent)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .frame(minHeight: 52)
                     .background(
-                        canSubmit ? AppColors.accent : AppColors.mutedSurface,
+                        (canSubmit || isPreparingSubmission) ? AppColors.accent : AppColors.mutedSurface,
                         in: Capsule()
                     )
             }
@@ -2303,7 +2593,7 @@ struct CommunityComposerView: View {
                             .vfText(.headline)
                             .foregroundStyle(AppColors.primary)
 
-                        Text("최대 5장까지 등록할 수 있어요")
+                        Text("사진은 아직 저장되지 않아요. 사진 없이 등록할 수 있어요.")
                             .vfText(.caption)
                             .foregroundStyle(AppColors.secondaryText)
                     }
@@ -2769,7 +3059,8 @@ struct CommunityComposerView: View {
             guard !selectedSpotID.isEmpty else { return nil }
 
             if let selectedSearchedSpot,
-               selectedSearchedSpot.id == selectedSpotID {
+               selectedSearchedSpot.id == selectedSpotID,
+               spots.contains(where: { $0.id == selectedSpotID }) {
                 return selectedSearchedSpot
             }
 
@@ -2782,7 +3073,7 @@ struct CommunityComposerView: View {
             return spot
         }
 
-        if (locksSelectedSpot || purpose.isPhotoContribution),
+        if (locksSelectedSpot || purpose.isPhotoContribution || purpose.isPlaceEdit),
            let initialSpot {
             return initialSpot
         }
@@ -2795,12 +3086,18 @@ struct CommunityComposerView: View {
     }
 
     private var isSpotLocked: Bool {
-        locksSelectedSpot || purpose.isPhotoContribution || (purpose == .addSpot && editingPost != nil)
+        locksSelectedSpot || purpose.isPhotoContribution || purpose.isPlaceEdit || (purpose == .addSpot && editingPost != nil)
     }
 
     private var canSubmit: Bool {
         guard !isPreparingSubmission, hasChanges else {
             return false
+        }
+
+        if purpose.isPlaceEdit {
+            return selectedSpot != nil
+                && !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && hasPlaceChanges
         }
 
         if purpose.isPhotoContribution {
@@ -2820,6 +3117,19 @@ struct CommunityComposerView: View {
         }
 
         return true
+    }
+
+    private var hasPlaceChanges: Bool {
+        guard let spot = selectedSpot else { return false }
+        return message.trimmingCharacters(in: .whitespacesAndNewlines) != spot.summary
+            || customTags != Self.normalizedTags(spot.hashtags)
+            || editedTheme != spot.theme
+            || editedReason != spot.eventPeriod
+            || editedBestTime != spot.bestTime
+            || editedOpeningHours != spot.openingHours
+            || editedFeeInfo != spot.feeInfo
+            || editedParkingInfo != spot.parkingInfo
+            || editedNearbyParkingInfo != spot.nearbyParkingInfo
     }
 
     private var hasChanges: Bool {
@@ -2858,10 +3168,10 @@ struct CommunityComposerView: View {
 
         return title.trimmingCharacters(in: .whitespacesAndNewlines) != (editingPost.title ?? "")
             || message.trimmingCharacters(in: .whitespacesAndNewlines) != editingPost.message
-            || (selectedSpot?.id ?? "") != editingPost.spotID
+            || selectedSpotID != editingPost.spotID
             || selectedCaptureLocation != editingPost.captureLocation
             || selectedCommunityCrowd != existingCrowd
-            || selectedTags != Set(editingPost.tags)
+            || orderedSelectedTags != Self.normalizedTags(editingPost.tags)
             || photoDrafts.count + retainedRemoteAttachments.count != editingPost.publicPhotoAttachments.count
             || selectedPhotoData != editingPost.photoData
             || exifChanged
@@ -2871,12 +3181,50 @@ struct CommunityComposerView: View {
     private var orderedSelectedTags: [String] {
         switch purpose {
         case .fieldReport:
-            return statusTags.filter { selectedTags.contains($0) }
+            let pending = customTagText.components(separatedBy: CharacterSet(charactersIn: ",\n"))
+                .filter { Self.normalizedTag($0).count <= 20 }
+            return Array(Self.normalizedTags(customTags + pending).prefix(8))
         case .addSpot:
+            return customTags
+        case .editPlace:
             return customTags
         case .contributePhotos:
             return []
         }
+    }
+
+    private var hasUnsavedCommunityChanges: Bool {
+        guard purpose == .fieldReport else { return false }
+        if editingPost != nil { return hasChanges || !customTagText.isEmpty }
+        return !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !customTags.isEmpty
+            || !customTagText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || selectedSpotID != (initialSpot?.id ?? "")
+            || selectedCommunityCrowd != nil
+            || !photoDrafts.isEmpty
+    }
+
+    private var visiblePlaceSearchResults: [PlaceSearchResult] {
+        guard purpose == .fieldReport else { return placeFinder.results }
+        let registeredIDs = Set(spots.map(\.id))
+        return placeFinder.results.filter {
+            $0.availability == .registered && registeredIDs.contains($0.id)
+        }
+    }
+
+    private func requestComposerDismissal() {
+        dismissComposerKeyboard()
+        if hasUnsavedCommunityChanges {
+            isDiscardConfirmationPresented = true
+        } else {
+            dismiss()
+        }
+    }
+
+    private func dismissComposerKeyboard() {
+        focusedField = nil
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     private var communityPhotoCount: Int {
@@ -2897,9 +3245,15 @@ struct CommunityComposerView: View {
             return "공유하기"
         case .addSpot:
             return selectedSpotAlreadyRegistered ? "이미 등록된 장소" : "장소 추가하기"
+        case .editPlace:
+            return "장소 수정사항 저장"
         case .contributePhotos:
             return "사진 등록하기"
         }
+    }
+
+    private var submissionProgressTitle: String {
+        purpose == .fieldReport && editingPost == nil ? "게시 중…" : "저장 중…"
     }
 
     private var selectedSpotAlreadyRegistered: Bool {
@@ -2948,7 +3302,7 @@ struct CommunityComposerView: View {
                     .autocorrectionDisabled()
                     .onSubmit {
                         // 확인을 누르면 첫 결과를 고릅니다.
-                        guard let first = placeFinder.results.first else { return }
+                        guard let first = visiblePlaceSearchResults.first else { return }
                         handlePlaceSearchResult(first)
                     }
 
@@ -2988,9 +3342,25 @@ struct CommunityComposerView: View {
                 }
             }
 
-            if !placeFinder.results.isEmpty {
+            if purpose == .fieldReport,
+               selectedSpot == nil,
+               !selectedSpotID.isEmpty,
+               let editingPost,
+               editingPost.spotID == selectedSpotID {
+                HStack {
+                    Text(editingPost.spotName)
+                        .vfText(.callout)
+                    Text("연결된 장소를 찾을 수 없어요")
+                        .vfText(.caption)
+                        .foregroundStyle(AppColors.secondaryText)
+                    Spacer()
+                    Button("해제") { clearRelatedSpotSelection() }
+                }
+            }
+
+            if !visiblePlaceSearchResults.isEmpty {
                 VStack(spacing: 0) {
-                    ForEach(placeFinder.results) { result in
+                    ForEach(visiblePlaceSearchResults) { result in
                         Button {
                             handlePlaceSearchResult(result)
                         } label: {
@@ -3046,7 +3416,7 @@ struct CommunityComposerView: View {
                         }
                         .buttonStyle(.plain)
 
-                        if result.id != placeFinder.results.last?.id {
+                        if result.id != visiblePlaceSearchResults.last?.id {
                             Divider()
                                 .overlay(AppColors.divider)
                                 .padding(.leading, 40)
@@ -3069,7 +3439,8 @@ struct CommunityComposerView: View {
                 .accessibilityLabel("장소 검색 중")
             }
 
-            if placeFinder.hasNoResults {
+            if placeFinder.hasNoResults || (!placeFinder.isSearching && !placeSearchText.isEmpty
+                && placeFinder.results.isEmpty == false && visiblePlaceSearchResults.isEmpty) {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .vfIcon(14, relativeTo: .caption)
@@ -3118,13 +3489,17 @@ struct CommunityComposerView: View {
 
     private func submit() {
         guard canSubmit else { return }
+        if purpose == .fieldReport, !photoDrafts.isEmpty {
+            isPhotoUnavailablePresented = true
+            return
+        }
         focusedField = nil
         let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if purpose.isPhotoContribution {
             guard let spot = selectedSpot,
                   purpose.photoContributionPlaceID == spot.id else { return }
-        } else if purpose == .addSpot {
+        } else if purpose == .addSpot || purpose.isPlaceEdit {
             guard selectedSpot != nil else { return }
         }
 
@@ -3133,67 +3508,126 @@ struct CommunityComposerView: View {
         let shouldPublishExif = purpose == .fieldReport && isExifPublic
         let canShareToPlaceGallery = purpose == .fieldReport && selectedSpot != nil
         let submissionPurpose = purpose
-        let submissionSpot = selectedSpot
+        let submissionTags = orderedSelectedTags
+        let submissionSpot = purpose.isPlaceEdit
+            ? selectedSpot?.replacingEditablePlaceDetails(
+                summary: trimmedMessage,
+                hashtags: submissionTags,
+                theme: editedTheme,
+                reason: editedReason,
+                bestTime: editedBestTime,
+                openingHours: editedOpeningHours,
+                feeInfo: editedFeeInfo,
+                parkingInfo: editedParkingInfo,
+                nearbyParkingInfo: editedNearbyParkingInfo
+            )
+            : selectedSpot
         let submissionTitle = title
         let submissionLocation = selectedCaptureLocation
         let submissionCrowd = selectedCommunityCrowd
         let submissionPlaceCrowd = crowd
-        let submissionTags = orderedSelectedTags
-        let fallbackPhotoData = selectedPhotoData
+        let fallbackPhotoData = purpose == .addSpot ? nil : selectedPhotoData
+        let activeSubmissionID = submissionID
 
         isPreparingSubmission = true
+        submissionError = nil
         submissionPreparationTask?.cancel()
         submissionPreparationTask = Task { @MainActor in
-            let attachments = await Task.detached(priority: .userInitiated) {
-                Self.makePublicAttachments(
-                    drafts: drafts,
-                    retainedAttachments: retainedAttachments,
-                    shouldPublishExif: shouldPublishExif,
-                    canShareToPlaceGallery: canShareToPlaceGallery
-                )
-            }.value
+            let attachments: [CommunityPhotoAttachment]
+            if submissionPurpose == .addSpot {
+                // Place images are intentionally not persisted until Storage
+                // support is implemented; avoid encoding the selected files.
+                attachments = []
+            } else {
+                attachments = await Task.detached(priority: .userInitiated) {
+                    Self.makePublicAttachments(
+                        drafts: drafts,
+                        retainedAttachments: retainedAttachments,
+                        shouldPublishExif: shouldPublishExif,
+                        canShareToPlaceGallery: canShareToPlaceGallery
+                    )
+                }.value
+            }
 
             guard !Task.isCancelled else {
                 isPreparingSubmission = false
                 return
             }
 
-            if submissionPurpose.isPhotoContribution, let submissionSpot {
-                onSubmit(
-                    CommunityPostDraft(
-                        spot: submissionSpot,
-                        title: nil,
-                        message: "",
-                        photoAttachments: attachments
+            do {
+                if submissionPurpose.isPhotoContribution, let submissionSpot {
+                    try await onSubmit(
+                        CommunityPostDraft(
+                            spot: submissionSpot,
+                            title: nil,
+                            message: "",
+                            photoAttachments: attachments
+                        ), activeSubmissionID
                     )
-                )
-            } else if submissionPurpose == .addSpot, let submissionSpot {
-                onSubmit(
-                    CommunityPostDraft(
-                        spot: submissionSpot,
-                        message: trimmedMessage,
-                        crowd: submissionPlaceCrowd,
-                        tags: submissionTags,
-                        photoData: attachments.first?.imageData ?? fallbackPhotoData,
-                        photoAttachments: attachments
+                } else if submissionPurpose.isPlaceEdit, let submissionSpot {
+                    try await onSubmit(
+                        CommunityPostDraft(
+                            spot: submissionSpot,
+                            title: nil,
+                            message: submissionSpot.summary,
+                            tags: submissionTags
+                        ), activeSubmissionID
                     )
-                )
-            } else {
-                onSubmit(
-                    CommunityPostDraft(
-                        spot: submissionSpot,
-                        title: submissionTitle,
-                        captureLocation: submissionLocation,
-                        message: trimmedMessage,
-                        photoAttachments: attachments,
-                        crowd: submissionCrowd
+                } else if submissionPurpose == .addSpot, let submissionSpot {
+                    try await onSubmit(
+                        CommunityPostDraft(
+                            spot: submissionSpot,
+                            message: trimmedMessage,
+                            crowd: submissionPlaceCrowd,
+                            tags: submissionTags,
+                            photoData: attachments.first?.imageData ?? fallbackPhotoData,
+                            photoAttachments: attachments
+                        ), activeSubmissionID
                     )
-                )
-            }
+                } else {
+                    let preservedRelatedID = selectedSpot == nil && !selectedSpotID.isEmpty
+                        && selectedSpotID == editingPost?.spotID ? editingPost?.spotID : nil
+                    let preservedRelatedName = preservedRelatedID == nil ? nil : editingPost?.spotName
+                    try await onSubmit(
+                        CommunityPostDraft(
+                            spot: submissionSpot,
+                            title: submissionTitle,
+                            relatedSpotID: preservedRelatedID,
+                            relatedSpotName: preservedRelatedName,
+                            captureLocation: submissionLocation,
+                            message: trimmedMessage,
+                            tags: submissionTags,
+                            photoAttachments: attachments,
+                            crowd: submissionCrowd
+                        ), activeSubmissionID
+                    )
+                }
 
-            isPreparingSubmission = false
-            submissionPreparationTask = nil
-            dismiss()
+                isPreparingSubmission = false
+                submissionPreparationTask = nil
+                isPostSavedRemotely = false
+                // 현재 시도는 같은 ID로 재시도할 수 있게 유지하고,
+                // 성공 후 다음 새 글에는 새 ID를 사용합니다.
+                submissionID = UUID().uuidString
+                dismiss()
+            } catch {
+                isPreparingSubmission = false
+                submissionPreparationTask = nil
+                if let communityError = error as? FirebaseCommunityError,
+                   case .crowdReportPending = communityError {
+                    isPostSavedRemotely = true
+                    submissionError = communityError.localizedDescription
+                } else if purpose.isPlaceEdit {
+                    submissionError = "장소 수정사항을 저장하지 못했어요. 입력 내용은 유지돼요. 다시 시도해 주세요."
+                } else if purpose == .addSpot {
+                    submissionError = "장소를 추가하지 못했어요. 입력 내용은 유지돼요. 다시 시도해 주세요."
+                } else {
+                    submissionError = editingPost == nil
+                        ? "게시하지 못했어요. 작성한 내용은 유지돼요. 다시 시도해 주세요."
+                        : "변경사항을 저장하지 못했어요. 다시 시도해 주세요."
+                }
+                AppLog.persistence.error("Community save failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
@@ -3214,10 +3648,9 @@ struct CommunityComposerView: View {
 
     private func handlePlaceSearchResult(_ result: PlaceSearchResult) {
         if purpose == .fieldReport {
-            // 관련 출사지는 새 Place를 생성하지 않고, 검색 결과의
-            // stable ID/name만 게시글에 연결합니다. 등록된 결과는
-            // 기존 Place Detail과 연결되고, 외부 결과도 자유 글의
-            // 선택 정보로만 저장됩니다.
+            // 게시글의 관련 출사지는 활성 Firestore Place ID만 사용합니다.
+            guard result.availability == .registered,
+                  spots.contains(where: { $0.id == result.id }) else { return }
             if isSelectedPlaceSearchResult(result) {
                 clearRelatedSpotSelection()
             } else {
@@ -3272,7 +3705,7 @@ struct CommunityComposerView: View {
 
     private var isSelectedPlaceResultVisible: Bool {
         guard purpose == .fieldReport, !selectedSpotID.isEmpty else { return false }
-        return placeFinder.results.contains { $0.id == selectedSpotID }
+        return visiblePlaceSearchResults.contains { $0.id == selectedSpotID }
     }
 
     private func clearRelatedSpotSelection() {
@@ -4195,6 +4628,7 @@ struct FlexibleTagGrid: View {
 struct CustomTagInputSection: View {
     @Binding var tags: [String]
     @Binding var text: String
+    @FocusState private var isTagFocused: Bool
 
     private let maxTagCount = 8
 
@@ -4207,10 +4641,14 @@ struct CustomTagInputSection: View {
 
                 TextField("예: 야경, 한강, 필름감성", text: $text)
                     .vfText(.callout.weight(.regular))
+                    .focused($isTagFocused)
                     .submitLabel(.done)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .onSubmit(addTagsFromInput)
+                    .onSubmit {
+                        addTagsFromInput()
+                        isTagFocused = false
+                    }
                     .onChange(of: text) { _, newValue in
                         guard newValue.contains(",") || newValue.contains("\n") else { return }
                         addTagsFromInput()

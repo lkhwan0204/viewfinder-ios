@@ -38,18 +38,18 @@ final class PhotoSpotSearchViewModel: ObservableObject {
     }
 
     @Published var searchText = ""
-    @Published private(set) var verifiedSpots: [VerifiedPhotoSpot] = []
+    @Published private(set) var registeredSpots: [PhotoSpot] = []
     @Published private(set) var state: State = .idle
 
     private let localSeedDataService: LocalSeedDataService
-    private let cacheService: PhotoSpotCacheService
+    private let searchProvider: any SearchProvider
 
     init(
         localSeedDataService: LocalSeedDataService = LocalSeedDataService(),
-        cacheService: PhotoSpotCacheService = PhotoSpotCacheService()
+        searchProvider: any SearchProvider = LocalKeywordSearchProvider()
     ) {
         self.localSeedDataService = localSeedDataService
-        self.cacheService = cacheService
+        self.searchProvider = searchProvider
     }
 
     var isLoading: Bool {
@@ -79,36 +79,31 @@ final class PhotoSpotSearchViewModel: ObservableObject {
         }
     }
 
-    func search(userLocation: CLLocationCoordinate2D?) async {
+    func search(places: [PhotoSpot]? = nil, userLocation: CLLocationCoordinate2D?) async {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
             state = .idle
-            verifiedSpots = []
+            registeredSpots = []
             return
         }
 
         state = .loading
-
-        let localSpots = localSeedDataService.verifiedSpots(matching: query)
-        verifiedSpots = mergedSpots(localSpots)
-        state = verifiedSpots.isEmpty ? .empty : .loaded
+        let searchSource = places ?? localSeedDataService.allPhotoSpots()
+        registeredSpots = mergedSpots(
+            searchProvider.search(query: query, spots: searchSource, communityPosts: []).spots
+        )
+        state = registeredSpots.isEmpty ? .empty : .loaded
     }
 
     func clear() {
         searchText = ""
-        verifiedSpots = []
+        registeredSpots = []
         state = .idle
     }
 
-    private func mergedSpots(_ spots: [VerifiedPhotoSpot]) -> [VerifiedPhotoSpot] {
-        spots.reduce(into: [VerifiedPhotoSpot]()) { result, spot in
-            let normalizedKey = "\(spot.name)-\(spot.address)"
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-
-            guard !result.contains(where: {
-                $0.id == spot.id || "\($0.name)-\($0.address)".lowercased() == normalizedKey
-            }) else { return }
+    private func mergedSpots(_ spots: [PhotoSpot]) -> [PhotoSpot] {
+        spots.reduce(into: [PhotoSpot]()) { result, spot in
+            guard !result.contains(where: { $0.id == spot.id || $0.mapQuery == spot.mapQuery }) else { return }
 
             result.append(spot)
         }
