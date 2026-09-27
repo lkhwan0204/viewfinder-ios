@@ -4656,17 +4656,20 @@ struct CustomTagInputSection: View {
 
                 Button(action: addTagsFromInput) {
                     Image(systemName: "plus")
-                        // Dynamic Type 제외: 고정 32pt 태그 추가 버튼. 프레임이 안 커지므로 기호도 안 커진다.
+                        // Dynamic Type 제외: 고정 44pt 태그 추가 버튼. 프레임이 안 커지므로 기호도 안 커진다.
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(canAddTag ? AppColors.primary : AppColors.secondaryText.opacity(0.45))
-                        .frame(width: 32, height: 32)
+                        // 32pt 였던 터치 영역을 44pt 로 넓힙니다. (개선안 41)
+                        .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .disabled(!canAddTag)
             }
-            .padding(.horizontal, 13)
-            .padding(.vertical, 8)
+            // 버튼이 커진 만큼 여백을 줄여 입력칸 높이(48pt)와 + 위치는 전과 같게 둡니다.
+            .padding(.leading, 13)
+            .padding(.trailing, 7)
+            .padding(.vertical, 2)
             .frame(minHeight: 48)
             .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
 

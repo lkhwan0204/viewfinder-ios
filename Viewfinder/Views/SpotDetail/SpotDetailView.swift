@@ -478,7 +478,10 @@ struct SpotDetailView: View {
                                 .foregroundStyle(AppColors.primary)
                                 .frame(width: 36, height: 36)
                                 .background(.thinMaterial, in: Circle())
-                                .contentShape(Circle())
+                                // 보이는 원은 36pt 그대로, 누를 수 있는 영역만 44pt 로 넓힙니다. (개선안 41)
+                                // 원은 44pt 영역 가운데에 놓여 전보다 4pt 안쪽에 보입니다.
+                                .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
+                                .contentShape(Rectangle())
                         }
                         .menuStyle(.borderlessButton)
                         .accessibilityLabel("내 장소 관리")
@@ -761,6 +764,9 @@ struct SpotDetailPhotoGallery: View {
                                     .padding(.horizontal, 10)
                                     .frame(height: 28)
                                     .background(.black.opacity(0.46), in: Capsule())
+                                    // 보이는 캡슐은 28pt 그대로, 누를 수 있는 영역만 44pt 로 넓힙니다. (개선안 41)
+                                    .padding(.vertical, 8)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("이 장소에 사진 추가")
@@ -768,7 +774,9 @@ struct SpotDetailPhotoGallery: View {
 
                         Spacer(minLength: 0)
                     }
-                    .padding(10)
+                    // 위쪽 여백 10pt = 2pt + 넓힌 터치 영역 8pt. 캡슐 위치는 전과 같습니다.
+                    .padding(.horizontal, 10)
+                    .padding(.top, 2)
 
                     HStack(spacing: 8) {
                         if let attributionText {
