@@ -1072,7 +1072,7 @@ private struct HomeLoadingRailSection: View {
                     ForEach(0..<2, id: \.self) { _ in
                         HomeLoadingPhotoCard()
                             .containerRelativeFrame(.horizontal) { length, _ in
-                                length * (title == nil ? 0.42 : 0.46)
+                                length * VFPhoto.railWidthRatio
                             }
                     }
                 }
@@ -2113,7 +2113,7 @@ private struct HomeSpotRailSection: View {
                                 : recommendation.spot.name + ", " + HomeSpotDisplayFormatter.region(for: recommendation.spot)
                         )
                         .containerRelativeFrame(.horizontal) { length, _ in
-                            length * (!showsRank && displayRecommendations.count > 2 ? 0.42 : 0.46)
+                            length * VFPhoto.railWidthRatio
                         }
                     }
                 }
