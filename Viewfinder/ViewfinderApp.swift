@@ -76,10 +76,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             .font: UIFont.systemFont(ofSize: 10, weight: .medium)
         ]
 
-        // 선택 상태 = 브랜드 앰버.
-        itemAppearance.selected.iconColor = AppColors.uiAccent
+        // 선택 상태 = 잉크(다크 흰색 / 라이트 #111). (개선안 38)
+        //
+        // 전에는 브랜드 주황이었습니다. 가운데 + 아이콘도 늘 주황이라
+        // 탭바에 주황이 항상 두 개였고, 둘 다 선택된 것처럼 보였습니다.
+        // 주황은 "지금 하면 좋은 일"(제보)인 + 에만 남깁니다.
+        // 선택 구분은 색(흰색) + 형태(채운 아이콘, ContentView.AppTab)로 합니다.
+        let selectedColor = AppColors.uiPrimary
+        itemAppearance.selected.iconColor = selectedColor
         itemAppearance.selected.titleTextAttributes = [
-            .foregroundColor: AppColors.uiAccent,
+            .foregroundColor: selectedColor,
             .font: UIFont.systemFont(ofSize: 10, weight: .semibold)
         ]
 
@@ -93,7 +99,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         UIPageControl.appearance().currentPageIndicatorTintColor = .white
         UIPageControl.appearance().pageIndicatorTintColor = UIColor.white.withAlphaComponent(0.34)
 
-        UITabBar.appearance().tintColor = AppColors.uiAccent
+        UITabBar.appearance().tintColor = selectedColor
         UITabBar.appearance().unselectedItemTintColor = unselectedColor
     }
 }

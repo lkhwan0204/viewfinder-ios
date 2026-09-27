@@ -66,6 +66,20 @@ struct ContentView: View {
                 return "tab_my"
             }
         }
+
+        /// 선택된 탭에 쓰는 채운 아이콘입니다.
+        ///
+        /// 선택 색이 주황에서 흰색으로 바뀌면서, 색 차이만으로는 선택이
+        /// 약해졌습니다. 선 아이콘 → 면 아이콘으로 형태도 함께 바꿔 구분합니다.
+        /// + 탭은 누르면 바로 제보 화면으로 가서 선택 상태가 없으므로 그대로 둡니다.
+        var selectedAssetName: String {
+            switch self {
+            case .add:
+                return assetName
+            case .home, .map, .community, .my:
+                return assetName + "_selected"
+            }
+        }
     }
 
     @State private var selectedTab: AppTab = .home
@@ -674,6 +688,8 @@ struct ContentView: View {
                 onSearchDismissed: finishHomeSearchDismissal,
                 onPerformSearchAction: performAfterHomeSearchDismissal
             )
+            // 탭바는 흰색 tint 를 받지만, 탭 화면 안의 버튼·토글은 브랜드 주황을 유지합니다.
+            .tint(AppColors.accent)
             .tag(AppTab.home)
             .tabItem {
                 tabItemLabel(for: .home)
@@ -681,6 +697,7 @@ struct ContentView: View {
             .vfOpaqueTabBar()
 
             mapLayer
+                .tint(AppColors.accent)
                 .tag(AppTab.map)
                 .tabItem {
                     tabItemLabel(for: .map)
@@ -736,6 +753,7 @@ struct ContentView: View {
                 },
                 communityViewModel: communityViewModel
             )
+            .tint(AppColors.accent)
             .tag(AppTab.community)
             .tabItem {
                 tabItemLabel(for: .community)
@@ -795,12 +813,21 @@ struct ContentView: View {
                     authViewModel.signOut()
                 }
             )
+            .tint(AppColors.accent)
             .tag(AppTab.my)
             .tabItem {
                 tabItemLabel(for: .my)
             }
             .vfOpaqueTabBar()
         }
+        // 탭바 선택 색은 흰색(라이트 모드에서는 #111)입니다. (개선안 38)
+        //
+        // 가운데 + 아이콘이 늘 주황이라, 선택된 탭까지 주황이면 탭바에
+        // 주황이 두 개가 되어 둘 다 선택된 것처럼 보였습니다.
+        // 주황은 + (제보) 에만 남기고, 선택은 흰색 + 채운 아이콘으로 구분합니다.
+        // AppDelegate 의 UITabBarAppearance 와 같은 값이며, appearance 를
+        // 따르지 않는 OS 에서도 같은 색이 되도록 SwiftUI tint 로도 겁니다.
+        .tint(AppColors.primary)
         // ═══════════════════════════════════════════════════════════
         //  탭바 배경을 SwiftUI 쪽에서 지정합니다. (시도 A)
         //
@@ -855,7 +882,7 @@ struct ContentView: View {
                 Label {
                     Text(tab.title)
                 } icon: {
-                    Image(tab.assetName)
+                    Image(selectedTab == tab ? tab.selectedAssetName : tab.assetName)
                         .renderingMode(.template)
                 }
             }
