@@ -311,15 +311,116 @@ extension View {
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  iOS 26: 스크롤을 내리면 탭바가 작은 캡슐로 줄어듭니다. (개선안 38)
+//  iOS 26: 스크롤 방향에 맞춰 탭바를 줄이고 다시 펼칩니다. (개선안 38)
 //
-//  시스템 동작이라 앱이 탭바 위치를 직접 계산하거나 옮기지 않습니다.
+//  [문제였던 상황]
+//  .tabBarMinimizeBehavior(.onScrollDown) 만 걸었더니, 스크롤을 내리면
+//  탭바가 줄어들지만 천천히 다시 올려도 펼쳐지지 않았습니다.
+//  맨 위까지 올라가야만 펼쳐졌습니다. (실기기 iOS 26 확인.
+//  같은 증상이 개발자 포럼·Stack Overflow 에도 보고되어 있습니다)
+//
+//  [해결]
+//  탭 화면의 세로 스크롤을 직접 보고, 방향이 바뀌는 순간 동작을 바꿉니다.
+//   - 위로 8pt 이상 올리면   .never        시스템이 탭바를 바로 펼칩니다.
+//   - 아래로 16pt 이상 내리면 .onScrollDown 시스템이 다시 줄입니다.
+//  속도가 아니라 누적 거리로 판단하므로 천천히 올려도 펼쳐집니다.
+//  맨 위·맨 아래에서 튕기는 구간은 방향 판단에서 빼서 깜빡이지 않게 합니다.
+//
+//  시작 값은 .never(펼침)입니다. 실행 직후부터 .onScrollDown 이면
+//  첫 탭이 잠깐 보였다가 바뀌는 문제가 보고되어 있고, .never 로 시작해
+//  나중에 바꾸면 생기지 않는다고 합니다. 첫 스크롤을 내릴 때 바뀝니다.
+//
 //  iOS 17~18 에서는 아무 것도 하지 않습니다.
 // ─────────────────────────────────────────────────────────────────
+
+/// 세로 스크롤 위치 한 번의 기록입니다.
+struct VFTabBarScrollSample: Equatable, Sendable {
+    /// 맨 위가 0 입니다. (contentOffset.y + contentInsets.top)
+    let offset: CGFloat
+    /// 맨 아래에 닿았을 때의 offset 입니다.
+    let maxOffset: CGFloat
+
+    /// 맨 위보다 위, 맨 아래보다 아래로 튕기는 구간이 아닌지.
+    var isWithinContent: Bool {
+        offset >= 0 && offset <= maxOffset
+    }
+}
+
+@MainActor
+final class VFTabBarScrollObserver: ObservableObject {
+    static let shared = VFTabBarScrollObserver()
+
+    /// 이만큼 위로 올리면 탭바를 펼칩니다. 속도와 무관한 누적 거리입니다.
+    static let expandDistance: CGFloat = 8
+    /// 이만큼 아래로 내리면 시스템이 다시 탭바를 줄일 수 있게 합니다.
+    /// 펼치는 거리보다 길게 두어, 손가락을 뗄 때의 작은 흔들림에 반응하지 않게 합니다.
+    static let minimizeDistance: CGFloat = 16
+
+    /// true: 탭바를 펼쳐 둡니다(.never).  false: 스크롤을 내리면 줄어듭니다(.onScrollDown).
+    @Published private(set) var keepsTabBarExpanded = true
+
+    private var upwardDistance: CGFloat = 0
+    private var downwardDistance: CGFloat = 0
+
+    private init() {}
+
+    func scrollChanged(from old: VFTabBarScrollSample, to new: VFTabBarScrollSample) {
+        // 내용이 화면보다 짧으면 줄어들 일이 없습니다. 가로 레일도 여기서 걸러집니다.
+        guard new.maxOffset > 1 else { return }
+        // 튕기는 구간은 방향 판단에 쓰지 않습니다.
+        guard old.isWithinContent, new.isWithinContent else { return }
+
+        let delta = new.offset - old.offset
+        if delta < 0 {
+            upwardDistance += -delta
+            downwardDistance = 0
+            if upwardDistance >= Self.expandDistance {
+                setKeepsTabBarExpanded(true)
+            }
+        } else if delta > 0 {
+            downwardDistance += delta
+            upwardDistance = 0
+            if downwardDistance >= Self.minimizeDistance {
+                setKeepsTabBarExpanded(false)
+            }
+        }
+    }
+
+    private func setKeepsTabBarExpanded(_ value: Bool) {
+        // 방향이 바뀔 때만 알립니다. 스크롤할 때마다 화면을 다시 그리지 않습니다.
+        guard keepsTabBarExpanded != value else { return }
+        keepsTabBarExpanded = value
+    }
+}
+
 private struct VFTabBarMinimizeOnScroll: ViewModifier {
+    @ObservedObject private var scrollObserver = VFTabBarScrollObserver.shared
+
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content.tabBarMinimizeBehavior(.onScrollDown)
+            content.tabBarMinimizeBehavior(
+                scrollObserver.keepsTabBarExpanded ? .never : .onScrollDown
+            )
+        } else {
+            content
+        }
+    }
+}
+
+private struct VFTabBarScrollReporter: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.onScrollGeometryChange(for: VFTabBarScrollSample.self) { geometry in
+                VFTabBarScrollSample(
+                    offset: geometry.contentOffset.y + geometry.contentInsets.top,
+                    maxOffset: geometry.contentSize.height
+                        + geometry.contentInsets.top
+                        + geometry.contentInsets.bottom
+                        - geometry.containerSize.height
+                )
+            } action: { oldValue, newValue in
+                VFTabBarScrollObserver.shared.scrollChanged(from: oldValue, to: newValue)
+            }
         } else {
             content
         }
@@ -327,9 +428,15 @@ private struct VFTabBarMinimizeOnScroll: ViewModifier {
 }
 
 extension View {
-    /// TabView 에 붙입니다. iOS 26 에서만 스크롤 시 탭바를 줄입니다.
+    /// TabView 에 붙입니다. iOS 26 에서만 스크롤 방향에 맞춰 탭바를 줄이고 펼칩니다.
     func vfTabBarMinimizeOnScroll() -> some View {
         modifier(VFTabBarMinimizeOnScroll())
+    }
+
+    /// 탭 화면의 세로 ScrollView 에 붙입니다. 위로 올리는 순간 탭바가 다시 펼쳐집니다.
+    /// 붙이지 않은 화면은 시스템 기본 동작(맨 위에서만 펼침)을 따릅니다.
+    func vfReportsTabBarScroll() -> some View {
+        modifier(VFTabBarScrollReporter())
     }
 }
 

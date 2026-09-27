@@ -620,6 +620,8 @@ struct HomeFeedView: View {
                 onThresholdChange: handleRefreshThresholdChange
             )
         )
+        // iOS 26: 위로 조금만 올려도 줄어든 탭바가 다시 펼쳐지게 합니다.
+        .vfReportsTabBarScroll()
         .onPreferenceChange(HomePullOffsetPreferenceKey.self) { offset in
             guard #unavailable(iOS 18.0) else {
                 return

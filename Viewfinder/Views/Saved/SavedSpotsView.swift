@@ -119,6 +119,8 @@ struct MyTabView: View {
                 }
                 .coordinateSpace(name: "my-tab-scroll")
                 .onPreferenceChange(MyTabScrollOffsetPreferenceKey.self, perform: updateTabBarVisibility)
+                // iOS 26: 위로 조금만 올려도 줄어든 탭바가 다시 펼쳐지게 합니다.
+                .vfReportsTabBarScroll()
                 .background(AppColors.background.ignoresSafeArea())
                 .onAppear {
                     updateTabBarVisibility(0)

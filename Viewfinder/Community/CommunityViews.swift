@@ -116,6 +116,8 @@ struct CommunityTabView: View {
                     .vfScrollBottomInset()
                 }
             }
+            // iOS 26: 위로 조금만 올려도 줄어든 탭바가 다시 펼쳐지게 합니다.
+            .vfReportsTabBarScroll()
             .background(AppColors.background.ignoresSafeArea())
             .refreshable { communityViewModel.refreshPosts() }
             .navigationTitle("커뮤니티")
@@ -895,6 +897,7 @@ struct CommunityPostDetailView: View {
                 .padding(.top, VFSpace.md)
                 .padding(.bottom, VFSpace.md)
             }
+            .vfReportsTabBarScroll()
             .safeAreaInset(edge: .bottom) {
                 commentComposer
             }
