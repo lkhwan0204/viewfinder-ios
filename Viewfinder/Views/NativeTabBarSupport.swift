@@ -236,6 +236,24 @@ final class NativeTabBarVisibilityController: NSObject {
         tabBarAnimator.startAnimation()
     }
 
+    /// 숨겨 둔 탭바가 제자리로 돌아와 있으면 다시 숨깁니다. (스크롤하는 동안 부릅니다)
+    ///
+    /// 탭바는 앱이 transform 으로 밀어 둔 것이라, 시스템이 탭바를 다시 배치하면서
+    /// 제자리로 되돌려 놓을 수 있습니다. 애니메이션 중이면 건드리지 않습니다.
+    func keepHiddenIfNeeded() {
+        guard Thread.isMainThread,
+              currentHiddenState,
+              animator == nil,
+              !isInteracting,
+              let tabBar else { return }
+
+        hideProgress = 1
+        let expected = tabBarTransform
+        guard tabBar.transform != expected else { return }
+        tabBar.transform = expected
+        tabBar.isUserInteractionEnabled = false
+    }
+
     // MARK: - Geometry
 
     private var tabBarTransform: CGAffineTransform {
@@ -332,8 +350,14 @@ extension View {
 //     사진 크기를 정하는 화면이 스크롤 도중 출렁입니다.
 //   - 아래로 16pt 내리면 숨고, 위로 8pt 올리면 보입니다. 속도가 아니라 누적 거리라서
 //     천천히 올려도 보입니다. 맨 위 24pt 안에서는 늘 보입니다.
+//   - "위로" 는 사용자가 올릴 때만 셉니다. (손가락으로 끌어 올리는 중, 위로 튕겨 올린 뒤의 관성)
+//     아래로 세게 내리면 손을 뗀 뒤 관성으로 맨 아래까지 가서 튕겨 돌아오는데, 이 돌아오는
+//     움직임을 "위로 올림" 으로 세면 탭바가 다시 나왔습니다. (실기기 확인) 그래서 스크롤 단계
+//     (onScrollPhaseChange: 손가락 닿음 / 관성)를 같이 보고, 목록 높이가 바뀌면서 위치가 위로
+//     보정된 순간도 세지 않습니다.
 //   - 맨 위 · 맨 아래에서 튕기는 구간은 방향 판단에 쓰지 않습니다.
 //   - 화면이 나타날 때 · 탭을 바꿀 때는 보이는 상태로 시작합니다.
+//   - 숨겨 둔 탭바를 시스템이 제자리로 돌려놓으면, 다음 스크롤 때 다시 숨깁니다.
 //   - 보이스오버 · 스위치 제어를 쓰는 중에는 숨기지 않습니다. 숨은 탭바로는 갈 수 없습니다.
 //
 //  iOS 17~18 은 스크롤을 보고하지 않으므로 전과 같습니다. (탭바가 늘 보임)
@@ -363,13 +387,24 @@ struct VFTabBarAutoHideRule: Equatable, Sendable {
     static let revealDistance: CGFloat = 8
     /// 맨 위에서 이 거리 안이면 늘 보입니다.
     static let topZone: CGFloat = 24
+    /// 스크롤 한 번 사이에 끝 위치(목록 높이)가 이보다 많이 바뀌면, 그때 위로 옮겨진 만큼은 세지 않습니다.
+    static let contentChangeTolerance: CGFloat = 0.5
 
     private(set) var isHidden = false
     private var upwardDistance: CGFloat = 0
     private var downwardDistance: CGFloat = 0
+    /// 손가락으로 마지막에 움직인 방향이 위였는지. 손을 뗀 뒤 관성의 방향을 가립니다.
+    private var lastDragMovedUp = false
 
     /// 스크롤 한 번을 반영합니다. 숨김 여부가 바뀌었으면 true.
-    mutating func scrollChanged(from old: VFTabBarScrollSample, to new: VFTabBarScrollSample) -> Bool {
+    ///
+    /// - Parameter isDragging: 손가락이 화면에 닿은 채 스크롤하는 중인지.
+    ///   손을 뗀 뒤의 관성 · 튕김이면 false.
+    mutating func scrollChanged(
+        from old: VFTabBarScrollSample,
+        to new: VFTabBarScrollSample,
+        isDragging: Bool
+    ) -> Bool {
         // 맨 위 근처(당겨서 튕기는 구간 포함)와 화면보다 짧은 내용에서는 늘 보입니다.
         guard new.offset > Self.topZone, new.maxOffset > Self.topZone else {
             return reveal()
@@ -378,13 +413,28 @@ struct VFTabBarAutoHideRule: Equatable, Sendable {
         guard old.isWithinContent, new.isWithinContent else { return false }
 
         let delta = new.offset - old.offset
+        // 스크롤 도중 목록 높이가 바뀌면(아래 칸이 새로 그려지거나, 사진이 늦게 들어와 칸 높이가
+        // 바뀌면) 시스템이 보던 자리를 지키려고 위치를 옮깁니다. 그때 위로 옮겨진 만큼은 사용자가
+        // 올린 것이 아니므로 세지 않습니다. 내리는 쪽은 그대로 셉니다.
+        let contentHeightChanged = abs(new.maxOffset - old.maxOffset) > Self.contentChangeTolerance
+
+        if isDragging, delta != 0, !contentHeightChanged {
+            lastDragMovedUp = delta < 0
+        }
+
         if delta < 0 {
+            // 위로 가는 움직임은 사용자가 올릴 때만 셉니다.
+            //  - 손가락으로 끌어 올리는 중
+            //  - 위로 튕겨 올린 뒤의 관성
+            // 아래로 세게 내린 뒤의 관성, 맨 아래에서 튕겨 돌아오는 움직임은 세지 않습니다.
+            guard !contentHeightChanged, isDragging || lastDragMovedUp else { return false }
             upwardDistance += -delta
             downwardDistance = 0
             if upwardDistance >= Self.revealDistance {
                 return setHidden(false)
             }
         } else if delta > 0 {
+            // 내리는 움직임은 손가락이든 관성이든 셉니다. 아래로 튕겨 내려도 숨습니다.
             downwardDistance += delta
             upwardDistance = 0
             if downwardDistance >= Self.hideDistance {
@@ -398,6 +448,7 @@ struct VFTabBarAutoHideRule: Equatable, Sendable {
     mutating func reveal() -> Bool {
         upwardDistance = 0
         downwardDistance = 0
+        lastDragMovedUp = false
         return setHidden(false)
     }
 
@@ -423,14 +474,21 @@ final class VFTabBarScrollObserver {
     private init() {}
 
     /// 세로 스크롤 위치가 바뀔 때마다 부릅니다. (vfReportsTabBarScroll)
-    func scrollChanged(from old: VFTabBarScrollSample, to new: VFTabBarScrollSample) {
+    ///
+    /// - Parameter isDragging: 손가락이 화면에 닿은 채 스크롤하는 중인지. 관성 · 튕김이면 false.
+    func scrollChanged(from old: VFTabBarScrollSample, to new: VFTabBarScrollSample, isDragging: Bool) {
         // 보이스오버 · 스위치 제어로는 숨은 탭바로 갈 수 없으므로 숨기지 않습니다.
         guard !Self.isAssistiveNavigationRunning else {
             reveal()
             return
         }
-        guard rule.scrollChanged(from: old, to: new) else { return }
-        NativeTabBarVisibilityController.shared.setHidden(rule.isHidden, animated: Self.animatesChanges)
+
+        if rule.scrollChanged(from: old, to: new, isDragging: isDragging) {
+            NativeTabBarVisibilityController.shared.setHidden(rule.isHidden, animated: Self.animatesChanges)
+        } else if rule.isHidden {
+            // 규칙은 "숨김" 인데 탭바가 제자리에 돌아와 있으면 다시 숨깁니다.
+            NativeTabBarVisibilityController.shared.keepHiddenIfNeeded()
+        }
     }
 
     /// 탭바를 보이게 하고 방향 판단을 처음부터 다시 합니다.
@@ -464,13 +522,31 @@ private struct VFTabBarSystemMinimizeDisabled: ViewModifier {
     }
 }
 
+/// 스크롤 화면 하나의 스크롤 단계입니다.
+///
+/// 스크롤할 때마다 바뀌는 값이라, 바뀌어도 화면을 다시 그리지 않도록 클래스에 담습니다.
+private final class VFScrollPhaseTracker {
+    /// 손가락이 닿은 채 스크롤하는 중인지. 손을 뗀 뒤의 관성 · 튕김이면 false.
+    var isDragging = false
+    /// 이 화면이 스크롤 단계를 한 번이라도 알려준 적이 있는지.
+    var reportsPhases = false
+}
+
 private struct VFTabBarScrollReporter: ViewModifier {
     /// false 면 이 화면에서는 탭바를 숨기지 않습니다.
     let hidesTabBar: Bool
 
+    @State private var phase = VFScrollPhaseTracker()
+
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             content
+                // 손가락으로 끄는 중인지, 손을 뗀 뒤 관성으로 움직이는 중인지 구분합니다.
+                // 아래로 세게 내린 뒤 맨 아래에서 튕겨 돌아오는 움직임을 "위로 올림" 으로 세지 않기 위해서입니다.
+                .onScrollPhaseChange { _, newPhase in
+                    phase.reportsPhases = true
+                    phase.isDragging = newPhase == .interacting
+                }
                 .onScrollGeometryChange(for: VFTabBarScrollSample.self) { geometry in
                     VFTabBarScrollSample(
                         offset: geometry.contentOffset.y + geometry.contentInsets.top,
@@ -481,7 +557,13 @@ private struct VFTabBarScrollReporter: ViewModifier {
                     )
                 } action: { oldValue, newValue in
                     guard hidesTabBar else { return }
-                    VFTabBarScrollObserver.shared.scrollChanged(from: oldValue, to: newValue)
+                    // 스크롤 단계를 알려주지 않는 화면은 전처럼 모든 움직임을 손가락 움직임으로 봅니다.
+                    let isDragging = phase.reportsPhases ? phase.isDragging : true
+                    VFTabBarScrollObserver.shared.scrollChanged(
+                        from: oldValue,
+                        to: newValue,
+                        isDragging: isDragging
+                    )
                 }
                 // 화면은 탭바가 보이는 상태로 시작합니다. 숨긴 채로 들어오면 탭을 바꿀 수 없습니다.
                 .onAppear {
