@@ -877,16 +877,13 @@ struct ContentView: View {
         // ═══════════════════════════════════════════════════════════
         // iOS 26 에서는 위 배경 강제를 적용하지 않고 시스템 유리 탭바를 씁니다. (개선안 38)
         .vfOpaqueTabBar()
-        .vfTabBarMinimizeOnScroll()
+        // iOS 26 시스템 탭바 줄이기를 끕니다. 스크롤할 때 숨기고 보이는 것은 아래
+        // 컨트롤러가 합니다. 경위는 NativeTabBarSupport 의 VFTabBarScrollObserver 주석에 있습니다.
+        .vfTabBarHidesOnScroll()
         .background {
-            if #available(iOS 26.0, *) {
-                // iOS 26 은 시스템이 탭바를 줄이므로 직접 옮기는 컨트롤러를 붙이지 않습니다.
-                // 두 방식이 같은 탭바를 동시에 건드리지 않게 합니다. (개선안 38)
-                EmptyView()
-            } else {
-                NativeTabBarAnimator()
+            // 탭바를 찾아 숨김 · 보임 컨트롤러에 연결합니다. 모든 iOS 버전에서 붙입니다.
+            NativeTabBarAnimator()
                 .allowsHitTesting(false)
-            }
         }
         .animation(nil, value: selectedTab)
     }
@@ -1079,7 +1076,14 @@ struct ContentView: View {
     }
 
     private func setHomeTabBarHidden(_ shouldHide: Bool) {
-        NativeTabBarVisibilityController.shared.setHidden(shouldHide, animated: true)
+        guard shouldHide else {
+            // 보이게 할 때는 스크롤 관찰자를 거칩니다. 관찰자가 기억하는 "숨김" 과
+            // 실제 탭바가 어긋나면, 다음에 스크롤을 내려도 탭바가 숨지 않습니다.
+            // (탭을 바꿀 때 · 작성 화면을 열 때 · 홈이 나타날 때 여기로 옵니다)
+            VFTabBarScrollObserver.shared.reveal()
+            return
+        }
+        NativeTabBarVisibilityController.shared.setHidden(true, animated: true)
     }
 
     private func activateMapRecommendationsForTabEntry() {

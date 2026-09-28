@@ -46,7 +46,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             // (ContentView 의 "시도 A" 주석), 시스템 재질을 억지로 막으면
             // 같은 탭바가 화면마다 다른 색으로 보였습니다.
             // 배경은 시스템에 맡기고 선택·비선택 색만 지정합니다.
-            // 스크롤 시 축소는 ContentView 의 vfTabBarMinimizeOnScroll() 이 담당합니다.
+            // 스크롤할 때 숨기고 보이는 것은 NativeTabBarSupport 의 VFTabBarScrollObserver 가 합니다.
             appearance.configureWithDefaultBackground()
         } else {
             // iOS 17~18 은 기존대로 불투명 surface2 를 유지합니다.

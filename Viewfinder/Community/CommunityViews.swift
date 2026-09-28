@@ -116,7 +116,7 @@ struct CommunityTabView: View {
                     .vfScrollBottomInset()
                 }
             }
-            // iOS 26: 위로 조금만 올려도 줄어든 탭바가 다시 펼쳐지게 합니다.
+            // iOS 26: 내리면 탭바가 숨고, 위로 조금만 올려도 다시 보입니다.
             .vfReportsTabBarScroll()
             .background(AppColors.background.ignoresSafeArea())
             .refreshable { communityViewModel.refreshPosts() }
@@ -897,7 +897,9 @@ struct CommunityPostDetailView: View {
                 .padding(.top, VFSpace.md)
                 .padding(.bottom, VFSpace.md)
             }
-            .vfReportsTabBarScroll()
+            // 아래에 댓글 입력창이 붙어 있어서 이 화면에서는 탭바를 숨기지 않습니다.
+            // 숨기면 입력창 아래 탭바 자리가 비어 보입니다. 들어올 때 탭바를 다시 보이게만 합니다.
+            .vfReportsTabBarScroll(hidesTabBar: false)
             .safeAreaInset(edge: .bottom) {
                 commentComposer
             }
