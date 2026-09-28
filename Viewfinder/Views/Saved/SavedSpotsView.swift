@@ -2,24 +2,30 @@ import SwiftUI
 import UIKit
 
 // ═══════════════════════════════════════════════════════════════════
-//  마이 탭 — 2차 개편
+//  마이 탭 — 3차 개편: 홈과 같은 언어로
 //
-//  [1차 개편 뒤 실기기에서 보인 문제]
-//  - 프로필의 개수 3칸(저장 · 추가한 장소 · 글)을 누르면 같은 화면 아래
-//    섹션으로 스크롤됐습니다. 개수와 섹션이 같은 내용을 두 번 보여줬습니다.
-//  - 사진이 없는 사용자는 회색 상자만 다섯 개 쌓인 화면이었습니다.
-//  - 스크롤하면 "마이" 제목이 상태바 시계와 겹쳐 보였습니다.
+//  [2차가 앱과 어긋났던 이유]
+//  앱 어디에도 없는 모양을 새로 만들었습니다.
+//   - 모서리 괄호 장식, 주황 빛이 번지는 배경
+//     (VFPalette 규칙: 주황은 큰 면적 배경에 쓰지 않는다)
+//   - 40pt 숫자 타일, 타일 속 워터마크 아이콘, 누르면 작아지는 버튼
+//   - 큰 내비게이션 제목, 주황 캡슐 버튼
+//  홈 · 커뮤니티 · 상세는 "사진이 주인공, 검정 캔버스, 사진 위 흰 글자,
+//  작은 계기판 글씨" 로 말합니다. 마이만 다른 앱처럼 보였습니다.
 //
-//  [지금]
-//    커버      뷰파인더 프레임 + 골든아워 빛. 저장한 사진이 있으면 그 사진.
-//              디자인 시스템 이름 "Frame & Light" 를 그대로 화면으로 옮겼습니다.
-//    타일 3개  저장한 장소 · 추가한 장소 · 내 글. 누르면 각각 전용 화면이 열립니다.
-//              개수가 곧 입구라서 같은 내용을 두 번 보여주지 않습니다.
-//              사진이 있으면 사진이 배경, 없으면 큰 숫자가 주인공입니다.
-//    톱니바퀴  화면 모드 · 사진 취향 · 로그인/로그아웃은 설정 화면으로.
+//  [지금] 새 모양을 만들지 않고, 앱에 이미 있는 부품과 규칙만 씁니다.
+//    커버        홈 Hero 와 같은 전면 사진. 사진 위에 이름(display) + 계기판 한 줄.
+//                왼쪽 위 유리 pill · 오른쪽 위 유리 원 버튼도 홈과 같은 자리 · 크기입니다.
+//    저장한 장소  홈 레일과 같은 카드(HomePhotoCard 4:5) · 같은 폭(42%).
+//    내 활동      추가한 장소 · 내 글. 누르면 각각 전용 화면이 열립니다.
+//    전용 화면    저장한 장소 = 홈 2열 그리드 + 홈 테마 칩
+//                추가한 장소 = 홈 카테고리 목록과 같은 행
+//                내 글       = 커뮤니티 피드 카드(CommunityPostCard) 그대로
+//                설정        = 커버 오른쪽 위 톱니바퀴
+//                제목은 앱의 다른 화면처럼 작은(inline) 제목입니다.
+//    빈 상태      앱 공용 AppStatePanel.
 //
-//  주황은 게스트의 "로그인" 버튼과 빈 화면의 첫 행동 버튼에만 씁니다.
-//  커버의 주황 빛은 채움이 아니라 22% 에서 0 으로 사라지는 빛입니다.
+//  주황은 게스트의 "로그인" 버튼과 빈 상태의 첫 행동에만 씁니다.
 // ═══════════════════════════════════════════════════════════════════
 
 struct MyTabView: View {
@@ -34,7 +40,7 @@ struct MyTabView: View {
     let communityViewModel: CommunityViewModel
     let onTabBarVisibilityChange: (Bool) -> Void
     let onSelectSpot: (PhotoSpot) -> Void
-    /// 저장한 장소 화면에서 길게 눌러 저장을 해제합니다.
+    /// 저장한 장소 카드를 길게 눌러 저장을 해제합니다.
     let onToggleSave: (PhotoSpot) -> Void
     let onEditPost: (CommunityPost) -> Void
     let onDeletePost: (CommunityPost) async throws -> Void
@@ -49,13 +55,19 @@ struct MyTabView: View {
     let onCompose: () -> Void
     let onResetTaste: () -> Void
     let onSignOut: () -> Void
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private static let coverTopBarHeight: CGFloat = 44
-    private static let frameInset: CGFloat = AppLayout.pageHorizontalPadding
-    private static let frameCornerLength: CGFloat = 22
-    /// 프레임 안에서 글자가 시작하는 곳. 프레임 여백 + 16pt.
-    private static let frameContentInset: CGFloat = frameInset + VFSpace.md + VFSpace.xs
+    /// 온보딩에서 고른 사진 취향. 커버로 쓸 저장 사진이 없을 때 1순위 사진이 커버가 됩니다.
+    /// 취향을 다시 고르면 저장 값이 바뀌고, 커버도 바로 따라 바뀝니다.
+    @AppStorage(TastePreferenceStore.preferenceKey) private var tastePreferenceData: Data?
+
+    /// 커버가 차지할 화면 높이 비율.
+    ///
+    /// 홈 Hero(0.64)보다 낮춥니다. 첫 화면에서 저장한 장소 카드가 끝까지 보이고
+    /// 그 아래 "내 활동" 제목이 걸쳐 보여야 아래에 더 있다는 게 드러납니다.
+    /// (iPhone 16 Pro 기준: 커버 약 411pt, 카드 끝 약 710pt, "내 활동" 제목 약 742pt, 탭바 위쪽 끝 약 791pt)
+    private static let coverHeightRatio: CGFloat = 0.52
+    /// 첫 화면 레일에 올리는 카드 수. 나머지는 "더보기" 의 격자에서 봅니다.
+    private static let railLimit = 10
 
     // MARK: - 데이터
 
@@ -66,21 +78,43 @@ struct MyTabView: View {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
-    /// 사진이 있는 저장 장소. 커버와 저장 타일에 씁니다.
+    /// 사진이 있는 저장 장소.
     private var savedPhotoSpots: [PhotoSpot] {
         savedSpots.filter(\.hasReliableDisplayImage)
     }
 
-    /// 사진이 2장 이상일 때만 첫 장을 커버로 씁니다.
-    /// 1장뿐이면 타일에만 두어, 같은 사진이 커버와 타일에 두 번 나오지 않게 합니다.
-    private var coverSpot: PhotoSpot? {
-        savedPhotoSpots.count >= 2 ? savedPhotoSpots.first : nil
+    /// 커버 사진. 저장 사진 → 사진 취향 1순위 → 기본 사진 순서로 고릅니다.
+    ///
+    /// 저장 사진은 2장 이상일 때만 첫 장을 씁니다. 1장뿐이면 레일에만 둬서
+    /// 같은 사진이 커버와 바로 아래 카드에 두 번 나오지 않게 합니다.
+    /// 취향 · 기본 사진은 번들 사진이라 네트워크 없이도 늘 보입니다.
+    private var cover: MyCover {
+        if savedPhotoSpots.count >= 2, let first = savedPhotoSpots.first {
+            return .saved(first)
+        }
+        if let assetName = tasteCoverAssetName {
+            return .taste(assetName: assetName)
+        }
+        if let assetName = TasteOnboardingCatalog.photos.first?.assetName {
+            return .suggestion(assetName: assetName)
+        }
+        return .blank
     }
 
-    /// 저장 타일 모자이크. 커버에 쓴 사진은 빼고 최대 3장입니다.
-    private var mosaicSpots: [PhotoSpot] {
-        let source = coverSpot == nil ? savedPhotoSpots : Array(savedPhotoSpots.dropFirst())
-        return Array(source.prefix(3))
+    private var tasteCoverAssetName: String? {
+        guard let tastePreferenceData,
+              let preference = try? JSONDecoder().decode(TastePreference.self, from: tastePreferenceData),
+              let firstID = preference.selectedPhotoIDs.first else {
+            return nil
+        }
+        return TasteOnboardingCatalog.photos.first { $0.id == firstID }?.assetName
+    }
+
+    /// 첫 화면 레일. 홈 레일처럼 사진 있는 곳을 먼저 두고, 커버에 쓴 장소는 뺍니다.
+    private func railSpots(excluding coverSpotID: String?) -> [PhotoSpot] {
+        let withPhoto = savedPhotoSpots.filter { $0.id != coverSpotID }
+        let withoutPhoto = savedSpots.filter { !$0.hasReliableDisplayImage }
+        return Array((withPhoto + withoutPhoto).prefix(Self.railLimit))
     }
 
     /// 지금 불러온 장소 목록에서 찾은 "내가 추가한 장소". receipt 는 최신순입니다.
@@ -90,17 +124,14 @@ struct MyTabView: View {
         }
     }
 
-    private var photolessPlaceCount: Int {
-        myPlaceSpots.filter { !$0.hasReliableDisplayImage }.count
-    }
-
-    /// 가장 최근에 추가한 장소 중 사진이 있는 곳.
-    private var placeCoverSpot: PhotoSpot? {
+    /// "추가한 장소" 행 왼쪽 사진. 가장 최근에 추가한 곳 중 사진이 있는 곳입니다.
+    private var placeThumbnailSpot: PhotoSpot? {
         myPlaceSpots.first(where: \.hasReliableDisplayImage)
     }
 
-    /// 가장 최근 글 중 사진이 있는 글의 첫 사진.
-    private var postCoverAttachment: CommunityPhotoAttachment? {
+    /// "내 글" 행 왼쪽 사진. 가장 최근 글 중 사진이 있는 글의 첫 사진입니다.
+    /// 사진 없는 글에 장소 대표 사진을 대신 쓰지 않습니다. 내가 찍은 사진처럼 보이기 때문입니다.
+    private var postThumbnailAttachment: CommunityPhotoAttachment? {
         myPosts
             .first { !$0.publicPhotoAttachments.isEmpty }?
             .publicPhotoAttachments
@@ -110,28 +141,40 @@ struct MyTabView: View {
     // MARK: - 화면
 
     var body: some View {
+        let cover = self.cover
+
         NavigationStack {
             GeometryReader { proxy in
                 let topInset = proxy.safeAreaInsets.top
+                let coverSize = CGSize(
+                    width: proxy.size.width,
+                    height: (proxy.size.height + topInset) * Self.coverHeightRatio
+                )
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
-                        cover(topInset: topInset)
+                        coverView(cover, size: coverSize, topInset: topInset)
 
-                        VStack(alignment: .leading, spacing: VFSpace.md) {
-                            savedTile
-                            activityTiles
+                        if user == nil {
+                            guestSignIn
+                                .padding(.top, VFSpace.lg)
                         }
-                        .padding(.horizontal, AppLayout.pageHorizontalPadding)
-                        .padding(.top, VFSpace.lg)
-                        .padding(.bottom, VFSpace.xl)
+
+                        savedSection(excludingCoverSpotID: cover.savedSpot?.id)
+                            .padding(.top, VFSpace.xl)
+
+                        if user != nil {
+                            activitySection
+                                .padding(.top, VFSpace.xl)
+                        }
                     }
+                    .padding(.bottom, VFSpace.xl)
                 }
                 // iOS 26: 위로 조금만 올려도 줄어든 탭바가 다시 펼쳐지게 합니다.
                 .vfReportsTabBarScroll()
-                // 커버가 상태바까지 올라갑니다. 홈 Hero 와 같은 방식입니다.
+                // 커버 사진이 상태바까지 올라갑니다. 홈 Hero 와 같은 방식입니다.
                 .ignoresSafeArea(edges: .top)
-                // 스크롤한 타일이 상태바와 겹쳐 읽히지 않게 시스템 재료로 경계를 만듭니다.
+                // 스크롤한 본문이 상태바와 겹쳐 읽히지 않게 시스템 재료로 경계를 만듭니다.
                 .modifier(VFTopScrollEdgeEffect())
             }
             .background(AppColors.background.ignoresSafeArea())
@@ -144,329 +187,268 @@ struct MyTabView: View {
 
     // MARK: - 커버
 
-    private func cover(topInset: CGFloat) -> some View {
-        let onPhoto = coverSpot != nil
-
-        return VStack(alignment: .leading, spacing: 0) {
-            // 상태바 + "마이" · 톱니바퀴 줄
-            Color.clear
-                .frame(height: topInset + Self.coverTopBarHeight)
-
-            coverIdentity(onPhoto: onPhoto)
-                .padding(.horizontal, Self.frameContentInset)
-                .padding(.top, VFSpace.xxl)
-                .padding(.bottom, VFSpace.xl + VFSpace.xs)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            coverBackground(topInset: topInset)
-        }
-        .overlay {
-            // 뷰파인더 프레임. 이름을 프레임 왼쪽 아래 1/3 지점에 둬서
-            // 사진 구도처럼 읽히게 합니다.
-            VFViewfinderCorners(cornerLength: Self.frameCornerLength)
-                .stroke(
-                    onPhoto ? Color.white.opacity(0.55) : AppColors.primary.opacity(0.26),
-                    style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
-                )
-                .padding(.horizontal, Self.frameInset)
-                .padding(.top, topInset + Self.coverTopBarHeight + VFSpace.sm)
-                .padding(.bottom, VFSpace.md)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-        .overlay(alignment: .topLeading) {
-            if let coverSpot {
-                coverCaption(for: coverSpot)
-                    .padding(.leading, Self.frameContentInset)
-                    .padding(.top, topInset + Self.coverTopBarHeight + VFSpace.sm + VFSpace.md + VFSpace.xs)
+    /// 홈 Hero 와 같은 구조입니다. (HomeHeroCard · HomeHeroSection)
+    ///   전면 사진 → 캔버스로 이어지는 아래쪽 전환 → 왼쪽 아래 이름과 계기판 한 줄 → 위쪽 유리 컨트롤
+    /// 커버 자체는 누르는 곳이 아닙니다. 누를 수 있는 것은 위쪽 pill 과 톱니바퀴뿐입니다.
+    private func coverView(_ cover: MyCover, size: CGSize, topInset: CGFloat) -> some View {
+        MyCoverPhoto(cover: cover, size: size)
+            .accessibilityHidden(true)
+            .overlay(alignment: .bottom) {
+                MyCoverCanvasTransition()
             }
-        }
-        .overlay(alignment: .top) {
-            coverTopBar(onPhoto: onPhoto)
-                .padding(.top, topInset)
-        }
-        .clipped()
-    }
-
-    @ViewBuilder
-    private func coverBackground(topInset: CGFloat) -> some View {
-        if let coverSpot {
-            PhotoSpotImageView(
-                spot: coverSpot,
-                symbolSize: 28,
-                targetPixelWidth: VFPhotoDetail.hero.pixelWidth
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipped()
-            // 이름·이메일(흰 글자)을 받치는 아래쪽 어둠.
-            .vfPhotoScrim(heightRatio: 0.7, strength: 1.1)
-            // 상태바와 톱니바퀴 뒤는 화면 모드의 캔버스 색으로 흐리게 합니다.
-            // 다크는 검정, 라이트는 흰색이라 상태바 글자색과 항상 반대가 됩니다.
+            .overlay(alignment: .bottomLeading) {
+                coverText(width: size.width)
+            }
             .overlay(alignment: .top) {
-                MyCanvasFade(height: topInset + Self.coverTopBarHeight + VFSpace.lg)
+                coverControls(cover, topInset: topInset)
             }
-        } else {
-            MyGoldenLightBackground()
-        }
     }
 
-    private func coverTopBar(onPhoto: Bool) -> some View {
-        HStack(spacing: VFSpace.sm) {
-            Text("마이")
-                .vfText(.headline)
-                .foregroundStyle(AppColors.primary)
-                .accessibilityAddTraits(.isHeader)
+    private func coverText(width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            Text(coverTitle)
+                .vfText(.display)
+                .foregroundStyle(Color.white)
+                .lineLimit(2)
+                .minimumScaleFactor(0.62)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VFMetaLineOnPhoto(items: coverMetaItems)
+        }
+        .padding(.horizontal, VFSpace.lg)
+        // 아래쪽 캔버스 전환(라이트 32pt)보다 위에 글자가 오게 합니다.
+        .padding(.bottom, VFSpace.xl + VFSpace.sm)
+        .frame(width: width, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// 로그인했으면 이름, 아니면 "게스트".
+    private var coverTitle: String {
+        guard let user else { return "게스트" }
+        let trimmed = user.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "뷰파인더 사용자" : trimmed
+    }
+
+    /// 계기판 한 줄. 개수는 여기에만 둡니다. 아래 행들은 개수 대신 "최근" 을 말합니다.
+    private var coverMetaItems: [String] {
+        guard user != nil else {
+            return ["저장 \(savedSpots.count)"]
+        }
+        return [
+            "저장 \(savedSpots.count)",
+            "추가한 장소 \(submissionReceipts.count)",
+            "글 \(myPosts.count)"
+        ]
+    }
+
+    /// 왼쪽 위 pill(커버 사진이 무엇인지) · 오른쪽 위 톱니바퀴.
+    /// 홈 Hero 의 날씨 pill · 검색 버튼과 같은 자리 · 크기 · 여백입니다.
+    private func coverControls(_ cover: MyCover, topInset: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: VFSpace.sm) {
+            coverPill(cover)
 
             Spacer(minLength: VFSpace.sm)
 
             NavigationLink {
                 MySettingsView(
-                    isSignedIn: user != nil,
+                    user: user,
                     onResetTaste: onResetTaste,
                     onSignOut: onSignOut,
                     onRequestSignIn: onRequestSignIn
                 )
             } label: {
-                MyCoverIconButtonLabel(symbolName: "gearshape", onPhoto: onPhoto)
+                MyCoverCircleLabel(symbolName: "gearshape")
             }
             .buttonStyle(.plain)
             .accessibilityLabel("설정")
         }
-        .padding(.leading, AppLayout.pageHorizontalPadding)
-        // 터치 영역(44pt)이 보이는 원(38pt)보다 3pt 넓으므로, 원의 오른쪽 끝이
-        // 다른 여백과 같은 20pt 에 오게 3pt 를 뺍니다.
-        .padding(.trailing, AppLayout.pageHorizontalPadding - (AppLayout.touchTarget - MyCoverIconButtonLabel.visibleSize) / 2)
-        .frame(height: Self.coverTopBarHeight)
+        .padding(.leading, VFSpace.lg - VFSpace.xs)
+        .padding(.trailing, VFSpace.lg - VFSpace.xs - MyCoverControl.hitInset)
+        .padding(.top, topInset + VFSpace.sm - MyCoverControl.hitInset)
     }
 
+    /// 모르는 사진이 내 이름 뒤에 걸려 있으면 어색합니다. 어디서 온 사진인지 적고,
+    /// 누르면 그 출처로 갑니다. (저장한 장소 → 장소 상세, 사진 취향 → 취향 다시 고르기)
     @ViewBuilder
-    private func coverIdentity(onPhoto: Bool) -> some View {
-        let ink: Color = onPhoto ? .white : AppColors.primary
-        let subInk: Color = onPhoto ? Color.white.opacity(0.78) : AppColors.secondaryText
+    private func coverPill(_ cover: MyCover) -> some View {
+        switch cover {
+        case .saved(let spot):
+            Button {
+                onSelectSpot(spot)
+            } label: {
+                MyCoverPill(symbolName: "bookmark.fill", title: spot.name)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("커버 사진, 저장한 장소 \(spot.name)")
+            .accessibilityHint("장소 상세를 엽니다")
+        case .taste:
+            Button(action: onResetTaste) {
+                MyCoverPill(symbolName: "photo.on.rectangle.angled", title: "내 사진 취향")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("커버 사진, 내 사진 취향 1순위")
+            .accessibilityHint("사진 취향을 다시 고릅니다")
+        case .suggestion:
+            Button(action: onResetTaste) {
+                MyCoverPill(symbolName: "photo.on.rectangle.angled", title: "사진 취향 고르기")
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("고른 사진이 커버와 홈 추천의 출발점이 돼요")
+        case .blank:
+            EmptyView()
+        }
+    }
 
-        if let user {
-            HStack(spacing: VFSpace.md + 2) {
-                MyProfileAvatar(name: user.displayName, onPhoto: onPhoto)
+    // MARK: - 게스트
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(displayName(for: user))
-                        .vfText(.title1)
-                        .foregroundStyle(ink)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+    /// 게스트에게 이 화면의 주 동작은 로그인 하나입니다.
+    /// 사진 위에는 주황을 올리지 않으므로 커버 아래 캔버스에 둡니다.
+    private var guestSignIn: some View {
+        VStack(alignment: .leading, spacing: VFSpace.md) {
+            Text("로그인하면 장소를 추가하고 현장 글을 남길 수 있어요.")
+                .vfText(.subhead)
+                .foregroundStyle(AppColors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
 
-                    if let email = user.email, !email.isEmpty {
-                        Text(email)
-                            .vfText(.subhead)
-                            .foregroundStyle(subInk)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+            MyPrimaryButton(title: "로그인", action: onRequestSignIn)
+        }
+        .vfScreenMargin()
+    }
+
+    // MARK: - 저장한 장소
+
+    private func savedSection(excludingCoverSpotID coverSpotID: String?) -> some View {
+        VStack(alignment: .leading, spacing: VFSpace.md) {
+            // 제목 줄 전체가 전용 화면으로 가는 링크입니다.
+            // 비어 있을 때도 링크를 남겨둡니다. 링크가 화면에서 사라지면
+            // 그 링크로 연 화면(마지막 장소를 방금 해제한 저장 화면)이 같이 닫힙니다.
+            NavigationLink {
+                MySavedSpotsView(
+                    spots: savedSpots,
+                    onSelect: onSelectSpot,
+                    onUnsave: unsave,
+                    onExplore: onExploreSpots
+                )
+            } label: {
+                MySectionHeader(title: "저장한 장소", showsMore: !savedSpots.isEmpty)
+            }
+            .buttonStyle(.plain)
+            .vfScreenMargin()
+
+            if savedSpots.isEmpty {
+                MySavedEmptyPanel(onExplore: onExploreSpots)
+                    .vfScreenMargin()
+            } else {
+                savedRail(railSpots(excluding: coverSpotID))
+            }
+        }
+    }
+
+    /// 홈 레일(HomeSpotRailSection)과 같은 카드 · 폭 · 간격 · 스냅입니다.
+    private func savedRail(_ items: [PhotoSpot]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: VFSpace.md) {
+                ForEach(items) { spot in
+                    MySavedSpotCard(
+                        spot: spot,
+                        onSelect: { onSelectSpot(spot) },
+                        onUnsave: { unsave(spot) }
+                    )
+                    .containerRelativeFrame(.horizontal) { length, _ in
+                        length * VFPhoto.railWidthRatio
                     }
                 }
             }
-            .accessibilityElement(children: .combine)
-        } else {
-            VStack(alignment: .leading, spacing: VFSpace.lg) {
-                VStack(alignment: .leading, spacing: VFSpace.sm) {
-                    Text("나만의 출사 기록을\n만들어보세요")
-                        .vfText(.title1)
-                        .foregroundStyle(ink)
-                        .fixedSize(horizontal: false, vertical: true)
+            .scrollTargetLayout()
+            .padding(.horizontal, VFSpace.lg)
+        }
+        .scrollTargetBehavior(.viewAligned)
+        .scrollClipDisabled()
+    }
 
-                    Text("저장은 로그인 없이도 돼요.\n장소 추가와 글쓰기는 로그인이 필요해요.")
-                        .vfText(.subhead)
-                        .foregroundStyle(subInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .accessibilityElement(children: .combine)
-
-                // 게스트에게 이 화면의 주 동작은 로그인 하나입니다.
-                MyPrimaryButton(title: "로그인", action: onRequestSignIn)
-            }
+    /// 길게 눌러 저장 해제. 저장 버튼(VFSaveButton)과 같은 촉감이고,
+    /// 빠진 자리를 나머지 카드가 채우는 움직임이 보이게 합니다.
+    private func unsave(_ spot: PhotoSpot) {
+        VFHaptics.save()
+        withAnimation(VFMotion.standard) {
+            onToggleSave(spot)
         }
     }
 
-    /// 커버 사진이 어디서 왔는지 알려줍니다. 모르는 사진이 내 프로필에 걸려 있으면 어색합니다.
-    private func coverCaption(for spot: PhotoSpot) -> some View {
-        Label {
-            Text(spot.name)
-                .lineLimit(1)
-        } icon: {
-            Image(systemName: "bookmark.fill")
-        }
-        .labelStyle(.titleAndIcon)
-        .vfText(.caption.weight(.semibold))
-        .foregroundStyle(Color.white.opacity(0.8))
-        .accessibilityLabel("커버 사진, 저장한 장소 \(spot.name)")
-    }
+    // MARK: - 내 활동
 
-    private func displayName(for user: AuthUser) -> String {
-        let trimmed = user.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "뷰파인더 사용자" : trimmed
-    }
+    private var activitySection: some View {
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            Text("내 활동")
+                .vfText(.title2)
+                .foregroundStyle(AppColors.primary)
+                .accessibilityAddTraits(.isHeader)
 
-    // MARK: - 타일
-
-    private var savedTile: some View {
-        NavigationLink {
-            MySavedSpotsView(
-                spots: savedSpots,
-                onSelect: onSelectSpot,
-                onExplore: onExploreSpots,
-                onToggleSave: onToggleSave
-            )
-        } label: {
-            MyCollectionTile(
-                title: "저장한 장소",
-                count: savedSpots.count,
-                unit: "곳",
-                caption: savedCaption,
-                symbolName: "bookmark",
-                minHeight: 176,
-                photo: mosaicSpots.isEmpty ? nil : AnyView(MySavedMosaic(spots: mosaicSpots))
-            )
-        }
-        .buttonStyle(MyPressableButtonStyle())
-        .accessibilityLabel("저장한 장소 \(savedSpots.count)곳")
-        .accessibilityHint("저장한 장소 목록을 엽니다")
-    }
-
-    @ViewBuilder
-    private var activityTiles: some View {
-        // 큰 글자에서는 두 칸이 좁아지므로 한 줄에 하나씩 둡니다.
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: VFSpace.md))
-            : AnyLayout(HStackLayout(alignment: .top, spacing: VFSpace.md))
-
-        layout {
-            placesTile
-            postsTile
-        }
-    }
-
-    @ViewBuilder
-    private var placesTile: some View {
-        if user == nil {
-            Button(action: onRequestSignIn) {
-                MyCollectionTile(
-                    title: "추가한 장소",
-                    count: nil,
-                    unit: "곳",
-                    caption: "로그인하면 볼 수 있어요",
-                    symbolName: "mappin.and.ellipse",
-                    minHeight: 148,
-                    isLocked: true
-                )
-            }
-            .buttonStyle(MyPressableButtonStyle())
-            .accessibilityLabel("추가한 장소, 로그인이 필요해요")
-            .accessibilityHint("로그인 화면을 엽니다")
-        } else {
-            NavigationLink {
-                MyPlacesView(
-                    receipts: submissionReceipts,
-                    spots: spots,
-                    onSelectSpot: onSelectSpot,
-                    onAddPlace: onAddPlace
-                )
-            } label: {
-                MyCollectionTile(
-                    title: "추가한 장소",
-                    count: submissionReceipts.count,
-                    unit: "곳",
-                    caption: placesCaption,
-                    symbolName: "mappin.and.ellipse",
-                    minHeight: 148,
-                    photo: placeCoverSpot.map { spot in
-                        AnyView(
+            VStack(spacing: 0) {
+                NavigationLink {
+                    MyPlacesView(
+                        receipts: submissionReceipts,
+                        spots: spots,
+                        onSelectSpot: onSelectSpot,
+                        onAddPlace: onAddPlace
+                    )
+                } label: {
+                    MyEntryRow(title: "추가한 장소", detailItems: placesDetailItems) {
+                        if let spot = placeThumbnailSpot {
                             PhotoSpotImageView(
                                 spot: spot,
-                                symbolSize: 20,
-                                targetPixelWidth: VFPhotoDetail.card.pixelWidth
+                                symbolSize: 18,
+                                targetPixelWidth: VFPhotoDetail.thumbnail.pixelWidth
                             )
-                        )
+                        } else {
+                            MyIconTile(symbolName: "mappin.and.ellipse")
+                        }
                     }
-                )
-            }
-            .buttonStyle(MyPressableButtonStyle())
-            .accessibilityLabel("추가한 장소 \(submissionReceipts.count)곳")
-            .accessibilityHint("추가한 장소 목록을 엽니다")
-        }
-    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("추가한 장소 목록을 엽니다")
 
-    @ViewBuilder
-    private var postsTile: some View {
-        if user == nil {
-            Button(action: onRequestSignIn) {
-                MyCollectionTile(
-                    title: "내 글",
-                    count: nil,
-                    unit: "개",
-                    caption: "로그인하면 볼 수 있어요",
-                    symbolName: "text.bubble",
-                    minHeight: 148,
-                    isLocked: true
-                )
-            }
-            .buttonStyle(MyPressableButtonStyle())
-            .accessibilityLabel("내 글, 로그인이 필요해요")
-            .accessibilityHint("로그인 화면을 엽니다")
-        } else {
-            NavigationLink {
-                MyPostsView(posts: myPosts, makeRow: postRow, onCompose: onCompose)
-            } label: {
-                MyCollectionTile(
-                    title: "내 글",
-                    count: myPosts.count,
-                    unit: "개",
-                    caption: postsCaption,
-                    symbolName: "text.bubble",
-                    minHeight: 148,
-                    photo: postCoverAttachment.map { attachment in
-                        AnyView(MyAttachmentImage(attachment: attachment, detail: .card))
+                MyRowDivider(leadingInset: MyEntryMetrics.dividerInset)
+
+                NavigationLink {
+                    MyPostsView(posts: myPosts, makeCard: postCard, onCompose: onCompose)
+                } label: {
+                    MyEntryRow(title: "내 글", detailItems: postsDetailItems) {
+                        if let attachment = postThumbnailAttachment {
+                            MyAttachmentImage(attachment: attachment, detail: .thumbnail)
+                        } else {
+                            MyIconTile(symbolName: "text.bubble")
+                        }
                     }
-                )
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("내 글 목록을 엽니다")
             }
-            .buttonStyle(MyPressableButtonStyle())
-            .accessibilityLabel("내 글 \(myPosts.count)개")
-            .accessibilityHint("내 글 목록을 엽니다")
         }
+        .vfScreenMargin()
     }
 
-    private var savedCaption: String {
-        guard let first = savedSpots.first else { return "마음에 드는 출사지를 저장해보세요" }
-        return savedSpots.count == 1 ? first.name : "\(first.name) 외 \(savedSpots.count - 1)곳"
-    }
-
-    private var placesCaption: String {
-        guard let latest = submissionReceipts.first else { return "나만 아는 출사지를 알려주세요" }
-        if photolessPlaceCount > 0 {
-            return "사진 없는 곳 \(photolessPlaceCount)곳"
+    private var placesDetailItems: [String] {
+        guard let latest = submissionReceipts.first else { return ["아직 없어요"] }
+        let photolessCount = myPlaceSpots.filter { !$0.hasReliableDisplayImage }.count
+        if photolessCount > 0 {
+            return ["사진 없는 곳 \(photolessCount)곳"]
         }
-        return "최근 · \(latest.name)"
+        return ["최근", latest.name]
     }
 
-    private var postsCaption: String {
-        guard let latest = myPosts.first else { return "현장 소식을 남겨보세요" }
-        return "마지막 글 · \(communityRelativeTimeText(for: latest.createdAt))"
+    private var postsDetailItems: [String] {
+        guard let latest = myPosts.first else { return ["아직 없어요"] }
+        return ["마지막 글", communityRelativeTimeText(for: latest.createdAt)]
     }
 
-    // MARK: - 글 행
+    // MARK: - 내 글 카드
 
-    /// 목록 행과 글 상세를 한 곳에서 만듭니다.
-    /// "내 글" 화면이 이 함수를 그대로 받아 써서 같은 글이 같은 모양으로 보입니다.
-    private func postRow(_ post: CommunityPost) -> some View {
-        NavigationLink {
-            postDetail(post)
-        } label: {
-            MyPostRow(post: post)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func postDetail(_ post: CommunityPost) -> some View {
-        CommunityPostDetailView(
+    /// 커뮤니티 피드와 같은 카드입니다. 내 글도 다른 사람에게 보이는 모양 그대로 봅니다.
+    /// (개편 전 마이 탭도 같은 카드를 썼습니다)
+    private func postCard(_ post: CommunityPost) -> some View {
+        CommunityPostCard(
             post: post,
             spot: spot(for: post),
             captureLocationSpot: captureLocationSpot(for: post),
@@ -475,13 +457,12 @@ struct MyTabView: View {
             likeCount: displayedLikeCount(for: post),
             isFollowing: followedAuthorIDs.contains(post.authorID),
             comments: commentsByPostID[post.id] ?? [],
-            focusCommentComposerOnAppear: false,
+            onEdit: onEditPost,
+            onDelete: onDeletePost,
             onToggleLike: onToggleLike,
             onToggleFollow: onToggleFollow,
             onAddComment: onAddComment,
             onSelectSpot: onSelectSpot,
-            onEdit: onEditPost,
-            onDelete: onDeletePost,
             communityViewModel: communityViewModel
         )
     }
@@ -500,291 +481,348 @@ struct MyTabView: View {
     }
 }
 
-// MARK: - 커버 부품
+// MARK: - 커버
 
-/// 사진이 없을 때의 커버. "Frame & Light" 의 Light — 프레임 오른쪽에서 번지는 골든아워의 빛.
-///
-/// 주황을 면으로 칠하지 않습니다. 22% 에서 0 으로 사라지는 빛이라,
-/// 캔버스는 여전히 검정(라이트는 흰색)이고 사진이 들어오면 사진에 자리를 내줍니다.
-private struct MyGoldenLightBackground: View {
+/// 커버 사진이 어디서 왔는지. 왼쪽 위 pill 이 이걸 알려주고, 누르면 그 출처로 갑니다.
+private enum MyCover {
+    /// 저장한 장소의 사진. pill 을 누르면 장소 상세.
+    case saved(PhotoSpot)
+    /// 온보딩에서 고른 사진 취향 1순위. pill 을 누르면 취향 다시 고르기.
+    case taste(assetName: String)
+    /// 취향을 건너뛴 사용자의 기본 사진(취향 목록의 첫 장). pill 을 누르면 취향 고르기.
+    case suggestion(assetName: String)
+    /// 번들 사진도 없을 때. 실제로는 오지 않는 경우입니다.
+    case blank
+
+    var savedSpot: PhotoSpot? {
+        if case .saved(let spot) = self {
+            return spot
+        }
+        return nil
+    }
+}
+
+/// 커버 사진 한 장. scrim 값은 홈 Hero 카드(HomeHeroCard)와 같습니다.
+private struct MyCoverPhoto: View {
+    let cover: MyCover
+    let size: CGSize
+
+    private static let bottomScrimHeightRatio: CGFloat = 0.44
+    private static let bottomScrimStrength: Double = 1.05
+    /// 상태바(흰 시계 · 배터리)까지 받쳐야 해서 홈 Hero 처럼 진하게 둡니다.
+    private static let topScrimStrength: Double = 0.62
+    private static let topScrimHeight: CGFloat = 130
+
     var body: some View {
-        ZStack {
-            AppColors.background
-
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    AppColors.accent.opacity(0.22),
-                    AppColors.accent.opacity(0)
-                ]),
-                center: UnitPoint(x: 0.86, y: 0.62),
-                startRadius: 0,
-                endRadius: 320
+        switch cover {
+        case .saved(let spot):
+            VFPhotoTile(
+                spot: spot,
+                aspectRatio: nil,
+                height: size.height,
+                cornerRadius: 0,
+                showsScrim: true,
+                scrimHeightRatio: Self.bottomScrimHeightRatio,
+                scrimStrength: Self.bottomScrimStrength,
+                showsTopControlScrim: true,
+                topScrimStrength: Self.topScrimStrength,
+                topScrimHeight: Self.topScrimHeight,
+                imageDetail: .hero
             )
-            // 커버 아래 끝에서 빛이 0 이 되게 합니다.
-            // 커버 아래(타일 영역)는 빛이 없는 캔버스라, 빛이 켜진 채로 끊기면
-            // 커버 밑에 가로 경계선이 생깁니다.
-            .mask {
-                LinearGradient(
-                    stops: [
-                        .init(color: .black, location: 0),
-                        .init(color: .black, location: 0.5),
-                        .init(color: .clear, location: 1)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
+            .frame(width: size.width, height: size.height)
+            .clipped()
+        case .taste(let assetName), .suggestion(let assetName):
+            assetPhoto(named: assetName)
+        case .blank:
+            AppColors.mutedSurface
+                .frame(width: size.width, height: size.height)
         }
-        .accessibilityHidden(true)
+    }
+
+    /// 번들 사진을 바로 그립니다. 원격 주소가 없는 시드 사진이라,
+    /// 장소 목록을 아직 못 불러왔어도 커버가 비지 않습니다.
+    private func assetPhoto(named name: String) -> some View {
+        Color.clear
+            .frame(width: size.width, height: size.height)
+            .overlay {
+                Image(name)
+                    .resizable()
+                    .scaledToFill()
+            }
+            .clipped()
+            .vfPhotoScrim(heightRatio: Self.bottomScrimHeightRatio, strength: Self.bottomScrimStrength)
+            .overlay(alignment: .top) {
+                VFScrim(edge: .top, strength: Self.topScrimStrength)
+                    .frame(height: Self.topScrimHeight)
+            }
     }
 }
 
-/// 사진 커버 위쪽을 캔버스 색으로 흐리게 합니다. 상태바와 톱니바퀴를 받칩니다.
-private struct MyCanvasFade: View {
-    let height: CGFloat
+/// 커버 아래쪽을 캔버스로 잇습니다.
+///
+/// 홈의 HeroFeedBackgroundTransition 과 같은 높이 · 단계이고, 색만 이 화면의
+/// 배경(canvas)에 맞춥니다. 홈 피드는 라이트에서 살짝 따뜻한 흰색이라 색이 다릅니다.
+/// 마지막 픽셀까지 불투명하게 만들어 커버와 아래 섹션 사이의 직선 이음새를 숨깁니다.
+private struct MyCoverCanvasTransition: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var canvas: Color {
+        AppColors.background
+    }
+
+    private var height: CGFloat {
+        colorScheme == .dark ? 96 : 32
+    }
+
+    private var stops: [Gradient.Stop] {
+        if colorScheme == .dark {
+            return [
+                .init(color: canvas.opacity(0), location: 0),
+                .init(color: canvas.opacity(0.06), location: 0.26),
+                .init(color: canvas.opacity(0.20), location: 0.52),
+                .init(color: canvas.opacity(0.46), location: 0.74),
+                .init(color: canvas.opacity(0.78), location: 0.91),
+                .init(color: canvas, location: 1)
+            ]
+        }
+
+        return [
+            .init(color: canvas.opacity(0), location: 0),
+            .init(color: canvas.opacity(0), location: 0.50),
+            .init(color: canvas.opacity(0.12), location: 0.72),
+            .init(color: canvas.opacity(0.50), location: 0.92),
+            .init(color: canvas, location: 1)
+        ]
+    }
 
     var body: some View {
-        LinearGradient(
-            stops: [
-                .init(color: AppColors.background, location: 0),
-                .init(color: AppColors.background.opacity(0.75), location: 0.55),
-                .init(color: AppColors.background.opacity(0), location: 1)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .frame(height: height)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+        LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
+            .frame(height: height)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 
-/// 커버 위 원형 아이콘 버튼. 보이는 원 38pt, 터치 44pt.
-/// 사진 위에서는 유리, 사진이 없으면 불투명 surface2 입니다.
-/// (유리는 사진 위에 뜬 버튼에만 씁니다. 단색 배경 위 유리는 회색 원일 뿐입니다)
-private struct MyCoverIconButtonLabel: View {
+/// 커버 위 컨트롤 치수. 홈 Hero 의 컨트롤과 같습니다.
+private enum MyCoverControl {
+    /// 보이는 크기.
     static let visibleSize: CGFloat = 38
+    /// 누를 수 있는 크기. (개선안 41)
+    static let hitSize: CGFloat = AppLayout.touchTarget
+    /// 보이는 컨트롤 바깥으로 넓힌 여백. (44 - 38) / 2 = 3pt
+    static let hitInset: CGFloat = (AppLayout.touchTarget - visibleSize) / 2
+}
 
+/// 커버 왼쪽 위 유리 pill. 홈 Hero 의 날씨 pill 과 같은 모양입니다.
+private struct MyCoverPill: View {
     let symbolName: String
-    let onPhoto: Bool
+    let title: String
 
     var body: some View {
-        Group {
-            if onPhoto {
-                icon
-                    .vfGlass(in: Circle(), interactive: true)
-            } else {
-                icon
-                    .background(AppColors.mutedSurface, in: Circle())
-            }
+        HStack(spacing: VFSpace.xs + 2) {
+            Image(systemName: symbolName)
+                .font(.system(size: 12, weight: .semibold))
+
+            Text(title)
+                .vfText(.mono)
+                .lineLimit(1)
         }
-        .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
+        .foregroundStyle(Color.white)
+        .padding(.horizontal, VFSpace.md)
+        .frame(height: MyCoverControl.visibleSize)
+        .contentShape(Capsule())
+        .vfGlass(interactive: true)
+        // 보이는 pill 은 38pt, 누를 수 있는 영역은 위아래 3pt 씩 넓힌 44pt 입니다.
+        .padding(.vertical, MyCoverControl.hitInset)
         .contentShape(Rectangle())
     }
+}
 
-    private var icon: some View {
+/// 커버 오른쪽 위 유리 원 버튼. 홈 Hero 의 검색 버튼과 같은 모양입니다.
+private struct MyCoverCircleLabel: View {
+    let symbolName: String
+
+    var body: some View {
         Image(systemName: symbolName)
             // Dynamic Type 제외: 고정 38pt 원 안의 기호.
             .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(AppColors.primary)
-            .frame(width: Self.visibleSize, height: Self.visibleSize)
+            .foregroundStyle(Color.white)
+            .frame(width: MyCoverControl.visibleSize, height: MyCoverControl.visibleSize)
+            .contentShape(Circle())
+            .vfGlass(in: Circle(), interactive: true)
+            .clipShape(Circle())
+            // 보이는 원은 38pt, 누를 수 있는 영역은 44pt 입니다.
+            .frame(width: MyCoverControl.hitSize, height: MyCoverControl.hitSize)
+            .contentShape(Rectangle())
     }
 }
 
-/// 커뮤니티 아바타와 같은 규칙(이름 첫 글자)을 씁니다.
-/// 두 화면에서 같은 사람이 다르게 보이면 같은 사람인지 알 수 없습니다.
-private struct MyProfileAvatar: View {
-    let name: String
-    var onPhoto: Bool = false
-    @Environment(\.colorScheme) private var colorScheme
+// MARK: - 섹션
 
-    private let size: CGFloat = 64
-
-    var body: some View {
-        Text(initial)
-            // Dynamic Type 제외: 원 지름에 비례하는 글자. 원이 안 커지므로 글자도 안 커진다.
-            .font(.system(size: size * 0.42, weight: .semibold))
-            .foregroundStyle(inkColor)
-            .frame(width: size, height: size)
-            .background(AppColors.mutedSurface, in: Circle())
-            .overlay {
-                Circle()
-                    .strokeBorder(onPhoto ? Color.white.opacity(0.35) : AppColors.divider, lineWidth: 1)
-            }
-            .accessibilityHidden(true)
-    }
-
-    private var initial: String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let first = trimmed.first else { return "?" }
-        return String(first).uppercased()
-    }
-
-    private var inkColor: Color {
-        colorScheme == .dark ? .white.opacity(0.94) : .black.opacity(0.72)
-    }
-}
-
-// MARK: - 컬렉션 타일
-
-/// 마이 탭의 입구 타일. 누르면 전용 화면이 열립니다.
-///
-/// 사진이 있으면 사진이 배경이고 흰 글자, 없으면 surface1 위에 큰 숫자가 주인공입니다.
-/// 사진이 없는 사용자도 회색 상자가 아니라 계기판처럼 읽히게 합니다.
-private struct MyCollectionTile: View {
+/// 섹션 제목. 홈 섹션 제목(title2)과 같은 크기이고,
+/// 오른쪽 "더보기" 는 VFSectionTitle 의 것과 같은 모양입니다.
+private struct MySectionHeader: View {
     let title: String
-    /// 잠긴 타일(게스트)은 nil 이고 숫자를 그리지 않습니다.
-    let count: Int?
-    let unit: String
-    let caption: String
-    let symbolName: String
-    let minHeight: CGFloat
-    var photo: AnyView? = nil
-    var isLocked: Bool = false
-
-    private var onPhoto: Bool { photo != nil }
-    private var ink: Color { onPhoto ? .white : AppColors.primary }
-    private var subInk: Color { onPhoto ? Color.white.opacity(0.8) : AppColors.secondaryText }
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
-    }
+    var showsMore: Bool = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // 제목 줄 높이만큼 비워 둔 자리입니다. 실제 제목은 아래 overlay 가 맨 위에 그립니다.
-            //
-            // 제목은 맨 위, 숫자는 바닥에 두고 싶은데 ScrollView 안에서는 높이 제안이 없어서
-            // Spacer 가 늘어나지 않습니다. 그렇다고 높이를 고정하면 큰 글자에서 숫자가 잘립니다.
-            // 그래서 내용은 바닥 정렬로 두고 제목만 위에 겹쳐 그립니다.
-            // 글자가 커지면 이 빈 자리도 같이 커지므로 타일이 늘어나고, 제목과 숫자가 겹치지 않습니다.
-            titleRow
-                .hidden()
-                .accessibilityHidden(true)
-
-            Spacer(minLength: VFSpace.lg)
-
-            if let count {
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text("\(count)")
-                        .vfText(.gauge)
-                        .foregroundStyle(ink)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-
-                    Text(unit)
-                        .vfText(.subhead.weight(.semibold))
-                        .foregroundStyle(subInk)
-                }
-            }
-
-            Text(caption)
-                .vfText(.caption)
-                .foregroundStyle(subInk)
-                .lineLimit(1)
-                .padding(.top, 2)
-        }
-        .padding(Self.contentPadding)
-        // 높이는 "최소" 만 정합니다. 큰 글자에서는 타일이 내용만큼 늘어나고 잘리지 않습니다.
-        .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .bottomLeading)
-        .overlay(alignment: .topLeading) {
-            titleRow
-                .padding(Self.contentPadding)
-        }
-        .background {
-            background
-        }
-        .clipShape(shape)
-        .contentShape(shape)
-    }
-
-    private static let contentPadding: CGFloat = VFSpace.md + VFSpace.xs
-
-    private var titleRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: VFSpace.sm) {
             Text(title)
-                .vfText(.headline)
-                .foregroundStyle(ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
+                .vfText(.title2)
+                .foregroundStyle(AppColors.primary)
 
-            Spacer(minLength: VFSpace.xs)
+            Spacer(minLength: VFSpace.sm)
 
-            Image(systemName: isLocked ? "lock.fill" : "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(subInk)
-                .accessibilityHidden(true)
+            if showsMore {
+                HStack(spacing: 2) {
+                    Text("더보기")
+                        .vfText(.callout)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(AppColors.secondaryText)
+            }
         }
+        .frame(minHeight: AppLayout.touchTarget)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(showsMore ? "\(title), 전체 보기" : title)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// 저장한 장소가 없을 때. 개편 전 마이 탭과 같은 문구 · 같은 공용 패널입니다.
+private struct MySavedEmptyPanel: View {
+    let onExplore: () -> Void
+
+    var body: some View {
+        AppStatePanel(
+            symbolName: "bookmark",
+            title: "저장한 출사지가 아직 없어요",
+            message: "마음에 드는 장소를 저장하면 이곳에서 빠르게 다시 찾을 수 있어요.",
+            actionTitle: "출사지 둘러보기",
+            action: onExplore
+        )
+    }
+}
+
+// MARK: - 저장한 장소 카드
+
+/// 저장한 장소 카드. 사진이 있으면 홈 카드(HomePhotoCard) 그대로입니다.
+///
+/// 사진이 없는 장소는 홈에는 나오지 않지만 저장 목록에는 남아 있어야 합니다.
+/// 같은 크기의 빈 사진 자리에 이름을 본문 색으로 씁니다.
+/// (사진 위 흰 글자를 빈 자리에 그대로 쓰면 라이트 모드에서 읽히지 않습니다)
+private struct MySavedSpotCard: View {
+    let spot: PhotoSpot
+    let onSelect: () -> Void
+    let onUnsave: () -> Void
+
+    private static let aspectRatio: CGFloat = 4.0 / 5.0
+
+    var body: some View {
+        card
+            // 길게 눌렀을 때 떠오르는 미리보기도 카드 모서리를 따릅니다.
+            .contentShape(
+                .contextMenuPreview,
+                RoundedRectangle(cornerRadius: VFRadius.photo, style: .continuous)
+            )
+            .contextMenu {
+                Button(role: .destructive, action: onUnsave) {
+                    Label("저장 해제", systemImage: "bookmark.slash")
+                }
+            }
+            .accessibilityAction(named: "저장 해제", onUnsave)
     }
 
     @ViewBuilder
-    private var background: some View {
-        if let photo {
-            photo
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                // 위(제목)와 아래(숫자)의 흰 글자를 받치는 어둠. 가운데는 사진이 보이게 옅게 둡니다.
-                .overlay {
-                    LinearGradient(
-                        stops: [
-                            .init(color: .black.opacity(0.50), location: 0),
-                            .init(color: .black.opacity(0.12), location: 0.42),
-                            .init(color: .black.opacity(0.70), location: 1)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                }
+    private var card: some View {
+        if spot.hasReliableDisplayImage {
+            HomePhotoCard(
+                recommendation: RecommendedSpot(spot: spot, reason: ""),
+                aspectRatio: Self.aspectRatio,
+                onSelect: onSelect
+            )
         } else {
-            ZStack(alignment: .bottomTrailing) {
-                AppColors.cardBackground
+            VFPhotoTile(spot: spot, aspectRatio: Self.aspectRatio)
+                .overlay(alignment: .bottomLeading) {
+                    // HomePhotoCard 캡션과 같은 자리 · 크기입니다. 색만 본문 색입니다.
+                    VStack(alignment: .leading, spacing: VFSpace.xs) {
+                        Text(spot.name)
+                            .vfText(.headline)
+                            .foregroundStyle(AppColors.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
 
-                Image(systemName: symbolName)
-                    // 장식용 워터마크. 글자 크기와 무관한 고정 크기입니다.
-                    .font(.system(size: 84, weight: .regular))
-                    .foregroundStyle(AppColors.primary.opacity(0.06))
-                    .offset(x: 14, y: 18)
-                    .accessibilityHidden(true)
-            }
+                        VFMetaLine(items: [HomeSpotDisplayFormatter.region(for: spot)])
+                    }
+                    .padding(.horizontal, VFSpace.md + 2)
+                    .padding(.bottom, VFSpace.md)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onSelect)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel("\(spot.name), \(HomeSpotDisplayFormatter.region(for: spot)), 사진 없음")
         }
     }
 }
 
-/// 저장 타일의 사진 모자이크. 1장이면 한 장, 2장이면 반반, 3장이면 큰 1 + 작은 2.
-private struct MySavedMosaic: View {
-    let spots: [PhotoSpot]
-    private let gap: CGFloat = 2
+// MARK: - 내 활동 행
+
+private enum MyEntryMetrics {
+    static let leadingSize: CGFloat = 56
+    /// 구분선은 글자가 시작하는 곳부터 그립니다.
+    static let dividerInset: CGFloat = leadingSize + VFSpace.md
+}
+
+/// 첫 화면의 "추가한 장소" · "내 글" 한 줄. 누르면 전용 화면이 열립니다.
+/// 카드 표면 없이 캔버스 위에 두고, 행 사이는 얇은 선 하나로 나눕니다. (홈 목록 행과 같은 방식)
+private struct MyEntryRow<Leading: View>: View {
+    let title: String
+    let detailItems: [String]
+    @ViewBuilder let leading: () -> Leading
 
     var body: some View {
-        GeometryReader { geometry in
-            if spots.count >= 3 {
-                HStack(spacing: gap) {
-                    photo(spots[0])
-                        .frame(width: max(0, (geometry.size.width - gap) * 0.62))
+        HStack(spacing: VFSpace.md) {
+            leading()
+                .frame(width: MyEntryMetrics.leadingSize, height: MyEntryMetrics.leadingSize)
+                .clipShape(RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
+                .accessibilityHidden(true)
 
-                    VStack(spacing: gap) {
-                        photo(spots[1])
-                        photo(spots[2])
-                    }
-                }
-            } else if spots.count == 2 {
-                HStack(spacing: gap) {
-                    photo(spots[0])
-                    photo(spots[1])
-                }
-            } else if let first = spots.first {
-                photo(first)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .vfText(.headline)
+                    .foregroundStyle(AppColors.primary)
+                    .lineLimit(1)
+
+                VFMetaLine(items: detailItems)
             }
-        }
-    }
 
-    private func photo(_ spot: PhotoSpot) -> some View {
-        PhotoSpotImageView(
-            spot: spot,
-            symbolSize: 20,
-            targetPixelWidth: VFPhotoDetail.card.pixelWidth
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
+            Spacer(minLength: VFSpace.xs)
+
+            MyRowChevron()
+        }
+        .padding(.vertical, VFSpace.sm + 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// 사진이 없을 때의 행 왼쪽 칸. 사진 자리 표면(surface2) 위 기호 하나.
+private struct MyIconTile: View {
+    let symbolName: String
+
+    var body: some View {
+        ZStack {
+            AppColors.mutedSurface
+
+            Image(systemName: symbolName)
+                // Dynamic Type 제외: 고정 56pt 칸 안의 기호.
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(AppColors.secondaryText)
+        }
     }
 }
 
@@ -819,10 +857,10 @@ private struct MyAttachmentImage: View {
     }
 }
 
-// MARK: - 버튼
+// MARK: - 버튼 · 칩
 
-/// 화면의 주 동작 버튼입니다. 주황 채움 캡슐 52pt.
-/// 버튼 공통 컴포넌트(개선안 8)의 "주요 버튼" 규격과 같습니다.
+/// 화면의 주 동작 버튼. 사진 취향 온보딩의 "탐색 시작" 과 같은 모양입니다.
+/// (주황 채움 · 모서리 12 · 높이 54)
 private struct MyPrimaryButton: View {
     let title: String
     let action: () -> Void
@@ -832,34 +870,23 @@ private struct MyPrimaryButton: View {
             Text(title)
                 .vfText(.headline)
                 .foregroundStyle(AppColors.onAccent)
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .background(AppColors.accent, in: Capsule())
-                .contentShape(Capsule())
+                .frame(maxWidth: .infinity, minHeight: 54)
+                .background(
+                    AppColors.accent,
+                    in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
         }
         .buttonStyle(.plain)
     }
 }
 
-/// 누르는 동안 살짝 들어가는 반응. 동작 줄이기 설정이면 크기는 두고 밝기만 바꿉니다.
-private struct MyPressableButtonStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
-            .opacity(configuration.isPressed ? 0.86 : 1)
-            .animation(VFMotion.quick, value: configuration.isPressed)
-    }
-}
-
-/// 필터 칩. 보이는 높이 36pt · 터치 44pt, 선택은 주황 채움.
-/// 칩 공통 컴포넌트(개선안 9) 규격과 같습니다.
-private struct MyFilterChip: View {
+/// 필터 칩. 홈 테마 필터(HomeThemeFilterSection)의 칩과 같은 모양입니다.
+/// (유리 · 선택은 주황 tint · 보이는 높이 34pt · 터치 44pt)
+private struct MyThemeChip: View {
     let title: String
     let isSelected: Bool
     let action: () -> Void
-
-    private let visibleHeight: CGFloat = 36
 
     var body: some View {
         Button {
@@ -867,96 +894,30 @@ private struct MyFilterChip: View {
             action()
         } label: {
             Text(title)
-                .vfText(.subhead.weight(.semibold))
-                .foregroundStyle(isSelected ? AppColors.onAccent : AppColors.primary)
+                .vfText(.subhead.weight(.medium))
                 .lineLimit(1)
-                .padding(.horizontal, VFSpace.md + 2)
-                .frame(minHeight: visibleHeight)
-                .background(isSelected ? AppColors.accent : AppColors.mutedSurface, in: Capsule())
-                .padding(.vertical, (AppLayout.touchTarget - visibleHeight) / 2)
-                .contentShape(Rectangle())
+                .fixedSize(horizontal: true, vertical: false)
+                .foregroundStyle(isSelected ? AppColors.onAccent : AppColors.primary)
+                .padding(.horizontal, VFSpace.sm + 2)
+                .frame(minHeight: 34)
+                .contentShape(Capsule())
+                .vfGlass(
+                    tint: isSelected ? AppColors.accent : nil,
+                    interactive: true
+                )
         }
         .buttonStyle(.plain)
+        .frame(minHeight: AppLayout.touchTarget)
+        .accessibilityValue(isSelected ? "선택됨" : "")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .animation(VFMotion.quick, value: isSelected)
     }
 }
 
-// MARK: - 빈 상태
-
-/// 전용 화면의 빈 상태. 뷰파인더 프레임 안에 기호 하나 + 할 수 있는 일 하나.
-private struct MyFramedEmptyState: View {
-    let symbolName: String
-    let title: String
-    let message: String
-    let actionTitle: String
-    let action: () -> Void
-
-    var body: some View {
-        VStack(spacing: VFSpace.lg) {
-            ZStack {
-                VFViewfinderCorners(cornerLength: 18)
-                    .stroke(
-                        AppColors.secondaryText.opacity(0.6),
-                        style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
-                    )
-
-                Image(systemName: symbolName)
-                    .font(.system(size: 30, weight: .regular))
-                    .foregroundStyle(AppColors.secondaryText)
-            }
-            .frame(width: 96, height: 96)
-            .accessibilityHidden(true)
-
-            VStack(spacing: VFSpace.sm) {
-                Text(title)
-                    .vfText(.title2)
-                    .foregroundStyle(AppColors.primary)
-                    .multilineTextAlignment(.center)
-
-                Text(message)
-                    .vfText(.body)
-                    .foregroundStyle(AppColors.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .combine)
-
-            MyPrimaryButton(title: actionTitle, action: action)
-                .frame(maxWidth: 260)
-        }
-        .padding(.horizontal, VFSpace.xl)
-        .padding(.top, VFSpace.xxl + VFSpace.lg)
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - 목록
+// MARK: - 목록 공용
 
 private enum MyListRowMetrics {
     static let horizontalPadding: CGFloat = 14
-    static let thumbnailSize: CGFloat = 56
-    /// 구분선은 썸네일 오른쪽, 글자가 시작하는 곳부터 그립니다.
-    static let dividerInset: CGFloat = horizontalPadding + thumbnailSize + VFSpace.md
-}
-
-/// 표면 하나에 행을 모으고, 행 사이에만 얇은 구분선을 둡니다.
-private struct MyGroupedList<Item: Identifiable, Row: View>: View {
-    let items: [Item]
-    @ViewBuilder let row: (Item) -> Row
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ForEach(items) { item in
-                row(item)
-
-                if item.id != items.last?.id {
-                    MyRowDivider(leadingInset: MyListRowMetrics.dividerInset)
-                }
-            }
-        }
-        .appCardSurface()
-    }
 }
 
 private struct MyRowDivider: View {
@@ -979,97 +940,33 @@ private struct MyRowChevron: View {
     }
 }
 
-/// 목록 행 왼쪽의 56pt 칸.
-/// isDashed 는 "사진이 들어갈 자리가 비어 있다" 는 뜻의 점선 칸입니다.
-private struct MyRowThumbnail<Content: View>: View {
-    var isDashed: Bool = false
-    @ViewBuilder let content: () -> Content
-
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
-    }
-
-    var body: some View {
-        ZStack {
-            if isDashed {
-                Color.clear
-            } else {
-                AppColors.mutedSurface
-            }
-
-            content()
-        }
-        .frame(width: MyListRowMetrics.thumbnailSize, height: MyListRowMetrics.thumbnailSize)
-        .clipShape(shape)
-        .overlay {
-            if isDashed {
-                shape.strokeBorder(
-                    AppColors.secondaryText.opacity(0.5),
-                    style: StrokeStyle(lineWidth: 1.2, dash: [4, 3])
-                )
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
 private enum MyDateText {
     private static let isoFormatter = ISO8601DateFormatter()
-
-    private static func formatter(_ format: String) -> DateFormatter {
+    private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ko_KR")
-        formatter.dateFormat = format
+        formatter.dateFormat = "M월 d일"
         return formatter
-    }
-
-    private static let dayFormatter = formatter("M월 d일")
-    private static let dayNumberFormatter = formatter("d")
-    private static let monthFormatter = formatter("M월")
+    }()
 
     static func day(fromISO8601 raw: String) -> String? {
         guard let date = isoFormatter.date(from: raw) else { return nil }
         return dayFormatter.string(from: date)
     }
-
-    static func day(_ date: Date) -> String {
-        dayFormatter.string(from: date)
-    }
-
-    static func dayNumber(_ date: Date) -> String {
-        dayNumberFormatter.string(from: date)
-    }
-
-    static func month(_ date: Date) -> String {
-        monthFormatter.string(from: date)
-    }
 }
 
-/// 사진이 없는 글의 왼쪽 칸. 일기장처럼 날짜를 크게 보여줍니다.
-private struct MyDateTile: View {
-    let date: Date
+// MARK: - 추가한 장소 행
 
-    var body: some View {
-        VStack(spacing: 0) {
-            Text(MyDateText.dayNumber(date))
-                .vfText(.title2)
-                .foregroundStyle(AppColors.primary)
-                .monospacedDigit()
-
-            Text(MyDateText.month(date))
-                .vfText(.caption)
-                .foregroundStyle(AppColors.secondaryText)
-        }
-    }
-}
-
-/// 내가 추가한 장소 한 줄. 누르면 장소 상세가 열립니다.
-private struct MyPlaceSubmissionRow: View {
+/// 내가 추가한 장소 한 줄. 홈 카테고리 목록 행(HomeCategoryListRow)과 같은 모양입니다.
+/// (112pt 사진 · 이름 · 계기판 한 줄 · 설명 · 아래 얇은 선, 카드 표면 없음)
+private struct MyPlaceRow: View {
     let receipt: PlaceSubmissionReceipt
     /// 지금 불러온 장소 목록에서 찾은 장소입니다. 아직 못 불러왔으면 nil 이고,
     /// 그때는 누를 수 없는 행으로 둡니다.
     let spot: PhotoSpot?
     let onSelectSpot: (PhotoSpot) -> Void
+
+    private static let photoSize: CGFloat = 112
 
     var body: some View {
         if let spot {
@@ -1086,51 +983,62 @@ private struct MyPlaceSubmissionRow: View {
     }
 
     private var rowContent: some View {
-        HStack(spacing: VFSpace.md) {
-            if let spot, spot.hasReliableDisplayImage {
-                MyRowThumbnail {
-                    PhotoSpotImageView(
-                        spot: spot,
-                        symbolSize: 18,
-                        targetPixelWidth: VFPhotoDetail.thumbnail.pixelWidth
-                    )
-                }
-            } else {
-                // 사진이 비어 있는 자리. 점선 칸으로 "사진이 들어갈 곳" 을 보여줍니다.
-                MyRowThumbnail(isDashed: true) {
-                    Image(systemName: "camera")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(AppColors.secondaryText)
-                }
-            }
+        HStack(spacing: 14) {
+            photo
+                .frame(width: Self.photoSize, height: Self.photoSize)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 7) {
                 Text(receipt.name)
                     .vfText(.headline)
                     .foregroundStyle(AppColors.primary)
-                    .lineLimit(1)
+                    .lineLimit(2)
 
                 VFMetaLine(items: [regionText, submittedDayText].compactMap { $0 })
 
                 if let statusText {
                     Text(statusText)
-                        .vfText(.caption)
+                        .vfText(.subhead)
                         .foregroundStyle(AppColors.secondaryText)
+                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-
-            Spacer(minLength: VFSpace.xs)
-
-            if spot != nil {
-                MyRowChevron()
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, MyListRowMetrics.horizontalPadding)
-        .padding(.vertical, VFSpace.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 14)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppColors.divider)
+                .frame(height: 0.5)
+        }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var photo: some View {
+        let shape = RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
+
+        if let spot, spot.hasReliableDisplayImage {
+            VFPhotoTile(
+                spot: spot,
+                aspectRatio: 1,
+                cornerRadius: VFRadius.inner,
+                imageDetail: .thumbnail
+            )
+        } else if spot != nil {
+            // 홈 목록과 같은 "첫 사진을 남겨주세요" 칸입니다.
+            // 행을 누르면 장소 상세가 열리고, 거기서 사진을 추가할 수 있습니다.
+            MissingSpotPhotoPrompt(layout: .compact)
+                .clipShape(shape)
+                .overlay {
+                    shape.stroke(AppColors.divider, lineWidth: 1)
+                }
+        } else {
+            AppColors.mutedSurface
+                .clipShape(shape)
+        }
     }
 
     private var regionText: String? {
@@ -1156,95 +1064,6 @@ private struct MyPlaceSubmissionRow: View {
         return spot.hasReliableDisplayImage
             ? "홈 · 지도 · 검색에 보여요"
             : "사진이 없어 아직 검색에만 보여요"
-    }
-}
-
-/// 내 글 한 줄. 누르면 글 상세로 이동합니다.
-private struct MyPostRow: View {
-    let post: CommunityPost
-
-    private var photo: CommunityPhotoAttachment? {
-        post.publicPhotoAttachments.first
-    }
-
-    /// 제목이 없으면 본문 첫 줄을 제목처럼 씁니다.
-    private var headline: String {
-        if let title = post.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
-            return title
-        }
-
-        let firstLine = post.message
-            .split(whereSeparator: \.isNewline)
-            .first
-            .map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
-        if !firstLine.isEmpty {
-            return firstLine
-        }
-
-        return post.hasPhotos ? "사진" : "글"
-    }
-
-    /// 사진이 없는 글은 왼쪽 날짜 칸이 이미 날짜를 말합니다.
-    /// 그래서 하루 안의 글에만 "3시간 전" 을 붙이고, 사진 글에는 항상 붙입니다.
-    private var timeText: String {
-        let isWithinDay = Date().timeIntervalSince(post.createdAt) < 24 * 60 * 60
-        guard photo != nil || isWithinDay else { return "" }
-        return communityRelativeTimeText(for: post.createdAt)
-    }
-
-    private var accessibilityText: String {
-        var parts = [headline]
-        if post.hasStatusInfo {
-            parts.append("혼잡도 \(post.crowd.displayName)")
-        }
-        if let spotName = post.relatedSpotName {
-            parts.append(spotName)
-        }
-        parts.append(MyDateText.day(post.createdAt))
-        return parts.joined(separator: ", ")
-    }
-
-    var body: some View {
-        HStack(spacing: VFSpace.md) {
-            if let photo {
-                MyRowThumbnail {
-                    MyAttachmentImage(attachment: photo, detail: .thumbnail)
-                        .frame(width: MyListRowMetrics.thumbnailSize, height: MyListRowMetrics.thumbnailSize)
-                        .clipped()
-                }
-            } else {
-                MyRowThumbnail {
-                    MyDateTile(date: post.createdAt)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(headline)
-                    .vfText(.headline)
-                    .foregroundStyle(AppColors.primary)
-                    .lineLimit(2)
-
-                HStack(spacing: VFSpace.sm) {
-                    // 현장 정보가 있는 글은 혼잡도를 먼저 보여줍니다. (점 3개 + 글자)
-                    if post.hasStatusInfo {
-                        VFCrowdBadge(level: VFCrowdLevel.from(post.crowd.displayName))
-                    }
-
-                    VFMetaLine(items: [post.relatedSpotName ?? "", timeText])
-                }
-            }
-
-            Spacer(minLength: VFSpace.xs)
-
-            MyRowChevron()
-        }
-        .padding(.horizontal, MyListRowMetrics.horizontalPadding)
-        .padding(.vertical, VFSpace.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText)
-        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -1357,53 +1176,87 @@ private struct MySettingsGroup<Content: View>: View {
     }
 }
 
-// MARK: - 저장한 장소 카드
-
-/// 저장한 장소 화면의 격자 카드입니다.
-///
-/// 4:5 사진 + 사진 아래 이름·지역. 홈 레일과 같은 비율이라 홈에서 본 사진을
-/// 같은 모양으로 다시 찾습니다. 글자를 사진 아래에 두어 사진을 어둡게 덮지 않습니다.
-struct SavedSpotTile: View {
-    let spot: PhotoSpot
+/// 설정 맨 위의 내 계정 한 줄. 커버에서 뺀 이메일은 여기서 봅니다.
+private struct MyAccountRow: View {
+    let user: AuthUser
 
     var body: some View {
-        VStack(alignment: .leading, spacing: VFSpace.sm) {
-            VFPhotoTile(
-                spot: spot,
-                aspectRatio: 4.0 / 5.0,
-                imageDetail: .card
-            )
+        HStack(spacing: VFSpace.md) {
+            MyAvatar(name: user.displayName, size: MySettingsRow.iconSize)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(spot.name)
-                    .vfText(.headline)
+                Text(user.displayName)
+                    .vfText(.callout.weight(.semibold))
                     .foregroundStyle(AppColors.primary)
                     .lineLimit(1)
 
-                Text(HomeSpotDisplayFormatter.region(for: spot))
-                    .vfText(.subhead)
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineLimit(1)
+                if let email = user.email, !email.isEmpty {
+                    Text(email)
+                        .vfText(.caption)
+                        .foregroundStyle(AppColors.secondaryText)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
+
+            Spacer(minLength: VFSpace.sm)
         }
-        .contentShape(Rectangle())
+        .padding(.horizontal, MyListRowMetrics.horizontalPadding)
+        .padding(.vertical, VFSpace.sm + 2)
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(spot.name), \(HomeSpotDisplayFormatter.region(for: spot))")
+    }
+}
+
+/// 커뮤니티 아바타(CommunityAuthorAvatar)와 같은 규칙입니다.
+/// 이름 첫 글자 + 이름으로 고른 무채색 톤이라, 내 글에 붙는 아바타와 똑같이 보입니다.
+private struct MyAvatar: View {
+    let name: String
+    let size: CGFloat
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Text(initial)
+            // Dynamic Type 제외: 원 지름에 비례하는 크기다. 원이 안 커지므로 글자도 안 커진다.
+            .font(.system(size: size * 0.44, weight: .semibold))
+            .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.94) : Color.black.opacity(0.72))
+            .frame(width: size, height: size)
+            .background(tone, in: Circle())
+            .overlay {
+                Circle()
+                    .stroke(AppColors.divider, lineWidth: 0.5)
+            }
+            .accessibilityHidden(true)
+    }
+
+    private var initial: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first else { return "?" }
+        return String(first).uppercased()
+    }
+
+    private var tone: Color {
+        let tones = VFPalette.avatarTones
+        let seed = name.unicodeScalars.reduce(0) { partial, scalar in
+            partial + Int(scalar.value)
+        }
+        return Color(uiColor: tones[seed % tones.count])
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // MARK: - 전용 화면
 //
-//  마이 탭 타일을 누르면 열립니다. 마이 탭은 입구이고, 목록은 여기서 봅니다.
-//  모두 큰 제목(스크롤하면 작아짐)을 쓰고, 빈 상태는 뷰파인더 프레임 + 첫 행동 하나입니다.
+//  첫 화면에서 누르면 열립니다. 첫 화면은 입구이고, 목록은 여기서 봅니다.
+//  제목은 앱의 다른 화면(커뮤니티 · 게시글 · 목록)처럼 작은(inline) 제목입니다.
 // ═══════════════════════════════════════════════════════════════════
 
 private struct MySavedSpotsView: View {
     let spots: [PhotoSpot]
     let onSelect: (PhotoSpot) -> Void
+    let onUnsave: (PhotoSpot) -> Void
     let onExplore: () -> Void
-    let onToggleSave: (PhotoSpot) -> Void
 
     @State private var selectedTheme: SpotTheme?
 
@@ -1428,13 +1281,9 @@ private struct MySavedSpotsView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             if spots.isEmpty {
-                MyFramedEmptyState(
-                    symbolName: "bookmark",
-                    title: "저장한 출사지가 아직 없어요",
-                    message: "홈이나 지도에서 마음에 드는 곳을 저장하면\n여기에 모여요.",
-                    actionTitle: "출사지 둘러보기",
-                    action: onExplore
-                )
+                MySavedEmptyPanel(onExplore: onExplore)
+                    .vfScreenMargin()
+                    .padding(.top, VFSpace.lg)
             } else {
                 VStack(alignment: .leading, spacing: VFSpace.md) {
                     // 테마가 하나뿐이면 거를 게 없으므로 칩을 두지 않습니다.
@@ -1442,41 +1291,23 @@ private struct MySavedSpotsView: View {
                         themeChips
                     }
 
+                    // 홈 2열 그리드(HomeCompactRecommendationGrid)와 같은 카드 · 간격입니다.
                     LazyVGrid(
                         columns: [
                             GridItem(.flexible(), spacing: VFSpace.md),
                             GridItem(.flexible(), spacing: VFSpace.md)
                         ],
-                        alignment: .leading,
-                        spacing: VFSpace.lg
+                        spacing: VFSpace.md
                     ) {
                         ForEach(visibleSpots) { spot in
-                            Button {
-                                onSelect(spot)
-                            } label: {
-                                SavedSpotTile(spot: spot)
-                            }
-                            .buttonStyle(MyPressableButtonStyle())
-                            .contextMenu {
-                                Button(role: .destructive) {
-                                    // 다른 화면의 저장 버튼과 같은 촉감입니다.
-                                    VFHaptics.save()
-                                    // 빠진 칸을 나머지 카드가 채우는 움직임이 보이게 합니다.
-                                    withAnimation(VFMotion.standard) {
-                                        onToggleSave(spot)
-                                    }
-                                } label: {
-                                    Label("저장 해제", systemImage: "bookmark.slash")
-                                }
-                            }
+                            MySavedSpotCard(
+                                spot: spot,
+                                onSelect: { onSelect(spot) },
+                                onUnsave: { onUnsave(spot) }
+                            )
                         }
                     }
                     .vfScreenMargin()
-
-                    Text("길게 누르면 저장을 해제할 수 있어요.")
-                        .vfText(.caption)
-                        .foregroundStyle(AppColors.secondaryText)
-                        .vfScreenMargin()
                 }
                 .padding(.top, VFSpace.sm)
                 .vfScrollBottomInset()
@@ -1485,24 +1316,35 @@ private struct MySavedSpotsView: View {
         .vfReportsTabBarScroll()
         .background(AppColors.background.ignoresSafeArea())
         .navigationTitle("저장한 장소")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
     }
 
+    /// 홈 테마 필터(HomeThemeFilterSection)와 같은 줄 · 간격입니다.
     private var themeChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: VFSpace.sm) {
-                MyFilterChip(title: "전체", isSelected: activeTheme == nil) {
-                    selectedTheme = nil
+            LazyHStack(spacing: VFSpace.sm) {
+                MyThemeChip(title: "전체", isSelected: activeTheme == nil) {
+                    select(nil)
                 }
+                .accessibilityLabel("전체 테마")
 
                 ForEach(themes) { theme in
-                    MyFilterChip(title: theme.title, isSelected: activeTheme == theme) {
-                        selectedTheme = theme
+                    MyThemeChip(title: theme.title, isSelected: activeTheme == theme) {
+                        select(theme)
                     }
+                    .accessibilityLabel("\(theme.title) 테마")
                 }
             }
-            .padding(.horizontal, AppLayout.pageHorizontalPadding)
+            .padding(.horizontal, VFSpace.lg)
+        }
+        .scrollClipDisabled()
+        .accessibilityElement(children: .contain)
+    }
+
+    private func select(_ theme: SpotTheme?) {
+        withAnimation(VFMotion.quick) {
+            selectedTheme = theme
         }
     }
 }
@@ -1516,30 +1358,33 @@ private struct MyPlacesView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             if receipts.isEmpty {
-                MyFramedEmptyState(
+                AppStatePanel(
                     symbolName: "mappin.and.ellipse",
                     title: "직접 추가한 장소가 아직 없어요",
-                    message: "나만 아는 출사지를 알려주세요.\n다른 사진가의 다음 출사지가 돼요.",
+                    message: "나만 아는 출사지를 알려주세요. 다른 사진가의 다음 출사지가 돼요.",
                     actionTitle: "장소 추가",
                     action: onAddPlace
                 )
+                .vfScreenMargin()
+                .padding(.top, VFSpace.lg)
             } else {
-                MyGroupedList(items: receipts) { receipt in
-                    MyPlaceSubmissionRow(
-                        receipt: receipt,
-                        spot: spots.first(where: { $0.id == receipt.id }),
-                        onSelectSpot: onSelectSpot
-                    )
+                LazyVStack(spacing: 0) {
+                    ForEach(receipts) { receipt in
+                        MyPlaceRow(
+                            receipt: receipt,
+                            spot: spots.first(where: { $0.id == receipt.id }),
+                            onSelectSpot: onSelectSpot
+                        )
+                    }
                 }
                 .vfScreenMargin()
-                .padding(.top, VFSpace.sm)
                 .vfScrollBottomInset()
             }
         }
         .vfReportsTabBarScroll()
         .background(AppColors.background.ignoresSafeArea())
         .navigationTitle("추가한 장소")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             // 비어 있을 때는 가운데 "장소 추가" 버튼이 같은 일을 하므로 숨깁니다.
@@ -1555,39 +1400,44 @@ private struct MyPlacesView: View {
     }
 }
 
-/// 행 생성을 클로저로 받습니다.
+/// 카드 생성을 클로저로 받습니다.
 ///
-/// 글 상세로 가는 링크에 필요한 인자가 많습니다. 이 화면이 그것들을 다시
+/// 커뮤니티 카드에 필요한 인자가 많습니다. 이 화면이 그것들을 다시
 /// 프로퍼티로 받으면 MyTabView 의 인자 목록을 그대로 복사해야 하고,
-/// 하나라도 어긋나면 다르게 동작합니다. MyTabView.postRow 를 그대로 받습니다.
-private struct MyPostsView<Row: View>: View {
+/// 하나라도 어긋나면 다르게 동작합니다. MyTabView.postCard 를 그대로 받습니다.
+private struct MyPostsView<Card: View>: View {
     let posts: [CommunityPost]
-    let makeRow: (CommunityPost) -> Row
+    let makeCard: (CommunityPost) -> Card
     let onCompose: () -> Void
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             if posts.isEmpty {
-                MyFramedEmptyState(
+                AppStatePanel(
                     symbolName: "square.and.pencil",
                     title: "남긴 글이 아직 없어요",
-                    message: "지금 현장의 혼잡도와 분위기를 남겨보세요.\n다음 사람의 출사가 쉬워져요.",
+                    message: "지금 현장의 혼잡도와 분위기를 남겨보세요. 다음 사람의 출사가 쉬워져요.",
                     actionTitle: "글쓰기",
                     action: onCompose
                 )
+                .vfScreenMargin()
+                .padding(.top, VFSpace.lg)
             } else {
-                MyGroupedList(items: posts) { post in
-                    makeRow(post)
+                // 커뮤니티 피드와 같은 간격입니다. 카드 표면이 없어서 글과 글을 나누는 것은 여백입니다.
+                LazyVStack(alignment: .leading, spacing: VFSpace.xl) {
+                    ForEach(posts) { post in
+                        makeCard(post)
+                    }
                 }
                 .vfScreenMargin()
-                .padding(.top, VFSpace.sm)
+                .padding(.top, VFSpace.md)
                 .vfScrollBottomInset()
             }
         }
         .vfReportsTabBarScroll()
         .background(AppColors.background.ignoresSafeArea())
         .navigationTitle("내 글")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             if !posts.isEmpty {
@@ -1603,7 +1453,7 @@ private struct MyPostsView<Row: View>: View {
 }
 
 private struct MySettingsView: View {
-    let isSignedIn: Bool
+    let user: AuthUser?
     let onResetTaste: () -> Void
     let onSignOut: () -> Void
     let onRequestSignIn: () -> Void
@@ -1624,27 +1474,12 @@ private struct MySettingsView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: VFSpace.xl) {
-                MySettingsGroup(title: "화면") {
-                    MyAppearanceModeRow(
-                        appearance: appearance,
-                        selection: $appearanceRawValue
-                    )
-
-                    MyRowDivider(leadingInset: MySettingsRow.dividerInset)
-
-                    Button(action: onResetTaste) {
-                        MySettingsRow(
-                            symbolName: "photo.on.rectangle.angled",
-                            title: "사진 취향 다시 설정",
-                            trailing: .chevron
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("홈 추천의 출발점이 되는 사진 3장을 다시 고릅니다")
-                }
-
                 MySettingsGroup(title: "계정") {
-                    if isSignedIn {
+                    if let user {
+                        MyAccountRow(user: user)
+
+                        MyRowDivider(leadingInset: MySettingsRow.dividerInset)
+
                         // 로그아웃은 다시 로그인하면 되돌릴 수 있어서 확인 창을 띄우지 않습니다.
                         Button(action: onSignOut) {
                             MySettingsRow(
@@ -1666,6 +1501,25 @@ private struct MySettingsView: View {
                     }
                 }
 
+                MySettingsGroup(title: "화면") {
+                    MyAppearanceModeRow(
+                        appearance: appearance,
+                        selection: $appearanceRawValue
+                    )
+
+                    MyRowDivider(leadingInset: MySettingsRow.dividerInset)
+
+                    Button(action: onResetTaste) {
+                        MySettingsRow(
+                            symbolName: "photo.on.rectangle.angled",
+                            title: "사진 취향 다시 설정",
+                            trailing: .chevron
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("커버와 홈 추천의 출발점이 되는 사진 3장을 다시 고릅니다")
+                }
+
                 // 누를 게 없는 정보는 행이 아니라 안내 글로 둡니다.
                 VStack(alignment: .leading, spacing: VFSpace.xs) {
                     Text("저장한 장소는 이 기기에 저장돼요. 로그인하지 않아도 그대로 남아요.")
@@ -1683,7 +1537,7 @@ private struct MySettingsView: View {
         .vfReportsTabBarScroll()
         .background(AppColors.background.ignoresSafeArea())
         .navigationTitle("설정")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
     }
 }

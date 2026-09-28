@@ -113,7 +113,9 @@ struct TastePreference: Codable, Equatable, Sendable {
 
 enum TastePreferenceStore {
     static let completionKey = "hasCompletedTasteOnboarding"
-    private static let preferenceKey = "viewfinder.tastePreference.v1"
+    /// 마이 탭 커버가 @AppStorage 로 이 값을 지켜봅니다.
+    /// 취향을 다시 고르면 저장 값이 바뀌고, 커버 사진도 바로 따라 바뀝니다.
+    static let preferenceKey = "viewfinder.tastePreference.v1"
 
     static func load(defaults: UserDefaults = .standard) -> TastePreference? {
         guard let data = defaults.data(forKey: preferenceKey) else { return nil }
