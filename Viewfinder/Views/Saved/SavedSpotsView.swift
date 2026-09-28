@@ -2,34 +2,37 @@ import SwiftUI
 import UIKit
 
 // ═══════════════════════════════════════════════════════════════════
-//  마이 탭 — iOS 기본 스타일
+//  마이 탭 — iOS 기본 부품 + 사진 앱 "앨범" 표지
 //
-//  [3차가 난잡했던 이유]
-//  첫 화면 하나에 전면 사진, 사진 위 pill 과 톱니바퀴, 40pt 이름, 계기판 줄,
-//  가로 사진 레일, 활동 행이 한꺼번에 있었습니다. 마이 탭은 사진을 구경하는
-//  곳이 아니라 내 것을 찾고 설정을 바꾸는 곳인데, 홈처럼 꾸미면서 볼거리만 늘었습니다.
+//  [지나온 길]
+//   3차  전면 사진 · 사진 위 pill · 사진 줄 · 활동 줄이 한 화면에 → 난잡했습니다.
+//   4·5차 설정 앱 같은 목록 → 줄 네 개뿐이라 화면 대부분이 비고, 사진 앱인데 사진이
+//        작은 썸네일로만 보여 단조로웠습니다.
 //
-//  [지금] 새로 만든 모양 없이 iOS 기본 부품만 씁니다.
-//    첫 화면      큰 제목 + 묶음 목록(List, insetGrouped). 설정 앱과 같은 구조입니다.
-//                 프로필 행 → 계정(로그인 방식 · 로그아웃)
-//                 저장한 장소 · 추가한 장소 · 내 글 → 각 화면
-//                 왼쪽은 그 모음의 실제 사진, 아래 줄은 개수 (음악 앱 플레이리스트 목록처럼)
+//  [지금] 새로 만든 모양 없이 iOS 기본 부품과 사진 앱 "앨범" 의 모양만 씁니다.
+//    첫 화면      큰 제목 + 프로필 카드 + 앨범 표지 3개
+//                 표지(사진)가 곧 입구이고, 이름 · 개수는 사진 아래에 둡니다. 사진 위에는
+//                 글자 · 버튼을 올리지 않습니다.
+//                 저장한 장소  넓은 표지(2:1). 사진이 여러 장이면 모자이크(큰 1 + 작은 2)
+//                              이름 줄 오른쪽 "지도에서 보기" → 지도 탭 저장 모드
+//                 추가한 장소 · 내 글  정사각 표지 두 칸 (큰 글자에서는 한 줄에 하나씩)
+//                 게스트는 두 칸이 잠긴 표지로 보이고, 누르면 로그인입니다.
 //                 오른쪽 위 톱니바퀴 → 설정(화면 모드 · 사진 취향 · 버전)
-//    저장한 장소  사진 앱 "앨범" 과 같은 2열 격자. 테마는 오른쪽 위 거르기 메뉴.
+//    저장한 장소  사진 앱 "앨범" 과 같은 2열 격자. 오른쪽 위 지도 · 거르기 메뉴.
 //    추가한 장소  목록 (사진 · 이름 · 지역과 날짜)
 //    내 글        메모 앱과 같은 목록 (제목 · 시간과 장소 · 오른쪽 사진) → 글 상세
 //    빈 상태      ContentUnavailableView (iOS 기본 빈 화면)
 //
 //  [사진을 첫 화면 아래에 따로 모아 두지 않는 이유]
 //  "저장한 장소" 를 누르면 사진 격자가 나옵니다. 첫 화면에 같은 사진을 또 두면
-//  같은 내용을 두 번 보여줍니다. 사진은 입구(목록 줄)에 넣습니다.
+//  같은 내용을 두 번 보여줍니다. 사진은 입구(앨범 표지)에 넣습니다.
 //
 //  [설정을 따로 두는 이유]
 //  첫 화면에는 "내 것" 만 둡니다. 화면 모드와 사진 취향은 앱 전체에 걸리는 설정입니다.
 //  로그인하지 않아도 바꿀 수 있어야 해서 계정 화면 안이 아니라 톱니바퀴로 엽니다.
 //
-//  글자는 시스템 글자 스타일, 색은 시스템 색(목록 배경 · 회색 글자)을 그대로 씁니다.
-//  주황은 앱의 tint 로, 톱니바퀴 · 설정 목록 아이콘 · 게스트의 "로그인" 에만 나옵니다.
+//  글자는 시스템 글자 스타일, 색은 시스템 색(묶음 배경 · 회색 글자)을 그대로 씁니다.
+//  주황은 앱의 tint 로, 톱니바퀴 · "지도에서 보기" · 설정 목록 아이콘 · 게스트의 "로그인" 에만 나옵니다.
 // ═══════════════════════════════════════════════════════════════════
 
 struct MyTabView: View {
@@ -53,6 +56,8 @@ struct MyTabView: View {
     let onAddComment: (String, CommunityPost) -> Bool
     let onRequestSignIn: () -> Void
     let onExploreSpots: () -> Void
+    /// 저장한 장소를 지도 탭에서 봅니다. (저장 모드 + 저장 목록)
+    let onShowSavedOnMap: () -> Void
     /// 빈 "추가한 장소" 화면에서 바로 장소 추가로 갑니다.
     let onAddPlace: () -> Void
     /// 빈 "내 글" 화면에서 바로 글쓰기로 갑니다.
@@ -61,6 +66,7 @@ struct MyTabView: View {
     let onSignOut: () -> Void
 
     @State private var isSettingsPresented = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var myPosts: [CommunityPost] {
         guard let user else { return [] }
@@ -69,24 +75,25 @@ struct MyTabView: View {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
-    // MARK: - 목록 줄 사진
+    // MARK: - 표지 사진
 
-    /// "저장한 장소" 줄의 사진. 저장한 곳 중 사진이 있는 첫 곳입니다.
+    /// "저장한 장소" 표지. 사진이 있는 곳 중 앞에서 세 곳입니다.
+    /// (1장이면 한 장, 2장이면 반반, 3장이면 큰 1 + 작은 2)
     /// 저장 기록에 날짜가 없어서 "최근" 이라고 부르지 않습니다.
-    private var savedThumbnailSpot: PhotoSpot? {
-        savedSpots.first(where: \.hasReliableDisplayImage)
+    private var savedMosaicSpots: [PhotoSpot] {
+        Array(savedSpots.lazy.filter(\.hasReliableDisplayImage).prefix(3))
     }
 
-    /// "추가한 장소" 줄의 사진. 가장 최근에 추가한 곳 중 사진이 있는 곳입니다. (receipt 는 최신순)
-    private var placeThumbnailSpot: PhotoSpot? {
+    /// "추가한 장소" 표지. 가장 최근에 추가한 곳 중 사진이 있는 곳입니다. (receipt 는 최신순)
+    private var placeCoverSpot: PhotoSpot? {
         submissionReceipts.lazy
             .compactMap { receipt in spots.first(where: { $0.id == receipt.id }) }
             .first(where: \.hasReliableDisplayImage)
     }
 
-    /// "내 글" 줄의 사진. 가장 최근 글 중 사진이 있는 글의 첫 사진입니다.
+    /// "내 글" 표지. 가장 최근 글 중 사진이 있는 글의 첫 사진입니다.
     /// 사진 없는 글에 장소 대표 사진을 대신 쓰지 않습니다. 남이 찍은 사진이 내 글처럼 보이기 때문입니다.
-    private var postThumbnailAttachment: CommunityPhotoAttachment? {
+    private var postCoverAttachment: CommunityPhotoAttachment? {
         myPosts.lazy
             .compactMap { $0.publicPhotoAttachments.first }
             .first
@@ -94,72 +101,19 @@ struct MyTabView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    profileRow
+            ScrollView {
+                VStack(alignment: .leading, spacing: MyAlbumMetrics.sectionSpacing) {
+                    profileCard
+                    savedAlbum
+                    activityAlbums
                 }
-
-                Section {
-                    NavigationLink {
-                        MySavedSpotsView(
-                            spots: savedSpots,
-                            onSelect: onSelectSpot,
-                            onUnsave: unsave,
-                            onExplore: onExploreSpots
-                        )
-                    } label: {
-                        MyCollectionRow(title: "저장한 장소", detail: countText(savedSpots.count, unit: "곳")) {
-                            if let spot = savedThumbnailSpot {
-                                spotThumbnail(spot)
-                            } else {
-                                MyThumbnailPlaceholder(symbolName: "bookmark")
-                            }
-                        }
-                    }
-
-                    // 추가한 장소 · 내 글은 계정 활동이라 로그인했을 때만 둡니다.
-                    // 게스트에게는 맨 위 로그인 행이 그 설명을 대신합니다.
-                    if user != nil {
-                        NavigationLink {
-                            MyPlacesView(
-                                receipts: submissionReceipts,
-                                spots: spots,
-                                onSelectSpot: onSelectSpot,
-                                onAddPlace: onAddPlace
-                            )
-                        } label: {
-                            MyCollectionRow(
-                                title: "추가한 장소",
-                                detail: countText(submissionReceipts.count, unit: "곳")
-                            ) {
-                                if let spot = placeThumbnailSpot {
-                                    spotThumbnail(spot)
-                                } else {
-                                    MyThumbnailPlaceholder(symbolName: "mappin.and.ellipse")
-                                }
-                            }
-                        }
-
-                        NavigationLink {
-                            MyPostsView(posts: myPosts, makeRow: postRow, onCompose: onCompose)
-                        } label: {
-                            MyCollectionRow(title: "내 글", detail: countText(myPosts.count, unit: "개")) {
-                                if let attachment = postThumbnailAttachment {
-                                    MyAttachmentImage(attachment: attachment)
-                                } else {
-                                    MyThumbnailPlaceholder(symbolName: "text.bubble")
-                                }
-                            }
-                        }
-                    }
-                } footer: {
-                    Text(user == nil
-                         ? "저장은 로그인 없이도 돼요. 저장한 장소는 이 기기에 남아요."
-                         : "저장한 장소는 이 기기에 저장돼요.")
-                }
+                .padding(.horizontal)
+                .padding(.top, VFSpace.sm)
+                .padding(.bottom, VFSpace.xl)
             }
-            .listStyle(.insetGrouped)
-            // iOS 26: 위로 조금만 올려도 줄어든 탭바가 다시 펼쳐지게 합니다.
+            // 설정 앱과 같은 묶음 배경입니다. 프로필 카드가 한 단계 올라온 표면으로 읽힙니다.
+            .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+            // iOS 26: 내리면 탭바가 숨고, 위로 조금만 올려도 다시 보입니다.
             .vfReportsTabBarScroll()
             .navigationTitle("마이")
             .navigationBarTitleDisplayMode(.large)
@@ -173,7 +127,7 @@ struct MyTabView: View {
                     .accessibilityLabel("설정")
                 }
             }
-            // 목록(lazy) 안이 아니라 목록 자체에 붙입니다. 목록 줄 안에 두면 동작하지 않을 수 있습니다.
+            // 화면 안쪽(표지 · 줄)이 아니라 스크롤 화면 자체에 붙입니다. 안쪽에 두면 동작하지 않을 수 있습니다.
             .navigationDestination(isPresented: $isSettingsPresented) {
                 MySettingsView(onResetTaste: onResetTaste)
             }
@@ -188,30 +142,175 @@ struct MyTabView: View {
         count == 0 ? "아직 없어요" : "\(count)\(unit)"
     }
 
-    private func spotThumbnail(_ spot: PhotoSpot) -> some View {
-        PhotoSpotImageView(
-            spot: spot,
-            symbolSize: 16,
-            targetPixelWidth: VFPhotoDetail.thumbnail.pixelWidth
-        )
-    }
-
     // MARK: - 프로필
 
     @ViewBuilder
-    private var profileRow: some View {
+    private var profileCard: some View {
         if let user {
             NavigationLink {
                 MyAccountView(user: user, onSignOut: onSignOut)
             } label: {
-                MyProfileLabel(user: user)
+                MyProfileCard {
+                    MyProfileLabel(user: user)
+                }
             }
+            .buttonStyle(.plain)
         } else {
             Button(action: onRequestSignIn) {
-                MyGuestLabel()
+                MyProfileCard {
+                    MyGuestLabel()
+                }
             }
+            .buttonStyle(.plain)
             .accessibilityHint("로그인 화면을 엽니다")
         }
+    }
+
+    // MARK: - 앨범 표지
+    //
+    //  사진 앱 "앨범" 과 같습니다. 표지(사진)가 곧 입구이고, 이름과 개수는 사진 아래에 둡니다.
+    //  사진 위에는 글자 · 버튼을 올리지 않습니다.
+
+    /// 가장 자주 여는 곳이라 넓은 표지(2:1)입니다. 사진이 여러 장이면 모자이크로 보여줍니다.
+    private var savedAlbum: some View {
+        let showsMapButton = !savedSpots.isEmpty
+        // 큰 글자에서는 이름 줄 오른쪽에 둘 자리가 없어서 이름 아래 한 줄로 내립니다.
+        let placesMapButtonBelow = dynamicTypeSize.isAccessibilitySize
+
+        return VStack(alignment: .leading, spacing: 0) {
+            NavigationLink {
+                savedSpotsScreen
+            } label: {
+                MyAlbum(
+                    title: "저장한 장소",
+                    detail: countText(savedSpots.count, unit: "곳"),
+                    aspectRatio: MyAlbumMetrics.wideAspect
+                ) {
+                    if savedMosaicSpots.isEmpty {
+                        MyThumbnailPlaceholder(
+                            symbolName: "bookmark",
+                            symbolSize: MyAlbumMetrics.placeholderSymbolSize
+                        )
+                    } else {
+                        MySavedMosaic(spots: savedMosaicSpots)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .overlay(alignment: .bottomTrailing) {
+                // 표지 링크 위에 따로 얹은 버튼입니다. 링크 안에 넣으면 두 동작이 겹칩니다.
+                if showsMapButton, !placesMapButtonBelow {
+                    MyShowOnMapButton(action: onShowSavedOnMap)
+                }
+            }
+
+            if showsMapButton, placesMapButtonBelow {
+                MyShowOnMapButton(action: onShowSavedOnMap)
+            }
+        }
+    }
+
+    /// 추가한 장소 · 내 글. 두 칸으로 나란히, 큰 글자에서는 한 줄에 하나씩(넓은 표지로) 둡니다.
+    @ViewBuilder
+    private var activityAlbums: some View {
+        let isStacked = dynamicTypeSize.isAccessibilitySize
+        let layout = isStacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MyAlbumMetrics.sectionSpacing))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: MyAlbumMetrics.columnSpacing))
+        let aspectRatio = isStacked ? MyAlbumMetrics.wideAspect : 1
+
+        layout {
+            placesAlbum(aspectRatio: aspectRatio)
+            postsAlbum(aspectRatio: aspectRatio)
+        }
+    }
+
+    @ViewBuilder
+    private func placesAlbum(aspectRatio: CGFloat) -> some View {
+        if user == nil {
+            // 게스트에게도 무엇이 있는지 보여줍니다. 누르면 로그인입니다.
+            lockedAlbum(title: "추가한 장소", symbolName: "mappin.and.ellipse", aspectRatio: aspectRatio)
+        } else {
+            NavigationLink {
+                MyPlacesView(
+                    receipts: submissionReceipts,
+                    spots: spots,
+                    onSelectSpot: onSelectSpot,
+                    onAddPlace: onAddPlace
+                )
+            } label: {
+                MyAlbum(
+                    title: "추가한 장소",
+                    detail: countText(submissionReceipts.count, unit: "곳"),
+                    aspectRatio: aspectRatio
+                ) {
+                    if let spot = placeCoverSpot {
+                        spotCoverPhoto(spot)
+                    } else {
+                        MyThumbnailPlaceholder(
+                            symbolName: "mappin.and.ellipse",
+                            symbolSize: MyAlbumMetrics.placeholderSymbolSize
+                        )
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private func postsAlbum(aspectRatio: CGFloat) -> some View {
+        if user == nil {
+            lockedAlbum(title: "내 글", symbolName: "text.bubble", aspectRatio: aspectRatio)
+        } else {
+            NavigationLink {
+                MyPostsView(posts: myPosts, makeRow: postRow, onCompose: onCompose)
+            } label: {
+                MyAlbum(
+                    title: "내 글",
+                    detail: countText(myPosts.count, unit: "개"),
+                    aspectRatio: aspectRatio
+                ) {
+                    if let attachment = postCoverAttachment {
+                        MyAttachmentImage(attachment: attachment, detail: .card)
+                    } else {
+                        MyThumbnailPlaceholder(
+                            symbolName: "text.bubble",
+                            symbolSize: MyAlbumMetrics.placeholderSymbolSize
+                        )
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func lockedAlbum(title: String, symbolName: String, aspectRatio: CGFloat) -> some View {
+        Button(action: onRequestSignIn) {
+            MyAlbum(title: title, detail: "로그인이 필요해요", aspectRatio: aspectRatio) {
+                MyThumbnailPlaceholder(symbolName: symbolName, symbolSize: MyAlbumMetrics.placeholderSymbolSize)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("로그인 화면을 엽니다")
+    }
+
+    private var savedSpotsScreen: some View {
+        MySavedSpotsView(
+            spots: savedSpots,
+            onSelect: onSelectSpot,
+            onUnsave: unsave,
+            onExplore: onExploreSpots,
+            onShowOnMap: onShowSavedOnMap
+        )
+    }
+
+    private func spotCoverPhoto(_ spot: PhotoSpot) -> some View {
+        PhotoSpotImageView(
+            spot: spot,
+            symbolSize: 20,
+            targetPixelWidth: VFPhotoDetail.card.pixelWidth
+        )
     }
 
     // MARK: - 저장 해제
@@ -302,23 +401,49 @@ private struct MyRowLabel: View {
     }
 }
 
-/// 첫 화면의 모음 한 줄: 왼쪽은 그 모음의 실제 사진, 오른쪽은 이름과 개수.
-/// 음악 앱 플레이리스트 목록과 같은 모양입니다. 사진이 없으면 모음의 기호를 둡니다.
-///
-/// 사진을 첫 화면 아래에 따로 모아 보여주지 않고 입구에 넣는 이유는 파일 맨 위 주석에 있습니다.
-private struct MyCollectionRow<Thumbnail: View>: View {
+// MARK: - 앨범 표지
+
+private enum MyAlbumMetrics {
+    /// 첫 화면 묶음 사이 간격.
+    static let sectionSpacing: CGFloat = 28
+    /// 나란히 놓인 두 표지 사이 간격. 저장한 장소 화면 격자와 같습니다.
+    static let columnSpacing: CGFloat = 16
+    /// 넓은 표지 비율. (저장한 장소, 큰 글자에서의 모든 표지)
+    static let wideAspect: CGFloat = 2
+    /// 모자이크 사진 사이 틈.
+    static let mosaicGap: CGFloat = 2
+    /// 사진이 없을 때 표지 가운데 기호 크기.
+    static let placeholderSymbolSize: CGFloat = 28
+    /// 표지 모서리. 저장한 장소 화면의 사진 칸과 같습니다.
+    static let cornerRadius: CGFloat = VFRadius.inner
+}
+
+/// 사진 앱 "앨범" 한 칸: 표지 사진 + 아래에 이름 · 개수.
+/// 사진이 없으면 모음의 기호를 회색 칸에 둡니다.
+private struct MyAlbum<Cover: View>: View {
     let title: String
     let detail: String
-    @ViewBuilder let thumbnail: () -> Thumbnail
+    var aspectRatio: CGFloat = 1
+    @ViewBuilder let cover: () -> Cover
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: MyAlbumMetrics.cornerRadius, style: .continuous)
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
-            MyRowThumbnail {
-                thumbnail()
-            }
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            // 투명한 상자로 비율을 먼저 정하고, 사진이 그 상자를 채우게 합니다. (VFPhotoTile 과 같은 방식)
+            Color.clear
+                .aspectRatio(aspectRatio, contentMode: .fit)
+                .overlay {
+                    cover()
+                }
+                .clipShape(shape)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(title)
+                    .font(.headline)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
@@ -328,13 +453,94 @@ private struct MyCollectionRow<Thumbnail: View>: View {
                     .monospacedDigit()
                     .lineLimit(1)
             }
-            // 줄 사이 구분선을 사진 밑이 아니라 글자가 시작하는 곳부터 긋습니다. (음악 앱 목록처럼)
-            .alignmentGuide(.listRowSeparatorLeading) { dimensions in
-                dimensions[.leading]
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title), \(detail)")
+    }
+}
+
+/// 저장한 장소 표지. 1장이면 한 장, 2장이면 반반, 3장이면 큰 1 + 작은 2 입니다.
+private struct MySavedMosaic: View {
+    let spots: [PhotoSpot]
+
+    private let gap = MyAlbumMetrics.mosaicGap
+
+    var body: some View {
+        GeometryReader { geometry in
+            if spots.count >= 3 {
+                HStack(spacing: gap) {
+                    photo(spots[0])
+                        .frame(width: max(0, (geometry.size.width - gap) * 0.62))
+
+                    VStack(spacing: gap) {
+                        photo(spots[1])
+                        photo(spots[2])
+                    }
+                }
+            } else if spots.count == 2 {
+                HStack(spacing: gap) {
+                    photo(spots[0])
+                    photo(spots[1])
+                }
+            } else if let first = spots.first {
+                photo(first)
             }
         }
-        .padding(.vertical, 2)
-        .accessibilityElement(children: .combine)
+    }
+
+    private func photo(_ spot: PhotoSpot) -> some View {
+        PhotoSpotImageView(
+            spot: spot,
+            symbolSize: 20,
+            targetPixelWidth: VFPhotoDetail.card.pixelWidth
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+    }
+}
+
+/// "지도에서 보기". 저장한 장소 표지의 이름 줄 오른쪽에 놓입니다.
+private struct MyShowOnMapButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("지도에서 보기", systemImage: "map")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(AppColors.accent)
+                .frame(minHeight: AppLayout.touchTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("지도 탭에서 저장한 장소만 모아 봅니다")
+    }
+}
+
+/// 프로필 카드. 설정 앱 맨 위 계정 칸처럼 한 단계 올라온 표면 위에 둡니다.
+private struct MyProfileCard<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(spacing: VFSpace.md) {
+            content()
+
+            Spacer(minLength: VFSpace.sm)
+
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color(uiColor: .secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: MyAlbumMetrics.cornerRadius, style: .continuous)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: MyAlbumMetrics.cornerRadius, style: .continuous))
     }
 }
 
@@ -459,6 +665,7 @@ private struct MyRowThumbnail<Content: View>: View {
 /// 사진이 없을 때의 칸. 시스템 채움 색 위 기호 하나.
 private struct MyThumbnailPlaceholder: View {
     let symbolName: String
+    var symbolSize: CGFloat = 18
 
     var body: some View {
         ZStack {
@@ -466,7 +673,7 @@ private struct MyThumbnailPlaceholder: View {
 
             Image(systemName: symbolName)
                 // Dynamic Type 제외: 고정 크기 칸 안의 기호.
-                .font(.system(size: 18, weight: .regular))
+                .font(.system(size: symbolSize, weight: .regular))
                 .foregroundStyle(.secondary)
         }
     }
@@ -695,6 +902,8 @@ private struct MySavedSpotsView: View {
     let onSelect: (PhotoSpot) -> Void
     let onUnsave: (PhotoSpot) -> Void
     let onExplore: () -> Void
+    /// 지도 탭에서 저장한 장소만 모아 봅니다.
+    let onShowOnMap: () -> Void
 
     @State private var selectedTheme: SpotTheme?
 
@@ -751,6 +960,16 @@ private struct MySavedSpotsView: View {
         }
         .navigationTitle("저장한 장소")
         .toolbar {
+            if !spots.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: onShowOnMap) {
+                        Image(systemName: "map")
+                    }
+                    .accessibilityLabel("지도에서 보기")
+                    .accessibilityHint("지도 탭에서 저장한 장소만 모아 봅니다")
+                }
+            }
+
             // 테마가 하나뿐이면 거를 게 없으므로 메뉴를 두지 않습니다.
             if themes.count >= 2 {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -978,6 +1197,9 @@ private struct MySettingsView: View {
 
             Section {
                 LabeledContent("버전", value: versionText)
+            } footer: {
+                // 첫 화면에 두던 안내입니다. 첫 화면은 "내 것" 만 두려고 설정으로 옮겼습니다.
+                Text("저장한 장소는 이 기기에 저장돼요. 로그인하지 않아도 그대로 남아요.")
             }
         }
         .listStyle(.insetGrouped)

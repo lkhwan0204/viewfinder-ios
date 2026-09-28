@@ -808,6 +808,8 @@ struct ContentView: View {
                     lastContentTab = .home
                     selectedTab = .home
                 },
+                // 마이 → 저장한 장소 → "지도에서 보기"
+                onShowSavedOnMap: showSavedSpotsOnMap,
                 // 마이 탭의 빈 "내가 추가한 장소" · "내 글" 에서 바로 작성으로 갑니다.
                 // 탭바 + 버튼, 커뮤니티 글쓰기 버튼과 같은 경로입니다.
                 onAddPlace: {
@@ -1128,6 +1130,32 @@ struct ContentView: View {
                 selectedSpot = firstSpot
                 selectedSpotRevision += 1
             }
+        }
+    }
+
+    /// 마이 → "지도에서 보기". 지도 탭을 저장한 장소만 보이는 모드로 열고, 첫 장소로 옮긴 뒤
+    /// 지도 탭의 저장 목록("내 보관함")을 올립니다.
+    private func showSavedSpotsOnMap() {
+        // 지도 위 테마 칩이 걸려 있으면 저장한 곳 일부가 숨으므로 모두 보이게 합니다.
+        mapState.categoryFilter = .all
+        mapState.savedListFilter = .all
+        mapState.showSavedSpots()
+        // 지도 탭으로 바꿀 때 추천 모드로 돌아가지 않게 합니다. (onChange(of: selectedTab) 참고)
+        // openMap(_:) 이 장소 하나를 보여줄 때와 같은 방식입니다.
+        mapState.shouldFocusUserOnSelection = false
+
+        if let firstSpot = savedMapListSpots.first {
+            selectedSpot = firstSpot
+            selectedSpotRevision += 1
+        }
+
+        selectedTab = .map
+
+        // 지도 탭이 화면에 올라온 뒤 목록 시트를 올립니다.
+        // 탭이 바뀌는 중에 시트를 띄우면 뜨지 않을 수 있습니다.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            guard selectedTab == .map, mapState.mode == .saved else { return }
+            mapState.isSavedListPresented = true
         }
     }
 
