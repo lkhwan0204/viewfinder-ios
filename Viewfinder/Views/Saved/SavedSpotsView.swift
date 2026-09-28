@@ -11,16 +11,25 @@ import UIKit
 //
 //  [지금] 새로 만든 모양 없이 iOS 기본 부품만 씁니다.
 //    첫 화면      큰 제목 + 묶음 목록(List, insetGrouped). 설정 앱과 같은 구조입니다.
-//                 프로필 행 → 계정(로그아웃)
-//                 저장한 장소 · 추가한 장소 · 내 글 → 각 화면, 오른쪽에 개수
-//                 화면 모드 · 사진 취향 다시 설정
+//                 프로필 행 → 계정(로그인 방식 · 로그아웃)
+//                 저장한 장소 · 추가한 장소 · 내 글 → 각 화면
+//                 왼쪽은 그 모음의 실제 사진, 아래 줄은 개수 (음악 앱 플레이리스트 목록처럼)
+//                 오른쪽 위 톱니바퀴 → 설정(화면 모드 · 사진 취향 · 버전)
 //    저장한 장소  사진 앱 "앨범" 과 같은 2열 격자. 테마는 오른쪽 위 거르기 메뉴.
 //    추가한 장소  목록 (사진 · 이름 · 지역과 날짜)
 //    내 글        메모 앱과 같은 목록 (제목 · 시간과 장소 · 오른쪽 사진) → 글 상세
 //    빈 상태      ContentUnavailableView (iOS 기본 빈 화면)
 //
+//  [사진을 첫 화면 아래에 따로 모아 두지 않는 이유]
+//  "저장한 장소" 를 누르면 사진 격자가 나옵니다. 첫 화면에 같은 사진을 또 두면
+//  같은 내용을 두 번 보여줍니다. 사진은 입구(목록 줄)에 넣습니다.
+//
+//  [설정을 따로 두는 이유]
+//  첫 화면에는 "내 것" 만 둡니다. 화면 모드와 사진 취향은 앱 전체에 걸리는 설정입니다.
+//  로그인하지 않아도 바꿀 수 있어야 해서 계정 화면 안이 아니라 톱니바퀴로 엽니다.
+//
 //  글자는 시스템 글자 스타일, 색은 시스템 색(목록 배경 · 회색 글자)을 그대로 씁니다.
-//  주황은 앱의 tint 로, 목록 아이콘과 게스트의 "로그인" 에만 나옵니다.
+//  주황은 앱의 tint 로, 톱니바퀴 · 설정 목록 아이콘 · 게스트의 "로그인" 에만 나옵니다.
 // ═══════════════════════════════════════════════════════════════════
 
 struct MyTabView: View {
@@ -51,17 +60,36 @@ struct MyTabView: View {
     let onResetTaste: () -> Void
     let onSignOut: () -> Void
 
-    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.defaultValue.rawValue
-
-    private var appearance: AppAppearance {
-        AppAppearance(rawValue: appearanceRawValue) ?? .defaultValue
-    }
+    @State private var isSettingsPresented = false
 
     private var myPosts: [CommunityPost] {
         guard let user else { return [] }
         return posts
             .filter { $0.authorID == user.id }
             .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    // MARK: - 목록 줄 사진
+
+    /// "저장한 장소" 줄의 사진. 저장한 곳 중 사진이 있는 첫 곳입니다.
+    /// 저장 기록에 날짜가 없어서 "최근" 이라고 부르지 않습니다.
+    private var savedThumbnailSpot: PhotoSpot? {
+        savedSpots.first(where: \.hasReliableDisplayImage)
+    }
+
+    /// "추가한 장소" 줄의 사진. 가장 최근에 추가한 곳 중 사진이 있는 곳입니다. (receipt 는 최신순)
+    private var placeThumbnailSpot: PhotoSpot? {
+        submissionReceipts.lazy
+            .compactMap { receipt in spots.first(where: { $0.id == receipt.id }) }
+            .first(where: \.hasReliableDisplayImage)
+    }
+
+    /// "내 글" 줄의 사진. 가장 최근 글 중 사진이 있는 글의 첫 사진입니다.
+    /// 사진 없는 글에 장소 대표 사진을 대신 쓰지 않습니다. 남이 찍은 사진이 내 글처럼 보이기 때문입니다.
+    private var postThumbnailAttachment: CommunityPhotoAttachment? {
+        myPosts.lazy
+            .compactMap { $0.publicPhotoAttachments.first }
+            .first
     }
 
     var body: some View {
@@ -80,7 +108,13 @@ struct MyTabView: View {
                             onExplore: onExploreSpots
                         )
                     } label: {
-                        MyRowLabel(title: "저장한 장소", symbolName: "bookmark", value: "\(savedSpots.count)")
+                        MyCollectionRow(title: "저장한 장소", detail: countText(savedSpots.count, unit: "곳")) {
+                            if let spot = savedThumbnailSpot {
+                                spotThumbnail(spot)
+                            } else {
+                                MyThumbnailPlaceholder(symbolName: "bookmark")
+                            }
+                        }
                     }
 
                     // 추가한 장소 · 내 글은 계정 활동이라 로그인했을 때만 둡니다.
@@ -94,17 +128,28 @@ struct MyTabView: View {
                                 onAddPlace: onAddPlace
                             )
                         } label: {
-                            MyRowLabel(
+                            MyCollectionRow(
                                 title: "추가한 장소",
-                                symbolName: "mappin.and.ellipse",
-                                value: "\(submissionReceipts.count)"
-                            )
+                                detail: countText(submissionReceipts.count, unit: "곳")
+                            ) {
+                                if let spot = placeThumbnailSpot {
+                                    spotThumbnail(spot)
+                                } else {
+                                    MyThumbnailPlaceholder(symbolName: "mappin.and.ellipse")
+                                }
+                            }
                         }
 
                         NavigationLink {
                             MyPostsView(posts: myPosts, makeRow: postRow, onCompose: onCompose)
                         } label: {
-                            MyRowLabel(title: "내 글", symbolName: "text.bubble", value: "\(myPosts.count)")
+                            MyCollectionRow(title: "내 글", detail: countText(myPosts.count, unit: "개")) {
+                                if let attachment = postThumbnailAttachment {
+                                    MyAttachmentImage(attachment: attachment)
+                                } else {
+                                    MyThumbnailPlaceholder(symbolName: "text.bubble")
+                                }
+                            }
                         }
                     }
                 } footer: {
@@ -112,35 +157,43 @@ struct MyTabView: View {
                          ? "저장은 로그인 없이도 돼요. 저장한 장소는 이 기기에 남아요."
                          : "저장한 장소는 이 기기에 저장돼요.")
                 }
-
-                Section {
-                    Picker(selection: $appearanceRawValue) {
-                        ForEach(AppAppearance.allCases) { option in
-                            Text(option.title)
-                                .tag(option.rawValue)
-                        }
-                    } label: {
-                        MyRowLabel(title: "화면 모드", symbolName: appearance.symbolName)
-                    }
-                    .pickerStyle(.menu)
-
-                    Button(action: onResetTaste) {
-                        MyRowLabel(title: "사진 취향 다시 설정", symbolName: "photo.on.rectangle.angled")
-                    }
-                    .accessibilityHint("홈 추천의 출발점이 되는 사진 3장을 다시 고릅니다")
-                } footer: {
-                    Text(Self.versionText)
-                }
             }
             .listStyle(.insetGrouped)
             // iOS 26: 위로 조금만 올려도 줄어든 탭바가 다시 펼쳐지게 합니다.
             .vfReportsTabBarScroll()
             .navigationTitle("마이")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isSettingsPresented = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("설정")
+                }
+            }
+            // 목록(lazy) 안이 아니라 목록 자체에 붙입니다. 목록 줄 안에 두면 동작하지 않을 수 있습니다.
+            .navigationDestination(isPresented: $isSettingsPresented) {
+                MySettingsView(onResetTaste: onResetTaste)
+            }
             .onAppear {
                 onTabBarVisibilityChange(false)
             }
         }
+    }
+
+    /// 개수. 0 이면 숫자 대신 "아직 없어요".
+    private func countText(_ count: Int, unit: String) -> String {
+        count == 0 ? "아직 없어요" : "\(count)\(unit)"
+    }
+
+    private func spotThumbnail(_ spot: PhotoSpot) -> some View {
+        PhotoSpotImageView(
+            spot: spot,
+            symbolSize: 16,
+            targetPixelWidth: VFPhotoDetail.thumbnail.pixelWidth
+        )
     }
 
     // MARK: - 프로필
@@ -216,50 +269,27 @@ struct MyTabView: View {
         guard let placeID = post.captureLocation?.placeID else { return nil }
         return spots.first(where: { $0.id == placeID })
     }
-
-    /// 목록 맨 아래 작은 글씨. 설정 앱의 버전 표기처럼 둡니다.
-    private static var versionText: String {
-        let info = Bundle.main.infoDictionary
-        let version = info?["CFBundleShortVersionString"] as? String ?? "-"
-        let build = info?["CFBundleVersion"] as? String ?? "-"
-        return "뷰파인더 \(version) (\(build))"
-    }
 }
 
 // MARK: - 목록 행
 
 private enum MyListMetrics {
-    /// 목록 아이콘 칸의 폭. 기호마다 폭이 달라도 제목이 한 줄로 맞게 합니다.
+    /// 설정 목록 아이콘 칸의 폭. 기호마다 폭이 달라도 제목이 한 줄로 맞게 합니다.
     static let iconWidth: CGFloat = 28
     /// 프로필 행 아바타. 설정 앱 맨 위 계정 행과 비슷한 크기입니다.
     static let profileAvatarSize: CGFloat = 60
     /// 계정 화면 가운데 아바타.
     static let accountAvatarSize: CGFloat = 84
-    /// 목록 행의 작은 사진.
+    /// 목록 줄의 작은 사진. (첫 화면 모음 줄 · 추가한 장소 줄)
     static let thumbnailSize: CGFloat = 56
 }
 
-/// 목록 한 줄: 주황 아이콘 + 제목, 값이 있으면 오른쪽에 회색으로.
-/// 메일 · 메모 앱의 폴더 목록과 같은 모양입니다.
+/// 설정 목록 한 줄: 주황 아이콘 + 제목. 메일 · 메모 앱의 폴더 목록과 같은 모양입니다.
 private struct MyRowLabel: View {
     let title: String
     let symbolName: String
-    var value: String? = nil
 
     var body: some View {
-        if let value {
-            LabeledContent {
-                Text(value)
-                    .monospacedDigit()
-            } label: {
-                label
-            }
-        } else {
-            label
-        }
-    }
-
-    private var label: some View {
         Label {
             // 버튼 행은 기본으로 글자까지 tint(주황)가 칠해지므로 본문 색을 직접 정합니다.
             Text(title)
@@ -269,6 +299,42 @@ private struct MyRowLabel: View {
                 .foregroundStyle(AppColors.accent)
                 .frame(width: MyListMetrics.iconWidth)
         }
+    }
+}
+
+/// 첫 화면의 모음 한 줄: 왼쪽은 그 모음의 실제 사진, 오른쪽은 이름과 개수.
+/// 음악 앱 플레이리스트 목록과 같은 모양입니다. 사진이 없으면 모음의 기호를 둡니다.
+///
+/// 사진을 첫 화면 아래에 따로 모아 보여주지 않고 입구에 넣는 이유는 파일 맨 위 주석에 있습니다.
+private struct MyCollectionRow<Thumbnail: View>: View {
+    let title: String
+    let detail: String
+    @ViewBuilder let thumbnail: () -> Thumbnail
+
+    var body: some View {
+        HStack(spacing: 12) {
+            MyRowThumbnail {
+                thumbnail()
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
+            // 줄 사이 구분선을 사진 밑이 아니라 글자가 시작하는 곳부터 긋습니다. (음악 앱 목록처럼)
+            .alignmentGuide(.listRowSeparatorLeading) { dimensions in
+                dimensions[.leading]
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -509,6 +575,10 @@ private struct MyPlaceRow: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            }
+            // 구분선을 글자가 시작하는 곳부터 긋습니다. 첫 화면 모음 줄과 같습니다.
+            .alignmentGuide(.listRowSeparatorLeading) { dimensions in
+                dimensions[.leading]
             }
         }
         .padding(.vertical, 2)
@@ -859,6 +929,60 @@ private struct MyPostsView<Row: View>: View {
                 }
             }
         }
+    }
+}
+
+/// 설정. 첫 화면 오른쪽 위 톱니바퀴로 엽니다.
+///
+/// 화면 모드 · 사진 취향은 앱 전체에 걸리는 설정이라 로그인과 상관없이 들어올 수 있어야 합니다.
+/// 그래서 계정 화면 안이 아니라 따로 둡니다. 로그아웃은 설정 앱처럼 계정 화면에 있습니다.
+private struct MySettingsView: View {
+    let onResetTaste: () -> Void
+
+    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.defaultValue.rawValue
+
+    private var appearance: AppAppearance {
+        AppAppearance(rawValue: appearanceRawValue) ?? .defaultValue
+    }
+
+    /// "1.0 (1)". 설정 앱 "정보" 의 버전 줄과 같은 모양으로 둡니다.
+    private var versionText: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "-"
+        let build = info?["CFBundleVersion"] as? String ?? "-"
+        return "\(version) (\(build))"
+    }
+
+    var body: some View {
+        List {
+            Section {
+                // 메뉴 Picker 는 목록에서 "제목 …… 지금 값 ⌃⌄" 한 줄로 그려지고,
+                // 고른 값에 시스템 체크 표시가 붙습니다.
+                Picker(selection: $appearanceRawValue) {
+                    ForEach(AppAppearance.allCases) { option in
+                        Text(option.title)
+                            .tag(option.rawValue)
+                    }
+                } label: {
+                    MyRowLabel(title: "화면 모드", symbolName: appearance.symbolName)
+                }
+                .pickerStyle(.menu)
+
+                Button(action: onResetTaste) {
+                    MyRowLabel(title: "사진 취향 다시 설정", symbolName: "photo.on.rectangle.angled")
+                }
+                .accessibilityHint("홈 추천의 출발점이 되는 사진 3장을 다시 고릅니다")
+            } footer: {
+                Text("고른 사진 3장이 홈 추천의 출발점이 돼요.")
+            }
+
+            Section {
+                LabeledContent("버전", value: versionText)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .vfReportsTabBarScroll()
+        .navigationTitle("설정")
     }
 }
 
