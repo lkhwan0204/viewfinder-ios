@@ -774,7 +774,7 @@ struct ContentView: View {
                     updateTabBarVisibility(shouldHide, source: .my)
                 },
                 onSelectSpot: { showDetail($0, source: .saved) },
-                // 마이 → 저장한 장소 화면에서 길게 눌러 저장을 해제합니다.
+                // 마이 → 저장 탭에서 길게 눌러 저장을 해제합니다.
                 onToggleSave: { savedSpotStore.toggle($0) },
                 onEditPost: { post in
                     performAuthenticatedAction { _ in
@@ -808,14 +808,14 @@ struct ContentView: View {
                     lastContentTab = .home
                     selectedTab = .home
                 },
-                // 마이 → 저장한 장소 → "지도에서 보기"
+                // 마이 → 저장 탭 → "지도에서 보기"
                 onShowSavedOnMap: showSavedSpotsOnMap,
-                // 마이 → 추가한 장소 → 줄 끝 "…" (수정 · 삭제)
+                // 마이 → 추가한 장소 탭 → 줄 끝 "…" (수정 · 삭제)
                 onEditPlace: { showPlaceEditor($0) },
                 onDeletePlace: { try await deleteUserPlace($0) },
                 // 만든 사람이 확인되지 않는 장소(Firestore 로 옮기기 전에 추가한 곳 등)는 이 기기의 목록에서만 뺍니다.
                 onRemovePlaceFromList: { placeSubmissionStore.remove(id: $0) },
-                // 마이 탭의 빈 "내가 추가한 장소" · "내 글" 에서 바로 작성으로 갑니다.
+                // 마이의 빈 추가한 장소 · 내 글 탭에서 바로 작성으로 갑니다.
                 // 탭바 + 버튼, 커뮤니티 글쓰기 버튼과 같은 경로입니다.
                 onAddPlace: {
                     performAuthenticatedAction(loginPresentationContext: .addSpot) { _ in
