@@ -21,6 +21,7 @@ import UIKit
 //    저장한 장소  사진 앱 "앨범" 과 같은 2열 격자. 오른쪽 위 지도 · 거르기 메뉴.
 //    추가한 장소  목록 (사진 · 이름 · 지역과 날짜) → 장소 상세
 //                 줄 끝 "…" → 수정 · 삭제
+//                 이 계정 것으로 확인되지 않는 장소(Firestore 로 옮기기 전에 추가한 곳 등)는 "목록에서 삭제" 만
 //    내 글        메모 앱과 같은 목록 (제목 · 시간과 장소 · 오른쪽 사진) → 글 상세
 //                 줄 끝 "…" → 수정 · 삭제
 //                 "…" 은 길게 눌러도 같은 메뉴입니다. 수정 · 삭제는 내가 만든 것에만 보이고,
@@ -68,6 +69,8 @@ struct MyTabView: View {
     let onEditPlace: (PhotoSpot) -> Void
     /// 추가한 장소 "…" → 삭제. 한 번 더 묻는 것은 목록 화면이 합니다.
     let onDeletePlace: (PhotoSpot) async throws -> Void
+    /// 추가한 장소 "…" → 목록에서 삭제. 이 계정 것으로 확인되지 않은 장소를 이 기기의 목록에서만 뺍니다.
+    let onRemovePlaceFromList: (String) -> Void
     /// 빈 "추가한 장소" 화면에서 바로 장소 추가로 갑니다.
     let onAddPlace: () -> Void
     /// 빈 "내 글" 화면에서 바로 글쓰기로 갑니다.
@@ -249,6 +252,7 @@ struct MyTabView: View {
                     onSelectSpot: onSelectSpot,
                     onEdit: onEditPlace,
                     onDelete: onDeletePlace,
+                    onRemoveFromList: onRemovePlaceFromList,
                     onAddPlace: onAddPlace
                 )
             } label: {
@@ -776,43 +780,85 @@ private enum MyDateText {
     }
 }
 
-/// 내가 추가한 장소 한 줄. 누르면 장소 상세가 열리고, 줄 끝 "…" 에 수정 · 삭제가 있습니다.
+/// 추가한 장소 한 줄의 "…" 메뉴.
+///
+/// 수정 · 삭제는 이 계정이 만든 것으로 확인된 장소(PhotoSpot.isOwned)만 됩니다. 서버 규칙도 같습니다.
+/// Firestore 로 옮기기 전(defd620)에 추가한 장소는 만든 사람 정보 없이 옮겨져서
+/// (scripts/migrate-places-to-firestore.mjs) 누구도 고치거나 지울 수 없습니다.
+/// 그런 줄 · 다른 계정으로 추가한 줄 · 장소를 찾을 수 없는 줄에는 "목록에서 삭제" 만 둡니다.
+/// 추가한 장소 기록은 이 기기에만 있어서, 목록에서 빼도 공개된 장소는 그대로입니다.
+private enum MyPlaceMenuKind: Equatable {
+    /// 수정 · 삭제
+    case manage
+    /// 목록에서 삭제 (이 기기의 기록만 지웁니다)
+    case removeFromList
+    /// 메뉴 없음. 장소 목록을 아직 불러오는 중이라 어느 쪽인지 모릅니다.
+    case hidden
+
+    static func kind(hasSpot: Bool, isOwned: Bool, isPlaceListLoaded: Bool) -> MyPlaceMenuKind {
+        if hasSpot {
+            return isOwned ? .manage : .removeFromList
+        }
+        return isPlaceListLoaded ? .removeFromList : .hidden
+    }
+}
+
+/// 내가 추가한 장소 한 줄. 누르면 장소 상세가 열립니다.
+/// 줄 끝 "…" (길게 눌러도 같은 메뉴): 내 장소는 수정 · 삭제, 확인되지 않은 장소는 목록에서 삭제.
 private struct MyPlaceRow: View {
     let receipt: PlaceSubmissionReceipt
-    /// 지금 불러온 장소 목록에서 찾은 장소. 아직 못 불러왔으면 nil 이고,
-    /// 그때는 누를 수 없는 행으로 두고 "…" 도 두지 않습니다. (메뉴 항목마다 장소가 필요합니다)
+    /// 지금 불러온 장소 목록에서 찾은 장소. 못 찾았으면 nil 이고, 그때는 누를 수 없는 행으로 둡니다.
     let spot: PhotoSpot?
-    /// 내가 만든 장소일 때만 "…" 과 길게 누르기 메뉴를 둡니다. 메뉴가 수정 · 삭제뿐이라서입니다.
+    /// 이 계정이 만든 장소로 확인됐는지. 수정 · 삭제는 이때만 됩니다.
     let isOwned: Bool
+    /// 장소 목록을 불러왔는지. 불러오는 중에 못 찾은 줄에는 "…" 을 두지 않습니다.
+    let isPlaceListLoaded: Bool
     let isDeleting: Bool
     let onSelectSpot: (PhotoSpot) -> Void
     let onEdit: (PhotoSpot) -> Void
-    /// 바로 지우지 않습니다. 목록 화면이 한 번 더 묻습니다.
+    /// 바로 지우지 않습니다. 목록 화면이 한 번 더 묻습니다. (목록에서 삭제도 같습니다)
     let onDelete: (PhotoSpot) -> Void
+    let onRemoveFromList: () -> Void
 
     /// 추가한 뒤 이름을 고쳤으면 고친 이름을 보여줍니다. 기록(receipt)에는 추가할 때 이름이 남아 있습니다.
     private var name: String {
         spot?.name ?? receipt.name
     }
 
+    private var menuKind: MyPlaceMenuKind {
+        .kind(hasSpot: spot != nil, isOwned: isOwned, isPlaceListLoaded: isPlaceListLoaded)
+    }
+
     var body: some View {
-        if let spot {
-            // 빈 메뉴가 길게 누를 때 떠오르지 않게, 내 장소가 아니면 길게 누르기 메뉴를 아예 붙이지 않습니다.
-            if isOwned {
-                row(spot)
-                    .contextMenu {
-                        menuItems(for: spot)
-                    }
-            } else {
-                row(spot)
-            }
+        // 빈 메뉴가 길게 누를 때 떠오르지 않게, 메뉴가 없는 줄에는 길게 누르기 메뉴를 아예 붙이지 않습니다.
+        if menuKind == .hidden {
+            row
         } else {
-            content
+            row
+                .contextMenu {
+                    menuItems
+                }
         }
     }
 
-    private func row(_ spot: PhotoSpot) -> some View {
+    private var row: some View {
         HStack(spacing: 0) {
+            main
+                .opacity(isDeleting ? MyListMetrics.deletingOpacity : 1)
+
+            if menuKind != .hidden {
+                MyRowMenu(accessibilityLabel: "장소 메뉴", isBusy: isDeleting) {
+                    menuItems
+                }
+            }
+        }
+        .disabled(isDeleting)
+    }
+
+    /// 줄 본문. 장소를 찾았으면 누르면 상세가 열리는 버튼입니다.
+    @ViewBuilder
+    private var main: some View {
+        if let spot {
             // 줄과 "…" 이 따로 눌리게 둘 다 목록 기본 버튼 모양을 쓰지 않습니다.
             // 기본 모양이면 목록이 줄 전체를 버튼 하나로 만들어서, "…" 을 눌러도 상세가 열릴 수 있습니다.
             // 상세는 밀어 넣는 화면이 아니라 시트라서 오른쪽 화살표(›)를 두지 않습니다.
@@ -824,32 +870,38 @@ private struct MyPlaceRow: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .opacity(isDeleting ? MyListMetrics.deletingOpacity : 1)
             .accessibilityHint("장소 상세를 엽니다")
-
-            if isOwned {
-                MyRowMenu(accessibilityLabel: "장소 메뉴", isBusy: isDeleting) {
-                    menuItems(for: spot)
-                }
-            }
+        } else {
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .disabled(isDeleting)
     }
 
-    /// "…" 과 길게 누르기 메뉴에 같이 들어갑니다. 내 글 목록과 같은 수정 · 삭제입니다.
+    /// "…" 과 길게 누르기 메뉴에 같이 들어갑니다.
     /// 지도에서 보기는 넣지 않습니다. 장소 상세 아래 "지도에서 보기" 가 같은 일을 합니다.
     @ViewBuilder
-    private func menuItems(for spot: PhotoSpot) -> some View {
-        Button {
-            onEdit(spot)
-        } label: {
-            Label("수정", systemImage: "pencil")
-        }
+    private var menuItems: some View {
+        switch menuKind {
+        case .manage:
+            if let spot {
+                Button {
+                    onEdit(spot)
+                } label: {
+                    Label("수정", systemImage: "pencil")
+                }
 
-        Button(role: .destructive) {
-            onDelete(spot)
-        } label: {
-            Label("삭제", systemImage: "trash")
+                Button(role: .destructive) {
+                    onDelete(spot)
+                } label: {
+                    Label("삭제", systemImage: "trash")
+                }
+            }
+        case .removeFromList:
+            Button(role: .destructive, action: onRemoveFromList) {
+                Label("목록에서 삭제", systemImage: "trash")
+            }
+        case .hidden:
+            EmptyView()
         }
     }
 
@@ -1169,11 +1221,15 @@ private struct MyPlacesView: View {
     let onSelectSpot: (PhotoSpot) -> Void
     let onEdit: (PhotoSpot) -> Void
     let onDelete: (PhotoSpot) async throws -> Void
+    /// "목록에서 삭제". 이 기기의 추가한 장소 기록만 지웁니다. (receipt id)
+    let onRemoveFromList: (String) -> Void
     /// 비어 있을 때 가운데 "장소 추가" 버튼.
     let onAddPlace: () -> Void
 
     /// "삭제" 를 누른 장소. 한 번 더 물은 뒤 지웁니다.
     @State private var pendingDeleteSpot: PhotoSpot?
+    /// "목록에서 삭제" 를 누른 줄. 한 번 더 물은 뒤 뺍니다.
+    @State private var pendingListRemoval: PlaceSubmissionReceipt?
     /// 지우는 중인 장소. 그 줄은 흐리게 두고 누를 수 없게 합니다.
     @State private var deletingSpotIDs: Set<String> = []
     @State private var deleteError: String?
@@ -1188,10 +1244,13 @@ private struct MyPlacesView: View {
                             receipt: receipt,
                             spot: spot,
                             isOwned: spot?.isOwned(by: currentUserID) ?? false,
+                            // 장소를 하나도 못 불러왔으면 아직 불러오는 중입니다.
+                            isPlaceListLoaded: !spots.isEmpty,
                             isDeleting: deletingSpotIDs.contains(receipt.id),
                             onSelectSpot: onSelectSpot,
                             onEdit: onEdit,
-                            onDelete: { pendingDeleteSpot = $0 }
+                            onDelete: { pendingDeleteSpot = $0 },
+                            onRemoveFromList: { pendingListRemoval = receipt }
                         )
                     }
                 }
@@ -1229,6 +1288,25 @@ private struct MyPlacesView: View {
             Button("취소", role: .cancel) {}
         } message: { _ in
             Text("장소를 공개 목록에서 숨깁니다. 게시물과 기존 사진은 삭제되지 않아요.")
+        }
+        // 공개된 장소는 건드리지 않고 이 기기의 기록만 지웁니다.
+        .confirmationDialog(
+            "목록에서 삭제할까요?",
+            isPresented: Binding(
+                get: { pendingListRemoval != nil },
+                set: { if !$0 { pendingListRemoval = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingListRemoval
+        ) { receipt in
+            Button("목록에서 삭제", role: .destructive) {
+                withAnimation(VFMotion.standard) {
+                    onRemoveFromList(receipt.id)
+                }
+            }
+            Button("취소", role: .cancel) {}
+        } message: { _ in
+            Text("추가한 장소 목록에서만 빠져요. 이 계정으로 만든 장소로 확인되지 않아서, 공개된 장소는 그대로 둬요.")
         }
         .alert("장소를 삭제하지 못했어요", isPresented: Binding(
             get: { deleteError != nil },

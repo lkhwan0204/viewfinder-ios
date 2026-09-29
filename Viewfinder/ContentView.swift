@@ -813,6 +813,8 @@ struct ContentView: View {
                 // 마이 → 추가한 장소 → 줄 끝 "…" (수정 · 삭제)
                 onEditPlace: { showPlaceEditor($0) },
                 onDeletePlace: { try await deleteUserPlace($0) },
+                // 만든 사람이 확인되지 않는 장소(Firestore 로 옮기기 전에 추가한 곳 등)는 이 기기의 목록에서만 뺍니다.
+                onRemovePlaceFromList: { placeSubmissionStore.remove(id: $0) },
                 // 마이 탭의 빈 "내가 추가한 장소" · "내 글" 에서 바로 작성으로 갑니다.
                 // 탭바 + 버튼, 커뮤니티 글쓰기 버튼과 같은 경로입니다.
                 onAddPlace: {
