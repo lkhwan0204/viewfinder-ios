@@ -810,6 +810,11 @@ struct ContentView: View {
                 },
                 // 마이 → 저장한 장소 → "지도에서 보기"
                 onShowSavedOnMap: showSavedSpotsOnMap,
+                // 마이 → 추가한 장소 → 줄 끝 "…" 메뉴
+                // 지도에서 보기는 장소 상세의 "지도에서 보기" 와 같은 길입니다.
+                onShowPlaceOnMap: { openMap($0) },
+                onEditPlace: { showPlaceEditor($0) },
+                onDeletePlace: { try await deleteUserPlace($0) },
                 // 마이 탭의 빈 "내가 추가한 장소" · "내 글" 에서 바로 작성으로 갑니다.
                 // 탭바 + 버튼, 커뮤니티 글쓰기 버튼과 같은 경로입니다.
                 onAddPlace: {
@@ -1431,6 +1436,7 @@ struct ContentView: View {
             authViewModel: authViewModel,
             spot: spot,
             source: presentation.source,
+            opensPlaceEditorOnAppear: presentation.opensPlaceEditor,
             isSaved: savedSpotStore.contains(spot),
             communityPosts: communityViewModel.posts(for: spot),
             placePhotos: placePhotoGalleryStore.photos(for: spot),
@@ -1485,11 +1491,7 @@ struct ContentView: View {
                 _ = try await placesRepository.updateUserPlace(updatedSpot, updatedBy: user.id)
             },
             onDeletePlace: {
-                guard let user = authViewModel.currentUser else {
-                    throw PlacesRepositoryError.notAuthenticated
-                }
-                try await placesRepository.softDeleteUserPlace(id: spot.id, deletedBy: user.id)
-                placeSubmissionStore.remove(id: spot.id)
+                try await deleteUserPlace(spot)
                 detailPresentation = nil
             },
             communityViewModel: communityViewModel,
@@ -1516,6 +1518,27 @@ struct ContentView: View {
         // 교체하거나 다시 띄우지 않습니다.
         guard detailPresentation == nil else { return }
         detailPresentation = SpotDetailPresentation(spot: spot, source: source)
+    }
+
+    /// 마이 → 추가한 장소 → "…" → 수정.
+    /// 장소 상세를 열고, 상세가 다 올라오면 상세의 장소 편집기를 엽니다.
+    /// 편집기를 따로 만들지 않고 상세의 것을 그대로 써서, 저장 · 오류 처리가 한 곳에만 있습니다.
+    private func showPlaceEditor(_ spot: PhotoSpot) {
+        guard detailPresentation == nil else { return }
+        detailPresentation = SpotDetailPresentation(spot: spot, source: .saved, opensPlaceEditor: true)
+    }
+
+    /// 내가 추가한 장소를 지웁니다. (공개 목록에서 숨김)
+    /// 장소 상세의 "장소 삭제" 와 마이 → 추가한 장소 → "…" → 삭제 가 함께 씁니다.
+    private func deleteUserPlace(_ spot: PhotoSpot) async throws {
+        guard let user = authViewModel.currentUser else {
+            throw PlacesRepositoryError.notAuthenticated
+        }
+        guard spot.isOwned(by: user.id) else {
+            throw PlacesRepositoryError.notOwner
+        }
+        try await placesRepository.softDeleteUserPlace(id: spot.id, deletedBy: user.id)
+        placeSubmissionStore.remove(id: spot.id)
     }
 
     private func openMap(_ spot: PhotoSpot?) {

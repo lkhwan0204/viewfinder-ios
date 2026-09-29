@@ -19,8 +19,12 @@ import UIKit
 //                 게스트는 두 칸이 잠긴 표지로 보이고, 누르면 로그인입니다.
 //                 오른쪽 위 톱니바퀴 → 설정(화면 모드 · 사진 취향 · 버전)
 //    저장한 장소  사진 앱 "앨범" 과 같은 2열 격자. 오른쪽 위 지도 · 거르기 메뉴.
-//    추가한 장소  목록 (사진 · 이름 · 지역과 날짜)
+//    추가한 장소  목록 (사진 · 이름 · 지역과 날짜) → 장소 상세
+//                 줄 끝 "…" → 지도에서 보기 · 수정 · 삭제
 //    내 글        메모 앱과 같은 목록 (제목 · 시간과 장소 · 오른쪽 사진) → 글 상세
+//                 줄 끝 "…" → 수정 · 삭제
+//                 "…" 은 길게 눌러도 같은 메뉴입니다. 수정 · 삭제는 내가 만든 것에만 보이고,
+//                 삭제는 한 번 더 묻습니다. (앱의 다른 삭제와 같은 문구)
 //    빈 상태      ContentUnavailableView (iOS 기본 빈 화면)
 //
 //  [사진을 첫 화면 아래에 따로 모아 두지 않는 이유]
@@ -58,6 +62,12 @@ struct MyTabView: View {
     let onExploreSpots: () -> Void
     /// 저장한 장소를 지도 탭에서 봅니다. (저장 모드 + 저장 목록)
     let onShowSavedOnMap: () -> Void
+    /// 추가한 장소 "…" → 지도에서 보기. 장소 하나를 지도 탭에서 보여줍니다.
+    let onShowPlaceOnMap: (PhotoSpot) -> Void
+    /// 추가한 장소 "…" → 수정. 장소 상세를 열고 그 위에 장소 편집기를 올립니다.
+    let onEditPlace: (PhotoSpot) -> Void
+    /// 추가한 장소 "…" → 삭제. 한 번 더 묻는 것은 목록 화면이 합니다.
+    let onDeletePlace: (PhotoSpot) async throws -> Void
     /// 빈 "추가한 장소" 화면에서 바로 장소 추가로 갑니다.
     let onAddPlace: () -> Void
     /// 빈 "내 글" 화면에서 바로 글쓰기로 갑니다.
@@ -235,7 +245,11 @@ struct MyTabView: View {
                 MyPlacesView(
                     receipts: submissionReceipts,
                     spots: spots,
+                    currentUserID: user?.id ?? "",
                     onSelectSpot: onSelectSpot,
+                    onShowOnMap: onShowPlaceOnMap,
+                    onEdit: onEditPlace,
+                    onDelete: onDeletePlace,
                     onAddPlace: onAddPlace
                 )
             } label: {
@@ -264,7 +278,13 @@ struct MyTabView: View {
             lockedAlbum(title: "내 글", symbolName: "text.bubble", aspectRatio: aspectRatio)
         } else {
             NavigationLink {
-                MyPostsView(posts: myPosts, makeRow: postRow, onCompose: onCompose)
+                MyPostsView(
+                    posts: myPosts,
+                    makeDetail: postDetail,
+                    onEdit: onEditPost,
+                    onDelete: onDeletePost,
+                    onCompose: onCompose
+                )
             } label: {
                 MyAlbum(
                     title: "내 글",
@@ -326,15 +346,7 @@ struct MyTabView: View {
 
     // MARK: - 내 글
 
-    /// 목록 행과 글 상세를 한 곳에서 만듭니다. "내 글" 화면이 이 함수를 그대로 받아 씁니다.
-    private func postRow(_ post: CommunityPost) -> some View {
-        NavigationLink {
-            postDetail(post)
-        } label: {
-            MyPostRow(post: post)
-        }
-    }
-
+    /// 글 상세. "내 글" 화면이 이 함수를 그대로 받아 씁니다.
     private func postDetail(_ post: CommunityPost) -> some View {
         CommunityPostDetailView(
             post: post,
@@ -381,6 +393,11 @@ private enum MyListMetrics {
     static let accountAvatarSize: CGFloat = 84
     /// 목록 줄의 작은 사진. (첫 화면 모음 줄 · 추가한 장소 줄)
     static let thumbnailSize: CGFloat = 56
+    /// 줄 끝 "…" 을 줄 오른쪽 여백 쪽으로 당기는 양.
+    /// 누르는 칸(44pt)은 그대로 두고, 점 세 개의 오른쪽 끝이 다른 목록의 › 자리에 오게 합니다.
+    static let rowMenuTrailingOutset: CGFloat = 14
+    /// 지우는 중인 줄의 투명도.
+    static let deletingOpacity: Double = 0.4
 }
 
 /// 설정 목록 한 줄: 주황 아이콘 + 제목. 메일 · 메모 앱의 폴더 목록과 같은 모양입니다.
@@ -398,6 +415,41 @@ private struct MyRowLabel: View {
                 .foregroundStyle(AppColors.accent)
                 .frame(width: MyListMetrics.iconWidth)
         }
+    }
+}
+
+/// 목록 줄 끝의 "…". 커뮤니티 카드의 더보기 버튼과 같은 모양입니다.
+/// 같은 항목을 줄의 길게 누르기 메뉴(contextMenu)에도 넣습니다.
+private struct MyRowMenu<Items: View>: View {
+    let accessibilityLabel: String
+    /// 지우는 중에는 "…" 대신 도는 표시를 둡니다.
+    var isBusy: Bool = false
+    @ViewBuilder let items: () -> Items
+
+    var body: some View {
+        Group {
+            if isBusy {
+                ProgressView()
+                    .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
+                    .accessibilityLabel("삭제하는 중")
+            } else {
+                Menu {
+                    items()
+                } label: {
+                    Image(systemName: "ellipsis")
+                        // Dynamic Type 제외: 고정 44pt 누름 칸 안의 기호. (커뮤니티 카드 "…" 와 같은 크기)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AppColors.secondaryText)
+                        .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.button)
+                // 목록 줄 안에서 이 칸만 따로 눌리게 합니다. "…" 을 눌렀을 때 줄(상세 열기)이 같이 눌리지 않습니다.
+                .buttonStyle(.borderless)
+                .accessibilityLabel(accessibilityLabel)
+            }
+        }
+        .padding(.trailing, -MyListMetrics.rowMenuTrailingOutset)
     }
 }
 
@@ -725,26 +777,79 @@ private enum MyDateText {
     }
 }
 
-/// 내가 추가한 장소 한 줄. 누르면 장소 상세가 열립니다.
+/// 내가 추가한 장소 한 줄. 누르면 장소 상세가 열리고, 줄 끝 "…" 에 지도에서 보기 · 수정 · 삭제가 있습니다.
 private struct MyPlaceRow: View {
     let receipt: PlaceSubmissionReceipt
     /// 지금 불러온 장소 목록에서 찾은 장소. 아직 못 불러왔으면 nil 이고,
-    /// 그때는 누를 수 없는 행으로 둡니다.
+    /// 그때는 누를 수 없는 행으로 두고 "…" 도 두지 않습니다. (메뉴 항목마다 장소가 필요합니다)
     let spot: PhotoSpot?
+    /// 내가 만든 장소일 때만 수정 · 삭제를 보여줍니다.
+    let isOwned: Bool
+    let isDeleting: Bool
     let onSelectSpot: (PhotoSpot) -> Void
+    let onShowOnMap: (PhotoSpot) -> Void
+    let onEdit: (PhotoSpot) -> Void
+    /// 바로 지우지 않습니다. 목록 화면이 한 번 더 묻습니다.
+    let onDelete: (PhotoSpot) -> Void
+
+    /// 추가한 뒤 이름을 고쳤으면 고친 이름을 보여줍니다. 기록(receipt)에는 추가할 때 이름이 남아 있습니다.
+    private var name: String {
+        spot?.name ?? receipt.name
+    }
 
     var body: some View {
         if let spot {
-            // 기본 버튼 스타일이라 누르면 행 전체가 회색으로 반응합니다. (목록 기본 동작)
-            // 상세는 밀어 넣는 화면이 아니라 시트라서 오른쪽 화살표(›)를 두지 않습니다.
-            Button {
-                onSelectSpot(spot)
-            } label: {
-                content
+            HStack(spacing: 0) {
+                // 줄과 "…" 이 따로 눌리게 둘 다 목록 기본 버튼 모양을 쓰지 않습니다.
+                // 기본 모양이면 목록이 줄 전체를 버튼 하나로 만들어서, "…" 을 눌러도 상세가 열릴 수 있습니다.
+                // 상세는 밀어 넣는 화면이 아니라 시트라서 오른쪽 화살표(›)를 두지 않습니다.
+                Button {
+                    onSelectSpot(spot)
+                } label: {
+                    content
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .opacity(isDeleting ? MyListMetrics.deletingOpacity : 1)
+                .accessibilityHint("장소 상세를 엽니다")
+
+                MyRowMenu(accessibilityLabel: "장소 메뉴", isBusy: isDeleting) {
+                    menuItems(for: spot)
+                }
             }
-            .accessibilityHint("장소 상세를 엽니다")
+            .disabled(isDeleting)
+            .contextMenu {
+                menuItems(for: spot)
+            }
         } else {
             content
+        }
+    }
+
+    /// "…" 과 길게 누르기 메뉴에 같이 들어갑니다.
+    @ViewBuilder
+    private func menuItems(for spot: PhotoSpot) -> some View {
+        Button {
+            onShowOnMap(spot)
+        } label: {
+            Label("지도에서 보기", systemImage: "map")
+        }
+
+        if isOwned {
+            Divider()
+
+            Button {
+                onEdit(spot)
+            } label: {
+                Label("수정", systemImage: "pencil")
+            }
+
+            Button(role: .destructive) {
+                onDelete(spot)
+            } label: {
+                Label("삭제", systemImage: "trash")
+            }
         }
     }
 
@@ -763,7 +868,7 @@ private struct MyPlaceRow: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(receipt.name)
+                Text(name)
                     .font(.headline)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -1059,18 +1164,35 @@ private struct MySavedSpotTile: View {
 private struct MyPlacesView: View {
     let receipts: [PlaceSubmissionReceipt]
     let spots: [PhotoSpot]
+    /// 수정 · 삭제를 내가 만든 장소에만 보이려고 받습니다.
+    let currentUserID: String
     let onSelectSpot: (PhotoSpot) -> Void
+    let onShowOnMap: (PhotoSpot) -> Void
+    let onEdit: (PhotoSpot) -> Void
+    let onDelete: (PhotoSpot) async throws -> Void
     let onAddPlace: () -> Void
+
+    /// "삭제" 를 누른 장소. 한 번 더 물은 뒤 지웁니다.
+    @State private var pendingDeleteSpot: PhotoSpot?
+    /// 지우는 중인 장소. 그 줄은 흐리게 두고 누를 수 없게 합니다.
+    @State private var deletingSpotIDs: Set<String> = []
+    @State private var deleteError: String?
 
     var body: some View {
         List {
             if !receipts.isEmpty {
                 Section {
                     ForEach(receipts) { receipt in
+                        let spot = spots.first(where: { $0.id == receipt.id })
                         MyPlaceRow(
                             receipt: receipt,
-                            spot: spots.first(where: { $0.id == receipt.id }),
-                            onSelectSpot: onSelectSpot
+                            spot: spot,
+                            isOwned: spot?.isOwned(by: currentUserID) ?? false,
+                            isDeleting: deletingSpotIDs.contains(receipt.id),
+                            onSelectSpot: onSelectSpot,
+                            onShowOnMap: onShowOnMap,
+                            onEdit: onEdit,
+                            onDelete: { pendingDeleteSpot = $0 }
                         )
                     }
                 }
@@ -1101,25 +1223,77 @@ private struct MyPlacesView: View {
                 }
             }
         }
+        // 장소 상세의 "장소 삭제" 와 같은 문구 · 같은 모양입니다.
+        .confirmationDialog(
+            "장소를 삭제할까요?",
+            isPresented: Binding(
+                get: { pendingDeleteSpot != nil },
+                set: { if !$0 { pendingDeleteSpot = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingDeleteSpot
+        ) { spot in
+            Button("장소 삭제", role: .destructive) {
+                delete(spot)
+            }
+            Button("취소", role: .cancel) {}
+        } message: { _ in
+            Text("장소를 공개 목록에서 숨깁니다. 게시물과 기존 사진은 삭제되지 않아요.")
+        }
+        .alert("장소를 삭제하지 못했어요", isPresented: Binding(
+            get: { deleteError != nil },
+            set: { if !$0 { deleteError = nil } }
+        )) {
+            Button("확인", role: .cancel) { deleteError = nil }
+        } message: {
+            Text(deleteError ?? "다시 시도해 주세요.")
+        }
+    }
+
+    /// 지워지면 추가한 장소 기록에서도 빠져서 줄이 사라집니다.
+    private func delete(_ spot: PhotoSpot) {
+        guard !deletingSpotIDs.contains(spot.id) else { return }
+        deletingSpotIDs.insert(spot.id)
+        Task {
+            defer { deletingSpotIDs.remove(spot.id) }
+            do {
+                try await onDelete(spot)
+            } catch {
+                // "권한이 없어요" 처럼 이유를 아는 경우는 그 문구를, 아니면 다시 해 보라고 알립니다.
+                deleteError = (error as? PlacesRepositoryError)?.errorDescription
+                    ?? "삭제하지 못했어요. 다시 시도해 주세요."
+            }
+        }
     }
 }
 
-/// 행 생성을 클로저로 받습니다.
+/// 내 글. 누르면 글 상세, 줄 끝 "…" 이나 길게 누르면 수정 · 삭제입니다.
 ///
-/// 글 상세로 가는 링크에 필요한 인자가 많습니다. 이 화면이 그것들을 다시
-/// 프로퍼티로 받으면 MyTabView 의 인자 목록을 그대로 복사해야 하고,
-/// 하나라도 어긋나면 다르게 동작합니다. MyTabView.postRow 를 그대로 받습니다.
-private struct MyPostsView<Row: View>: View {
+/// 글 상세를 만드는 함수를 받습니다. 상세에 필요한 인자가 많아서, 이 화면이 그것들을 다시
+/// 프로퍼티로 받으면 MyTabView 의 인자 목록을 그대로 복사해야 하고, 하나라도 어긋나면
+/// 다르게 동작합니다. MyTabView.postDetail 을 그대로 받습니다.
+private struct MyPostsView<Detail: View>: View {
     let posts: [CommunityPost]
-    let makeRow: (CommunityPost) -> Row
+    let makeDetail: (CommunityPost) -> Detail
+    /// 글쓰기 화면을 고치기로 엽니다. 글 상세 오른쪽 위 "…" → 수정 과 같은 길입니다.
+    let onEdit: (CommunityPost) -> Void
+    let onDelete: (CommunityPost) async throws -> Void
     let onCompose: () -> Void
+
+    /// 지금 열린 글 상세.
+    @State private var openedPost: MyOpenedPost?
+    /// "삭제" 를 누른 글. 한 번 더 물은 뒤 지웁니다.
+    @State private var pendingDeletePost: CommunityPost?
+    /// 지우는 중인 글. 그 줄은 흐리게 두고 누를 수 없게 합니다.
+    @State private var deletingPostIDs: Set<String> = []
+    @State private var deleteError: String?
 
     var body: some View {
         List {
             if !posts.isEmpty {
                 Section {
                     ForEach(posts) { post in
-                        makeRow(post)
+                        row(post)
                     }
                 }
             }
@@ -1148,6 +1322,109 @@ private struct MyPostsView<Row: View>: View {
                 }
             }
         }
+        // 줄마다가 아니라 목록 자체에 붙입니다. 목록 줄 안에 두면 동작하지 않을 수 있습니다.
+        .navigationDestination(item: $openedPost) { opened in
+            // 목록에 있는 최신 글로 엽니다. 지워져 목록에서 빠지는 중이면 열 때의 글을 씁니다.
+            makeDetail(posts.first(where: { $0.id == opened.id }) ?? opened.post)
+        }
+        // 커뮤니티 카드 · 글 상세의 삭제와 같은 문구 · 같은 모양입니다.
+        .alert(
+            "게시글을 삭제할까요?",
+            isPresented: Binding(
+                get: { pendingDeletePost != nil },
+                set: { if !$0 { pendingDeletePost = nil } }
+            ),
+            presenting: pendingDeletePost
+        ) { post in
+            Button("삭제", role: .destructive) {
+                delete(post)
+            }
+            Button("취소", role: .cancel) {}
+        } message: { _ in
+            Text("삭제한 게시글은 다시 복구할 수 없습니다.")
+        }
+        .alert("게시글을 삭제하지 못했어요", isPresented: Binding(
+            get: { deleteError != nil },
+            set: { if !$0 { deleteError = nil } }
+        )) {
+            Button("확인", role: .cancel) { deleteError = nil }
+        } message: {
+            Text(deleteError ?? "다시 시도해 주세요.")
+        }
+    }
+
+    /// 줄과 "…" 이 따로 눌리게 둘 다 목록 기본 버튼 모양을 쓰지 않습니다. (MyPlaceRow 와 같은 이유)
+    /// 누르면 글 상세가 밀려 들어오지만, 한 줄에 › 와 "…" 을 같이 두면 복잡해서 "…" 만 둡니다.
+    private func row(_ post: CommunityPost) -> some View {
+        let isDeleting = deletingPostIDs.contains(post.id)
+
+        return HStack(spacing: 0) {
+            Button {
+                openedPost = MyOpenedPost(post: post)
+            } label: {
+                MyPostRow(post: post)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(isDeleting ? MyListMetrics.deletingOpacity : 1)
+            .accessibilityHint("글 상세를 엽니다")
+
+            MyRowMenu(accessibilityLabel: "게시글 메뉴", isBusy: isDeleting) {
+                menuItems(for: post)
+            }
+        }
+        .disabled(isDeleting)
+        .contextMenu {
+            menuItems(for: post)
+        }
+    }
+
+    /// "…" 과 길게 누르기 메뉴에 같이 들어갑니다. 이 목록에는 내 글만 있어서 늘 수정 · 삭제가 있습니다.
+    @ViewBuilder
+    private func menuItems(for post: CommunityPost) -> some View {
+        Button {
+            onEdit(post)
+        } label: {
+            Label("수정", systemImage: "pencil")
+        }
+
+        Button(role: .destructive) {
+            pendingDeletePost = post
+        } label: {
+            Label("삭제", systemImage: "trash")
+        }
+    }
+
+    /// 지워지면 목록에서 줄이 사라집니다.
+    private func delete(_ post: CommunityPost) {
+        guard !deletingPostIDs.contains(post.id) else { return }
+        deletingPostIDs.insert(post.id)
+        Task {
+            defer { deletingPostIDs.remove(post.id) }
+            do {
+                try await onDelete(post)
+            } catch {
+                deleteError = "삭제하지 못했어요. 다시 시도해 주세요."
+            }
+        }
+    }
+}
+
+/// 글 상세로 갈 때 쓰는 값.
+/// navigationDestination(item:) 은 Hashable 값이 필요한데 CommunityPost 는 아니어서,
+/// 글 id 로만 같은지 보는 작은 상자에 담습니다.
+private struct MyOpenedPost: Hashable {
+    let post: CommunityPost
+
+    var id: String { post.id }
+
+    static func == (lhs: MyOpenedPost, rhs: MyOpenedPost) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 }
 
