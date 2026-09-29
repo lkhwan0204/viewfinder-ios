@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 // ═══════════════════════════════════════════════════════════════════
-//  마이 탭 — 저장한 출사지 사진 카드 + 한 줄짜리 내 기록 + 오른쪽 위 아바타(설정)
+//  마이 탭 — 저장한 출사지 사진 칸 2 × 2 + 한 줄짜리 내 기록 + 오른쪽 위 톱니바퀴(설정)
 //
 //  [지나온 길]
 //   3차  전면 사진 · 사진 위 pill · 사진 줄 · 활동 줄이 한 화면에 → 난잡했습니다.
@@ -10,25 +10,27 @@ import UIKit
 //   6차  사진 앱 "앨범" 표지 3개 → 무엇을 보든 한 번 더 들어가야 했고, 대부분 비어 있는
 //        추가한 장소 · 내 글이 저장과 같은 크기라 회색 빈 칸이 보였습니다.
 //   7차  프로필 카드 + 탭 3개 → 어느 앱에나 있는 프로필 화면이라 이 앱 같지 않았습니다.
+//   8차  홈과 같은 큰 사진 카드를 옆으로 넘기기 → 한 번에 한 장 남짓만 보이고 홈을 한 번 더 보는 것
+//        같았습니다. "지도에서 보기" 가 따로 상자로 떨어져 있었습니다.
 //
-//  [지금] 홈과 같은 사진 카드로 "내가 저장한 곳" 을 먼저 보여주고, 나머지는 한 줄씩 둡니다.
-//    오른쪽 위 아바타   설정(계정 · 화면 모드 · 사진 취향 · 버전 · 로그아웃). App Store · 음악 앱과 같은 자리.
-//                      게스트는 사람 기호이고, 설정 맨 위가 "로그인" 줄입니다.
-//    저장한 출사지      제목 · 개수 · "모두 보기 ›" (홈 섹션 제목과 같은 짜임)
-//                      홈 테마 레일과 같은 가로 사진 카드(HomePhotoCard, 4:5 세로). 길게 눌러 저장 해제.
-//                      "모두 보기" → 2열 격자(테마 거르기 · 지도)
-//                      카드 바로 아래 "지도에서 보기" 줄 → 지도 탭 저장 모드
+//  [지금] 저장한 곳을 사진 앱 앨범처럼 정돈된 칸으로 한눈에 봅니다. 나머지는 한 줄씩 둡니다.
+//    오른쪽 위 톱니바퀴  설정(계정 · 로그인 방식 · 화면 모드 · 사진 취향 · 로그아웃)
+//                      게스트는 설정 맨 위가 "로그인" 줄입니다.
+//    저장한 출사지      제목 · 개수(홈 섹션 제목과 같은 짜임). 네 곳보다 많으면 오른쪽 "모두 보기 ›"
+//                      2열 가로 사진(3:2) 칸 네 개. 사진 아래 이름 · "지역 · 테마". 길게 눌러 저장 해제.
+//                      칸 바로 아래 글자 버튼 "지도에서 보기" → 지도 탭 저장 모드
+//                      "모두 보기" → 같은 칸의 전체 격자(테마 거르기 · 지도)
 //    추가한 장소 · 내 글  한 줄씩. 누르면 목록(줄 끝 "…" → 수정 · 삭제 / 목록에서 삭제)
-//                      가끔 여는 곳이라 사진 카드처럼 크게 두지 않습니다. 게스트는 누르면 로그인.
-//    빈 상태            저장한 곳이 없으면 카드 자리에 안내 + "출사지 둘러보기"
+//                      가끔 여는 곳이라 크게 두지 않습니다. 게스트는 누르면 로그인.
+//    빈 상태            저장한 곳이 없으면 사진 칸 자리에 안내 + "출사지 둘러보기"
 //
-//  [사진 위 글자]
-//  마이 사진 카드도 홈처럼 이름 · 지역을 사진 아래쪽 어둡게 깐 자리에 둡니다. 홈에서 캡션 없는
-//  사진 칸은 어디인지 알 수 없다는 문제가 있었습니다. 사진 위에 버튼은 두지 않습니다.
+//  [사진 위에는 아무것도 올리지 않습니다]
+//  이름 · 지역 · 테마는 사진 아래에 둡니다. 홈 카드처럼 사진 위에 글자를 얹으면 칸마다 어두운 띠가
+//  생겨 정돈된 모음으로 읽히지 않습니다.
 //
 //  [설정을 한곳에 두는 이유]
 //  전에는 프로필 카드(계정)와 톱니바퀴(설정)가 따로 있었습니다. 둘 다 가끔 여는 곳이라 오른쪽 위
-//  한 자리로 모았습니다. 화면 모드 · 사진 취향은 로그인하지 않아도 바꿀 수 있습니다.
+//  톱니바퀴 한 자리로 모았습니다. 화면 모드 · 사진 취향은 로그인하지 않아도 바꿀 수 있습니다.
 //
 //  글자는 앱 글자 스타일(VFTextStyle)과 시스템 글자, 색은 시스템 색(묶음 배경 · 회색 글자)을 씁니다.
 //  주황은 앱의 tint 로, 줄 아이콘 · 버튼 글자에만 나옵니다.
@@ -70,7 +72,7 @@ struct MyTabView: View {
     let onResetTaste: () -> Void
     let onSignOut: () -> Void
 
-    /// 밀어 넣는 화면들. 오른쪽 위 아바타 · "모두 보기" · 아래 줄이 여기에 쌓습니다.
+    /// 밀어 넣는 화면들. 오른쪽 위 톱니바퀴 · "모두 보기" · 아래 줄이 여기에 쌓습니다.
     @State private var path: [MyRoute] = []
 
     private var myPosts: [CommunityPost] {
@@ -80,12 +82,12 @@ struct MyTabView: View {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
-    /// 첫 화면 사진 카드. 사진이 있는 곳을 앞에 두고, 많으면 앞에서 몇 곳만 보여줍니다.
+    /// 첫 화면 사진 칸. 사진이 있는 곳을 앞에 두고 앞에서 네 곳(2 × 2)만 보여줍니다.
     /// 나머지는 "모두 보기" 격자에서 봅니다. 저장 기록에 날짜가 없어서 "최근" 순은 아닙니다.
-    private var carouselSpots: [PhotoSpot] {
+    private var previewSpots: [PhotoSpot] {
         let withPhoto = savedSpots.filter(\.hasReliableDisplayImage)
         let withoutPhoto = savedSpots.filter { !$0.hasReliableDisplayImage }
-        return Array((withPhoto + withoutPhoto).prefix(MyHomeMetrics.carouselLimit))
+        return Array((withPhoto + withoutPhoto).prefix(MyHomeMetrics.previewLimit))
     }
 
     var body: some View {
@@ -106,12 +108,13 @@ struct MyTabView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
+                    // 설정(계정 포함). 누르면 무엇이 열리는지 바로 알 수 있게 톱니바퀴로 둡니다.
                     Button {
                         open(.settings)
                     } label: {
-                        MyToolbarAvatar(user: user)
+                        Image(systemName: "gearshape")
                     }
-                    .accessibilityLabel(user == nil ? "로그인 및 설정" : "계정 및 설정")
+                    .accessibilityLabel("설정")
                 }
             }
             // 화면 안쪽이 아니라 스크롤 화면 자체에 붙입니다. 안쪽에 두면 동작하지 않을 수 있습니다.
@@ -144,36 +147,31 @@ struct MyTabView: View {
 
     // MARK: - 저장한 출사지
 
-    /// 홈과 같은 사진 카드로 저장한 곳을 바로 보여줍니다. 전체 격자는 "모두 보기".
+    /// 저장한 곳을 사진 칸 2 × 2 로 바로 보여줍니다. 더 있으면 제목 오른쪽 "모두 보기".
+    /// 사진 칸 아래 "지도에서 보기" 는 따로 상자를 두지 않고 글자 버튼 한 줄입니다.
     private var savedSection: some View {
         VStack(alignment: .leading, spacing: VFSpace.md) {
             MySectionHeader(
                 title: "저장한 출사지",
                 count: savedSpots.isEmpty ? nil : savedSpots.count,
-                actionTitle: savedSpots.isEmpty ? nil : "모두 보기",
+                // 네 곳 이하면 모두 보이므로 "모두 보기" 를 두지 않습니다.
+                actionTitle: savedSpots.count > MyHomeMetrics.previewLimit ? "모두 보기" : nil,
                 action: { open(.saved) }
             )
-            .padding(.horizontal, VFSpace.lg)
 
             if savedSpots.isEmpty {
                 MySavedEmptyCard(onExplore: onExploreSpots)
-                    .padding(.horizontal, VFSpace.lg)
             } else {
-                MySavedCarousel(
-                    spots: carouselSpots,
+                MySavedGrid(
+                    spots: previewSpots,
                     onSelect: onSelectSpot,
                     onUnsave: unsave
                 )
 
-                MyRowGroup {
-                    Button(action: onShowSavedOnMap) {
-                        MyLibraryRow(title: "지도에서 보기", symbolName: "map")
-                    }
-                    .accessibilityHint("지도 탭에서 저장한 출사지만 모아 봅니다")
-                }
-                .padding(.horizontal, VFSpace.lg)
+                MyShowOnMapButton(action: onShowSavedOnMap)
             }
         }
+        .padding(.horizontal, VFSpace.lg)
     }
 
     // MARK: - 내 기록
@@ -305,8 +303,6 @@ private enum MyListMetrics {
     static let iconWidth: CGFloat = 28
     /// 프로필 행 아바타. 설정 앱 맨 위 계정 행과 비슷한 크기입니다.
     static let profileAvatarSize: CGFloat = 60
-    /// 첫 화면 오른쪽 위 아바타. 도구 막대 버튼 크기에 맞춥니다.
-    static let toolbarAvatarSize: CGFloat = 30
     /// 목록 줄의 작은 사진. (추가한 장소 줄)
     static let thumbnailSize: CGFloat = 56
     /// 줄 끝 "…" 을 줄 오른쪽 여백 쪽으로 당기는 양.
@@ -373,7 +369,7 @@ private struct MyRowMenu<Items: View>: View {
 
 /// 마이에서 밀어 넣는 화면.
 private enum MyRoute: Hashable {
-    /// 설정(계정 포함). 오른쪽 위 아바타.
+    /// 설정(계정 포함). 오른쪽 위 톱니바퀴.
     case settings
     /// 저장한 출사지 전체 격자. "모두 보기".
     case saved
@@ -385,14 +381,14 @@ private enum MyRoute: Hashable {
 
 /// 첫 화면의 크기 · 간격.
 private enum MyHomeMetrics {
-    /// 사진 카드 폭. 화면 폭에 대한 비율입니다.
-    /// 다음 카드가 옆에 80pt 남짓 보여 "옆으로 더 있다" 가 드러나고,
-    /// iPhone 15 에서 카드 · 지도 줄 · 아래 두 줄이 한 화면에 들어오는 값입니다.
-    static let cardWidthRatio: CGFloat = 0.7
-    /// 사진 카드 비율. 홈 Hero 와 같은 4:5 세로입니다.
-    static let cardAspect: CGFloat = VFPhoto.heroAspect
-    /// 첫 화면에 둘 사진 카드 수. 나머지는 "모두 보기" 격자에서 봅니다.
-    static let carouselLimit = 10
+    /// 첫 화면 사진 칸 수(2 × 2). 나머지는 "모두 보기" 격자에서 봅니다.
+    /// iPhone 15 에서 사진 칸 · "지도에서 보기" · 아래 두 줄이 한 화면에 들어오는 수입니다.
+    static let previewLimit = 4
+    /// 사진 칸 비율. 출사지 사진은 대부분 가로라 3:2 로 둡니다. (홈 노을 · 야경 레일과 같은 비율)
+    static let tileAspect: CGFloat = VFPhoto.carouselAspect
+    /// 2열 격자 간격. 첫 화면과 "모두 보기" 가 같습니다.
+    static let gridColumnSpacing: CGFloat = 12
+    static let gridRowSpacing: CGFloat = 18
     /// 묶음 사이 간격.
     static let sectionSpacing: CGFloat = VFSpace.xl
     /// 한 줄 높이. 설정 앱 목록 줄과 비슷합니다.
@@ -453,48 +449,49 @@ private struct MySectionHeader: View {
     }
 }
 
-/// 저장한 출사지 사진 카드. 홈 테마 레일과 같은 가로 스크롤 · 같은 카드(HomePhotoCard)입니다.
-/// 카드 위에 버튼을 두지 않고, 길게 눌러 저장을 해제합니다.
-private struct MySavedCarousel: View {
+/// 저장한 출사지 2열 사진 칸. 첫 화면(앞에서 네 곳)과 "모두 보기"(전부)가 같은 칸을 씁니다.
+/// 사진 위에는 아무것도 올리지 않고, 이름 · 지역 · 테마는 사진 아래에 둡니다. 길게 눌러 저장 해제.
+private struct MySavedGrid: View {
     let spots: [PhotoSpot]
     let onSelect: (PhotoSpot) -> Void
     let onUnsave: (PhotoSpot) -> Void
 
+    private let columns = [
+        GridItem(.flexible(), spacing: MyHomeMetrics.gridColumnSpacing, alignment: .top),
+        GridItem(.flexible(), spacing: MyHomeMetrics.gridColumnSpacing, alignment: .top)
+    ]
+
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: VFSpace.md) {
-                ForEach(spots) { spot in
-                    HomePhotoCard(
-                        recommendation: RecommendedSpot(spot: spot, reason: ""),
-                        aspectRatio: MyHomeMetrics.cardAspect,
-                        onSelect: { onSelect(spot) }
-                    )
-                    // 길게 눌렀을 때 떠오르는 미리보기의 모서리를 사진과 맞춥니다.
-                    .contentShape(.contextMenuPreview, VFRadius.shape(VFRadius.photo))
-                    .contextMenu {
-                        Button(role: .destructive) {
-                            onUnsave(spot)
-                        } label: {
-                            Label("저장 해제", systemImage: "bookmark.slash")
-                        }
-                    }
-                    .accessibilityAction(named: "저장 해제") {
-                        onUnsave(spot)
-                    }
-                    .containerRelativeFrame(.horizontal) { length, _ in
-                        max(0, length * MyHomeMetrics.cardWidthRatio)
-                    }
-                }
+        LazyVGrid(columns: columns, alignment: .leading, spacing: MyHomeMetrics.gridRowSpacing) {
+            ForEach(spots) { spot in
+                MySavedSpotTile(
+                    spot: spot,
+                    onSelect: { onSelect(spot) },
+                    onUnsave: { onUnsave(spot) }
+                )
             }
-            .scrollTargetLayout()
-            .padding(.horizontal, VFSpace.lg)
         }
-        .scrollTargetBehavior(.viewAligned)
-        .scrollClipDisabled()
     }
 }
 
-/// 저장한 곳이 없을 때 사진 카드 자리. 무엇이 여기에 모이는지 말하고 홈으로 보냅니다.
+/// "지도에서 보기". 저장한 출사지 사진 칸 바로 아래 한 줄입니다. 지도 탭을 저장 모드로 엽니다.
+private struct MyShowOnMapButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("지도에서 보기", systemImage: "map")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(AppColors.accent)
+                .frame(minHeight: AppLayout.touchTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("지도 탭에서 저장한 출사지만 모아 봅니다")
+    }
+}
+
+/// 저장한 곳이 없을 때 사진 칸 자리. 무엇이 여기에 모이는지 말하고 홈으로 보냅니다.
 private struct MySavedEmptyCard: View {
     let onExplore: () -> Void
 
@@ -602,24 +599,7 @@ private struct MyRowButtonStyle: ButtonStyle {
     }
 }
 
-/// 오른쪽 위 아바타. 누르면 설정(계정 포함)이 열립니다. App Store · 음악 앱과 같은 자리입니다.
-private struct MyToolbarAvatar: View {
-    let user: AuthUser?
-
-    var body: some View {
-        if let user {
-            MyAvatar(name: user.displayName, size: MyListMetrics.toolbarAvatarSize)
-        } else {
-            Image(systemName: "person.crop.circle")
-                .symbolRenderingMode(.hierarchical)
-                // Dynamic Type 제외: 도구 막대 버튼 안의 고정 크기 기호. 아바타 크기와 맞춥니다.
-                .font(.system(size: MyListMetrics.toolbarAvatarSize - 4, weight: .regular))
-                .accessibilityHidden(true)
-        }
-    }
-}
-
-/// 설정 맨 위 계정 줄. 설정 앱 맨 위 계정 행과 같은 모양입니다. (아바타 · 이름 · 이메일)
+/// 설정 맨 위 계정 줄. 설정 앱 맨 위 계정 행과 같은 모양입니다. (이름 첫 글자 동그라미 · 이름 · 이메일)
 private struct MyProfileLabel: View {
     let user: AuthUser
 
@@ -1084,11 +1064,6 @@ private struct MySavedSpotsView: View {
 
     @State private var selectedTheme: SpotTheme?
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible(), spacing: 16)
-    ]
-
     /// 저장한 장소에 실제로 있는 테마만, SpotTheme 순서대로.
     private var themes: [SpotTheme] {
         SpotTheme.allCases.filter { theme in
@@ -1109,16 +1084,13 @@ private struct MySavedSpotsView: View {
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
-                ForEach(visibleSpots) { spot in
-                    MySavedSpotTile(
-                        spot: spot,
-                        onSelect: { onSelect(spot) },
-                        onUnsave: { onUnsave(spot) }
-                    )
-                }
-            }
-            .padding(.horizontal)
+            // 첫 화면 사진 칸과 같은 칸 · 같은 간격입니다.
+            MySavedGrid(
+                spots: visibleSpots,
+                onSelect: onSelect,
+                onUnsave: onUnsave
+            )
+            .padding(.horizontal, VFSpace.lg)
             .padding(.top, 8)
             .padding(.bottom, 24)
             .animation(VFMotion.quick, value: activeTheme)
@@ -1183,7 +1155,8 @@ private struct MySavedSpotsView: View {
     }
 }
 
-/// 사진 앱 앨범 칸과 같은 모양: 정사각 사진 + 아래 이름 · 지역.
+/// 저장한 출사지 한 칸: 가로 사진(3:2) + 아래 이름 · "지역 · 테마".
+/// 사진 앱 앨범 칸처럼 사진 위에는 아무것도 올리지 않습니다.
 private struct MySavedSpotTile: View {
     let spot: PhotoSpot
     let onSelect: () -> Void
@@ -1193,24 +1166,31 @@ private struct MySavedSpotTile: View {
         HomeSpotDisplayFormatter.region(for: spot)
     }
 
+    /// "성수 · 골목/레트로". 어디이고 어떤 사진을 찍는 곳인지 한 줄로 봅니다.
+    private var detail: String {
+        [region, spot.theme.title]
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: VFSpace.sm) {
                 VFPhotoTile(
                     spot: spot,
-                    aspectRatio: 1,
+                    aspectRatio: MyHomeMetrics.tileAspect,
                     cornerRadius: VFRadius.inner,
                     imageDetail: .card
                 )
 
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(spot.name)
-                        .font(.subheadline.weight(.medium))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
 
-                    Text(region)
-                        .font(.subheadline)
+                    Text(detail)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -1228,7 +1208,7 @@ private struct MySavedSpotTile: View {
                 Label("저장 해제", systemImage: "bookmark.slash")
             }
         }
-        .accessibilityLabel("\(spot.name), \(region)")
+        .accessibilityLabel("\(spot.name), \(detail)")
         .accessibilityAction(named: "저장 해제", onUnsave)
     }
 }
@@ -1509,9 +1489,10 @@ private struct MyOpenedPost: Hashable {
     }
 }
 
-/// 설정. 첫 화면 오른쪽 위 아바타로 엽니다.
+/// 설정. 첫 화면 오른쪽 위 톱니바퀴로 엽니다.
 ///
-/// 계정과 설정을 한곳에 둡니다. 설정 앱처럼 맨 위가 계정 줄, 맨 아래가 로그아웃입니다.
+/// 계정과 설정을 한곳에 둡니다. 설정 앱처럼 맨 위가 계정(이름 · 이메일 · 로그인 방식), 맨 아래가 로그아웃입니다.
+/// 버전 줄은 두지 않습니다. 사용자가 여기서 할 일이 없는 정보입니다.
 /// 화면 모드 · 사진 취향은 앱 전체에 걸리는 설정이라 로그인하지 않아도 들어올 수 있고,
 /// 그때는 맨 위가 "로그인" 줄입니다.
 private struct MySettingsView: View {
@@ -1527,25 +1508,24 @@ private struct MySettingsView: View {
         AppAppearance(rawValue: appearanceRawValue) ?? .defaultValue
     }
 
-    /// "1.0 (1)". 설정 앱 "정보" 의 버전 줄과 같은 모양으로 둡니다.
-    private var versionText: String {
-        let info = Bundle.main.infoDictionary
-        let version = info?["CFBundleShortVersionString"] as? String ?? "-"
-        let build = info?["CFBundleVersion"] as? String ?? "-"
-        return "\(version) (\(build))"
-    }
-
     var body: some View {
         List {
+            // 계정: 이름 · 이메일 줄 아래에 로그인 방식. 게스트는 "로그인" 줄 하나입니다.
             Section {
                 if let user {
                     MyProfileLabel(user: user)
+
+                    if let providerTitle = MyAccountText.providerTitle(for: user) {
+                        LabeledContent("로그인 방식", value: providerTitle)
+                    }
                 } else {
                     Button(action: onRequestSignIn) {
                         MyGuestLabel()
                     }
                     .accessibilityHint("로그인 화면을 엽니다")
                 }
+            } footer: {
+                Text("저장한 출사지는 이 기기에 저장돼요. 로그인하지 않아도 그대로 남아요.")
             }
 
             Section {
@@ -1567,15 +1547,6 @@ private struct MySettingsView: View {
                 .accessibilityHint("홈 추천의 출발점이 되는 사진 3장을 다시 고릅니다")
             } footer: {
                 Text("고른 사진 3장이 홈 추천의 출발점이 돼요.")
-            }
-
-            Section {
-                if let user, let providerTitle = MyAccountText.providerTitle(for: user) {
-                    LabeledContent("로그인 방식", value: providerTitle)
-                }
-                LabeledContent("버전", value: versionText)
-            } footer: {
-                Text("저장한 출사지는 이 기기에 저장돼요. 로그인하지 않아도 그대로 남아요.")
             }
 
             if user != nil {

@@ -774,7 +774,7 @@ struct ContentView: View {
                     updateTabBarVisibility(shouldHide, source: .my)
                 },
                 onSelectSpot: { showDetail($0, source: .saved) },
-                // 마이 → 저장한 출사지(사진 카드 · 모두 보기 격자)에서 길게 눌러 저장을 해제합니다.
+                // 마이 → 저장한 출사지(첫 화면 사진 칸 · 모두 보기 격자)에서 길게 눌러 저장을 해제합니다.
                 onToggleSave: { savedSpotStore.toggle($0) },
                 onEditPost: { post in
                     performAuthenticatedAction { _ in
