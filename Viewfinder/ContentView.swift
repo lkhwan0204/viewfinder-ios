@@ -810,9 +810,7 @@ struct ContentView: View {
                 },
                 // 마이 → 저장한 장소 → "지도에서 보기"
                 onShowSavedOnMap: showSavedSpotsOnMap,
-                // 마이 → 추가한 장소 → 줄 끝 "…" 메뉴
-                // 지도에서 보기는 장소 상세의 "지도에서 보기" 와 같은 길입니다.
-                onShowPlaceOnMap: { openMap($0) },
+                // 마이 → 추가한 장소 → 줄 끝 "…" (수정 · 삭제)
                 onEditPlace: { showPlaceEditor($0) },
                 onDeletePlace: { try await deleteUserPlace($0) },
                 // 마이 탭의 빈 "내가 추가한 장소" · "내 글" 에서 바로 작성으로 갑니다.

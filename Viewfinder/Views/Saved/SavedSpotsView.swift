@@ -20,12 +20,14 @@ import UIKit
 //                 오른쪽 위 톱니바퀴 → 설정(화면 모드 · 사진 취향 · 버전)
 //    저장한 장소  사진 앱 "앨범" 과 같은 2열 격자. 오른쪽 위 지도 · 거르기 메뉴.
 //    추가한 장소  목록 (사진 · 이름 · 지역과 날짜) → 장소 상세
-//                 줄 끝 "…" → 지도에서 보기 · 수정 · 삭제
+//                 줄 끝 "…" → 수정 · 삭제
 //    내 글        메모 앱과 같은 목록 (제목 · 시간과 장소 · 오른쪽 사진) → 글 상세
 //                 줄 끝 "…" → 수정 · 삭제
 //                 "…" 은 길게 눌러도 같은 메뉴입니다. 수정 · 삭제는 내가 만든 것에만 보이고,
 //                 삭제는 한 번 더 묻습니다. (앱의 다른 삭제와 같은 문구)
-//    빈 상태      ContentUnavailableView (iOS 기본 빈 화면)
+//                 두 화면 모두 오른쪽 위 추가 · 글쓰기 버튼은 두지 않습니다. 관리하는 화면이고,
+//                 추가는 탭바 가운데 + 에, 글쓰기는 커뮤니티 탭에 이미 있습니다.
+//    빈 상태      ContentUnavailableView (iOS 기본 빈 화면) + 첫 행동 버튼 하나
 //
 //  [사진을 첫 화면 아래에 따로 모아 두지 않는 이유]
 //  "저장한 장소" 를 누르면 사진 격자가 나옵니다. 첫 화면에 같은 사진을 또 두면
@@ -62,8 +64,6 @@ struct MyTabView: View {
     let onExploreSpots: () -> Void
     /// 저장한 장소를 지도 탭에서 봅니다. (저장 모드 + 저장 목록)
     let onShowSavedOnMap: () -> Void
-    /// 추가한 장소 "…" → 지도에서 보기. 장소 하나를 지도 탭에서 보여줍니다.
-    let onShowPlaceOnMap: (PhotoSpot) -> Void
     /// 추가한 장소 "…" → 수정. 장소 상세를 열고 그 위에 장소 편집기를 올립니다.
     let onEditPlace: (PhotoSpot) -> Void
     /// 추가한 장소 "…" → 삭제. 한 번 더 묻는 것은 목록 화면이 합니다.
@@ -247,7 +247,6 @@ struct MyTabView: View {
                     spots: spots,
                     currentUserID: user?.id ?? "",
                     onSelectSpot: onSelectSpot,
-                    onShowOnMap: onShowPlaceOnMap,
                     onEdit: onEditPlace,
                     onDelete: onDeletePlace,
                     onAddPlace: onAddPlace
@@ -777,17 +776,16 @@ private enum MyDateText {
     }
 }
 
-/// 내가 추가한 장소 한 줄. 누르면 장소 상세가 열리고, 줄 끝 "…" 에 지도에서 보기 · 수정 · 삭제가 있습니다.
+/// 내가 추가한 장소 한 줄. 누르면 장소 상세가 열리고, 줄 끝 "…" 에 수정 · 삭제가 있습니다.
 private struct MyPlaceRow: View {
     let receipt: PlaceSubmissionReceipt
     /// 지금 불러온 장소 목록에서 찾은 장소. 아직 못 불러왔으면 nil 이고,
     /// 그때는 누를 수 없는 행으로 두고 "…" 도 두지 않습니다. (메뉴 항목마다 장소가 필요합니다)
     let spot: PhotoSpot?
-    /// 내가 만든 장소일 때만 수정 · 삭제를 보여줍니다.
+    /// 내가 만든 장소일 때만 "…" 과 길게 누르기 메뉴를 둡니다. 메뉴가 수정 · 삭제뿐이라서입니다.
     let isOwned: Bool
     let isDeleting: Bool
     let onSelectSpot: (PhotoSpot) -> Void
-    let onShowOnMap: (PhotoSpot) -> Void
     let onEdit: (PhotoSpot) -> Void
     /// 바로 지우지 않습니다. 목록 화면이 한 번 더 묻습니다.
     let onDelete: (PhotoSpot) -> Void
@@ -799,57 +797,59 @@ private struct MyPlaceRow: View {
 
     var body: some View {
         if let spot {
-            HStack(spacing: 0) {
-                // 줄과 "…" 이 따로 눌리게 둘 다 목록 기본 버튼 모양을 쓰지 않습니다.
-                // 기본 모양이면 목록이 줄 전체를 버튼 하나로 만들어서, "…" 을 눌러도 상세가 열릴 수 있습니다.
-                // 상세는 밀어 넣는 화면이 아니라 시트라서 오른쪽 화살표(›)를 두지 않습니다.
-                Button {
-                    onSelectSpot(spot)
-                } label: {
-                    content
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .opacity(isDeleting ? MyListMetrics.deletingOpacity : 1)
-                .accessibilityHint("장소 상세를 엽니다")
-
-                MyRowMenu(accessibilityLabel: "장소 메뉴", isBusy: isDeleting) {
-                    menuItems(for: spot)
-                }
-            }
-            .disabled(isDeleting)
-            .contextMenu {
-                menuItems(for: spot)
+            // 빈 메뉴가 길게 누를 때 떠오르지 않게, 내 장소가 아니면 길게 누르기 메뉴를 아예 붙이지 않습니다.
+            if isOwned {
+                row(spot)
+                    .contextMenu {
+                        menuItems(for: spot)
+                    }
+            } else {
+                row(spot)
             }
         } else {
             content
         }
     }
 
-    /// "…" 과 길게 누르기 메뉴에 같이 들어갑니다.
+    private func row(_ spot: PhotoSpot) -> some View {
+        HStack(spacing: 0) {
+            // 줄과 "…" 이 따로 눌리게 둘 다 목록 기본 버튼 모양을 쓰지 않습니다.
+            // 기본 모양이면 목록이 줄 전체를 버튼 하나로 만들어서, "…" 을 눌러도 상세가 열릴 수 있습니다.
+            // 상세는 밀어 넣는 화면이 아니라 시트라서 오른쪽 화살표(›)를 두지 않습니다.
+            Button {
+                onSelectSpot(spot)
+            } label: {
+                content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(isDeleting ? MyListMetrics.deletingOpacity : 1)
+            .accessibilityHint("장소 상세를 엽니다")
+
+            if isOwned {
+                MyRowMenu(accessibilityLabel: "장소 메뉴", isBusy: isDeleting) {
+                    menuItems(for: spot)
+                }
+            }
+        }
+        .disabled(isDeleting)
+    }
+
+    /// "…" 과 길게 누르기 메뉴에 같이 들어갑니다. 내 글 목록과 같은 수정 · 삭제입니다.
+    /// 지도에서 보기는 넣지 않습니다. 장소 상세 아래 "지도에서 보기" 가 같은 일을 합니다.
     @ViewBuilder
     private func menuItems(for spot: PhotoSpot) -> some View {
         Button {
-            onShowOnMap(spot)
+            onEdit(spot)
         } label: {
-            Label("지도에서 보기", systemImage: "map")
+            Label("수정", systemImage: "pencil")
         }
 
-        if isOwned {
-            Divider()
-
-            Button {
-                onEdit(spot)
-            } label: {
-                Label("수정", systemImage: "pencil")
-            }
-
-            Button(role: .destructive) {
-                onDelete(spot)
-            } label: {
-                Label("삭제", systemImage: "trash")
-            }
+        Button(role: .destructive) {
+            onDelete(spot)
+        } label: {
+            Label("삭제", systemImage: "trash")
         }
     }
 
@@ -1167,9 +1167,9 @@ private struct MyPlacesView: View {
     /// 수정 · 삭제를 내가 만든 장소에만 보이려고 받습니다.
     let currentUserID: String
     let onSelectSpot: (PhotoSpot) -> Void
-    let onShowOnMap: (PhotoSpot) -> Void
     let onEdit: (PhotoSpot) -> Void
     let onDelete: (PhotoSpot) async throws -> Void
+    /// 비어 있을 때 가운데 "장소 추가" 버튼.
     let onAddPlace: () -> Void
 
     /// "삭제" 를 누른 장소. 한 번 더 물은 뒤 지웁니다.
@@ -1190,7 +1190,6 @@ private struct MyPlacesView: View {
                             isOwned: spot?.isOwned(by: currentUserID) ?? false,
                             isDeleting: deletingSpotIDs.contains(receipt.id),
                             onSelectSpot: onSelectSpot,
-                            onShowOnMap: onShowOnMap,
                             onEdit: onEdit,
                             onDelete: { pendingDeleteSpot = $0 }
                         )
@@ -1211,18 +1210,9 @@ private struct MyPlacesView: View {
                 }
             }
         }
+        // 오른쪽 위 + 는 두지 않습니다. 탭바 가운데 + 가 같은 장소 추가입니다.
+        // 비어 있을 때만 가운데 "장소 추가" 버튼을 둡니다.
         .navigationTitle("추가한 장소")
-        .toolbar {
-            // 비어 있을 때는 가운데 "장소 추가" 버튼이 같은 일을 하므로 숨깁니다.
-            if !receipts.isEmpty {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: onAddPlace) {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityLabel("장소 추가")
-                }
-            }
-        }
         // 장소 상세의 "장소 삭제" 와 같은 문구 · 같은 모양입니다.
         .confirmationDialog(
             "장소를 삭제할까요?",
@@ -1278,6 +1268,7 @@ private struct MyPostsView<Detail: View>: View {
     /// 글쓰기 화면을 고치기로 엽니다. 글 상세 오른쪽 위 "…" → 수정 과 같은 길입니다.
     let onEdit: (CommunityPost) -> Void
     let onDelete: (CommunityPost) async throws -> Void
+    /// 비어 있을 때 가운데 "글쓰기" 버튼.
     let onCompose: () -> Void
 
     /// 지금 열린 글 상세.
@@ -1311,17 +1302,9 @@ private struct MyPostsView<Detail: View>: View {
                 }
             }
         }
+        // 오른쪽 위 글쓰기 버튼은 두지 않습니다. 글은 커뮤니티 탭 · 장소 상세에서 씁니다.
+        // 비어 있을 때만 가운데 "글쓰기" 버튼을 둡니다.
         .navigationTitle("내 글")
-        .toolbar {
-            if !posts.isEmpty {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: onCompose) {
-                        Image(systemName: "square.and.pencil")
-                    }
-                    .accessibilityLabel("글쓰기")
-                }
-            }
-        }
         // 줄마다가 아니라 목록 자체에 붙입니다. 목록 줄 안에 두면 동작하지 않을 수 있습니다.
         .navigationDestination(item: $openedPost) { opened in
             // 목록에 있는 최신 글로 엽니다. 지워져 목록에서 빠지는 중이면 열 때의 글을 씁니다.
