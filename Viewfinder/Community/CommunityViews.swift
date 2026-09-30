@@ -2174,7 +2174,6 @@ struct CommunityComposerView: View {
     @State private var submissionID = UUID().uuidString
     @State private var submissionError: String?
     @State private var isDiscardConfirmationPresented = false
-    @State private var isPhotoUnavailablePresented = false
     @State private var submissionPreparationTask: Task<Void, Never>?
     /// 결과를 골라 검색어를 장소명으로 바꿀 때, 그 변경이 다시 검색을
     /// 일으키지 않게 막습니다.
@@ -2329,11 +2328,6 @@ struct CommunityComposerView: View {
                     Button("삭제하고 나가기", role: .destructive) { dismiss() }
                 }
                 Button("계속 작성", role: .cancel) { }
-            }
-            .alert("사진 업로드 안내", isPresented: $isPhotoUnavailablePresented) {
-                Button("확인", role: .cancel) { }
-            } message: {
-                Text("사진 업로드는 현재 준비 중입니다. 사진을 제거하면 글을 게시할 수 있어요.")
             }
             .scrollDismissesKeyboard(.interactively)
             .contentShape(Rectangle())
@@ -2700,6 +2694,13 @@ struct CommunityComposerView: View {
                 Text("사진을 불러오지 못했어요. 다른 사진을 골라 주세요.")
                     .vfText(.caption)
                     .foregroundStyle(AppColors.primary)
+            }
+
+            // 올리기가 꺼져 있으면 고르기 전에 미리 알려요(한 줄 글 사진 칸과 같아요).
+            if !CommunityPhotoUpload.isAvailable {
+                Text("사진 올리기는 아직 준비 중이에요.")
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
             }
 
             if communityPhotoCount > 0 {
@@ -3442,6 +3443,12 @@ struct CommunityComposerView: View {
             return false
         }
 
+        // 사진 올리기가 꺼져 있으면(CommunityPhotoUpload) 새 사진이 있는 글은 올리지 않아요.
+        // 전에는 누른 뒤 알림 창으로 알렸어요. 이제 버튼을 끄고 버튼 아래에 까닭을 보여요.
+        if blocksPhotoUpload {
+            return false
+        }
+
         if purpose == .addSpot {
             guard selectedSpot != nil, !selectedSpotAlreadyRegistered else { return false }
             if editingPost == nil, !hasAcknowledgedSubmissionGuidelines {
@@ -3461,12 +3468,19 @@ struct CommunityComposerView: View {
         isPreparing: Bool,
         isEditing: Bool,
         hasMessage: Bool,
-        hasChanges: Bool
+        hasChanges: Bool,
+        blocksPhotoUpload: Bool
     ) -> String? {
         guard isFieldReport, !isPreparing else { return nil }
         if !hasChanges { return "바꾼 내용이 없어요" }
         // 고칠 때는 버튼이 "변경사항 저장"이라 "저장"이라고 해요.
         if !hasMessage { return isEditing ? "본문을 쓰면 저장할 수 있어요" : "본문을 쓰면 공유할 수 있어요" }
+        if blocksPhotoUpload {
+            // 고칠 때 이미 올라간 사진은 그대로 둘 수 있어서 "새 사진"이라고 해요.
+            return isEditing
+                ? "사진 올리기는 아직 준비 중이에요. 새 사진을 빼면 저장할 수 있어요"
+                : "사진 올리기는 아직 준비 중이에요. 사진을 빼면 공유할 수 있어요"
+        }
         return nil
     }
 
@@ -3476,8 +3490,15 @@ struct CommunityComposerView: View {
             isPreparing: isPreparingSubmission,
             isEditing: editingPost != nil,
             hasMessage: !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            hasChanges: hasChanges
+            hasChanges: hasChanges,
+            blocksPhotoUpload: blocksPhotoUpload
         )
+    }
+
+    /// 글쓰기에 새로 고른 사진이 있는데 사진 올리기가 꺼져 있는지(CommunityPhotoUpload).
+    /// 이미 올라간 사진(retainedRemoteAttachments)은 올릴 파일이 없어서 막지 않아요.
+    private var blocksPhotoUpload: Bool {
+        purpose == .fieldReport && !CommunityPhotoUpload.isAvailable && !photoDrafts.isEmpty
     }
 
     private var hasPlaceChanges: Bool {
@@ -3849,12 +3870,8 @@ struct CommunityComposerView: View {
     }
 
     private func submit() {
+        // 사진 올리기가 꺼져 있어 새 사진을 올릴 수 없으면 canSubmit 이 false 예요(blocksPhotoUpload).
         guard canSubmit else { return }
-        // 사진 올리기가 꺼져 있으면(CommunityPhotoUpload) 새 사진이 있는 글은 올리지 않고 알려요.
-        if purpose == .fieldReport, !CommunityPhotoUpload.isAvailable, !photoDrafts.isEmpty {
-            isPhotoUnavailablePresented = true
-            return
-        }
         focusedField = nil
         let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
 
