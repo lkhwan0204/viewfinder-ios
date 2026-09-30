@@ -190,6 +190,8 @@ struct HomeFeedView: View {
     let onAddAISpot: (PhotoSpot) -> Void
     let onShowDetail: (PhotoSpot) -> Void
     let onShowSearchDetail: (PhotoSpot) -> Void
+    /// 검색 결과의 커뮤니티 글을 열어요.
+    let onOpenCommunityPost: (CommunityPost) -> Void
     let onReportMissingPhoto: (PhotoSpot) -> Void
     let onAddPlace: () -> Void
     let onToggleSave: (PhotoSpot) -> Void
@@ -459,9 +461,12 @@ struct HomeFeedView: View {
                     performSearchAction(action: onAddPlace)
                 },
                 onSelectCommunityPost: { post in
-                    guard let spot = spot(for: post) else { return }
-                    performSearchAction {
-                        onShowSearchDetail(spot)
+                    // 글을 누르면 그 글을 열어요(커뮤니티 탭). 전에는 글이 아니라 장소 상세가 열렸고,
+                    // 장소 없는 글은 눌러도 아무 일이 없었어요.
+                    // 검색으로 돌아오지 않아서(다른 탭) 돌아올 자리는 비워요.
+                    searchReturnAnchor = nil
+                    onPerformSearchAction {
+                        onOpenCommunityPost(post)
                     }
                 },
                 onQueryChange: performLocalKeywordSearch
@@ -791,10 +796,6 @@ struct HomeFeedView: View {
                 isSearchResultsPresented = true
             }
         }
-    }
-
-    private func spot(for post: CommunityPost) -> PhotoSpot? {
-        searchableSpots.first { $0.id == post.spotID }
     }
 
     // Phase 2A: 272x352 고정 카드 카로셀을 full-bleed Hero 로 교체했습니다.
