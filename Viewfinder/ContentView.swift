@@ -66,6 +66,20 @@ struct ContentView: View {
                 return "tab_my"
             }
         }
+
+        /// 선택된 탭에 쓰는 채운 아이콘입니다.
+        ///
+        /// 선택 색이 주황에서 흰색으로 바뀌면서, 색 차이만으로는 선택이
+        /// 약해졌습니다. 선 아이콘 → 면 아이콘으로 형태도 함께 바꿔 구분합니다.
+        /// + 탭은 누르면 바로 제보 화면으로 가서 선택 상태가 없으므로 그대로 둡니다.
+        var selectedAssetName: String {
+            switch self {
+            case .add:
+                return assetName
+            case .home, .map, .community, .my:
+                return assetName + "_selected"
+            }
+        }
     }
 
     @State private var selectedTab: AppTab = .home
@@ -674,6 +688,8 @@ struct ContentView: View {
                 onSearchDismissed: finishHomeSearchDismissal,
                 onPerformSearchAction: performAfterHomeSearchDismissal
             )
+            // 탭바는 흰색 tint 를 받지만, 탭 화면 안의 버튼·토글은 브랜드 주황을 유지합니다.
+            .tint(AppColors.accent)
             .tag(AppTab.home)
             .tabItem {
                 tabItemLabel(for: .home)
@@ -681,6 +697,7 @@ struct ContentView: View {
             .vfOpaqueTabBar()
 
             mapLayer
+                .tint(AppColors.accent)
                 .tag(AppTab.map)
                 .tabItem {
                     tabItemLabel(for: .map)
@@ -736,6 +753,7 @@ struct ContentView: View {
                 },
                 communityViewModel: communityViewModel
             )
+            .tint(AppColors.accent)
             .tag(AppTab.community)
             .tabItem {
                 tabItemLabel(for: .community)
@@ -756,6 +774,8 @@ struct ContentView: View {
                     updateTabBarVisibility(shouldHide, source: .my)
                 },
                 onSelectSpot: { showDetail($0, source: .saved) },
+                // 마이 → 저장한 출사지(첫 화면 사진 칸 · 모두 보기 격자)에서 길게 눌러 저장을 해제합니다.
+                onToggleSave: { savedSpotStore.toggle($0) },
                 onEditPost: { post in
                     performAuthenticatedAction { _ in
                         composerPurpose = .fieldReport
@@ -788,6 +808,25 @@ struct ContentView: View {
                     lastContentTab = .home
                     selectedTab = .home
                 },
+                // 마이 → 저장한 출사지 → "지도에서 보기"
+                onShowSavedOnMap: showSavedSpotsOnMap,
+                // 마이 → 추가한 장소 → 줄 끝 "…" (수정 · 삭제)
+                onEditPlace: { showPlaceEditor($0) },
+                onDeletePlace: { try await deleteUserPlace($0) },
+                // 만든 사람이 확인되지 않는 장소(Firestore 로 옮기기 전에 추가한 곳 등)는 이 기기의 목록에서만 뺍니다.
+                onRemovePlaceFromList: { placeSubmissionStore.remove(id: $0) },
+                // 마이 → 빈 추가한 장소 · 내 글 화면에서 바로 작성으로 갑니다.
+                // 탭바 + 버튼, 커뮤니티 글쓰기 버튼과 같은 경로입니다.
+                onAddPlace: {
+                    performAuthenticatedAction(loginPresentationContext: .addSpot) { _ in
+                        presentComposer(.addSpot)
+                    }
+                },
+                onCompose: {
+                    performAuthenticatedAction(loginPresentationContext: .communityPost) { _ in
+                        presentComposer(.fieldReport)
+                    }
+                },
                 onResetTaste: {
                     isTasteResetPresented = true
                 },
@@ -795,12 +834,21 @@ struct ContentView: View {
                     authViewModel.signOut()
                 }
             )
+            .tint(AppColors.accent)
             .tag(AppTab.my)
             .tabItem {
                 tabItemLabel(for: .my)
             }
             .vfOpaqueTabBar()
         }
+        // 탭바 선택 색은 흰색(라이트 모드에서는 #111)입니다. (개선안 38)
+        //
+        // 가운데 + 아이콘이 늘 주황이라, 선택된 탭까지 주황이면 탭바에
+        // 주황이 두 개가 되어 둘 다 선택된 것처럼 보였습니다.
+        // 주황은 + (제보) 에만 남기고, 선택은 흰색 + 채운 아이콘으로 구분합니다.
+        // AppDelegate 의 UITabBarAppearance 와 같은 값이며, appearance 를
+        // 따르지 않는 OS 에서도 같은 색이 되도록 SwiftUI tint 로도 겁니다.
+        .tint(AppColors.primary)
         // ═══════════════════════════════════════════════════════════
         //  탭바 배경을 SwiftUI 쪽에서 지정합니다. (시도 A)
         //
@@ -834,10 +882,15 @@ struct ContentView: View {
         //  자식에 걸어야 반영되는 경우가 있습니다. 한 번의 빌드로
         //  판정하기 위해 양쪽 다 겁니다. 중복은 무해합니다.
         // ═══════════════════════════════════════════════════════════
+        // iOS 26 에서는 위 배경 강제를 적용하지 않고 시스템 유리 탭바를 씁니다. (개선안 38)
         .vfOpaqueTabBar()
+        // iOS 26 시스템 탭바 줄이기를 끕니다. 스크롤할 때 숨기고 보이는 것은 아래
+        // 컨트롤러가 합니다. 경위는 NativeTabBarSupport 의 VFTabBarScrollObserver 주석에 있습니다.
+        .vfTabBarHidesOnScroll()
         .background {
+            // 탭바를 찾아 숨김 · 보임 컨트롤러에 연결합니다. 모든 iOS 버전에서 붙입니다.
             NativeTabBarAnimator()
-            .allowsHitTesting(false)
+                .allowsHitTesting(false)
         }
         .animation(nil, value: selectedTab)
     }
@@ -855,7 +908,7 @@ struct ContentView: View {
                 Label {
                     Text(tab.title)
                 } icon: {
-                    Image(tab.assetName)
+                    Image(selectedTab == tab ? tab.selectedAssetName : tab.assetName)
                         .renderingMode(.template)
                 }
             }
@@ -1030,7 +1083,14 @@ struct ContentView: View {
     }
 
     private func setHomeTabBarHidden(_ shouldHide: Bool) {
-        NativeTabBarVisibilityController.shared.setHidden(shouldHide, animated: true)
+        guard shouldHide else {
+            // 보이게 할 때는 스크롤 관찰자를 거칩니다. 관찰자가 기억하는 "숨김" 과
+            // 실제 탭바가 어긋나면, 다음에 스크롤을 내려도 탭바가 숨지 않습니다.
+            // (탭을 바꿀 때 · 작성 화면을 열 때 · 홈이 나타날 때 여기로 옵니다)
+            VFTabBarScrollObserver.shared.reveal()
+            return
+        }
+        NativeTabBarVisibilityController.shared.setHidden(true, animated: true)
     }
 
     private func activateMapRecommendationsForTabEntry() {
@@ -1075,6 +1135,32 @@ struct ContentView: View {
                 selectedSpot = firstSpot
                 selectedSpotRevision += 1
             }
+        }
+    }
+
+    /// 마이 → "지도에서 보기". 지도 탭을 저장한 장소만 보이는 모드로 열고, 첫 장소로 옮긴 뒤
+    /// 지도 탭의 저장 목록("내 보관함")을 올립니다.
+    private func showSavedSpotsOnMap() {
+        // 지도 위 테마 칩이 걸려 있으면 저장한 곳 일부가 숨으므로 모두 보이게 합니다.
+        mapState.categoryFilter = .all
+        mapState.savedListFilter = .all
+        mapState.showSavedSpots()
+        // 지도 탭으로 바꿀 때 추천 모드로 돌아가지 않게 합니다. (onChange(of: selectedTab) 참고)
+        // openMap(_:) 이 장소 하나를 보여줄 때와 같은 방식입니다.
+        mapState.shouldFocusUserOnSelection = false
+
+        if let firstSpot = savedMapListSpots.first {
+            selectedSpot = firstSpot
+            selectedSpotRevision += 1
+        }
+
+        selectedTab = .map
+
+        // 지도 탭이 화면에 올라온 뒤 목록 시트를 올립니다.
+        // 탭이 바뀌는 중에 시트를 띄우면 뜨지 않을 수 있습니다.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            guard selectedTab == .map, mapState.mode == .saved else { return }
+            mapState.isSavedListPresented = true
         }
     }
 
@@ -1350,6 +1436,7 @@ struct ContentView: View {
             authViewModel: authViewModel,
             spot: spot,
             source: presentation.source,
+            opensPlaceEditorOnAppear: presentation.opensPlaceEditor,
             isSaved: savedSpotStore.contains(spot),
             communityPosts: communityViewModel.posts(for: spot),
             placePhotos: placePhotoGalleryStore.photos(for: spot),
@@ -1404,11 +1491,7 @@ struct ContentView: View {
                 _ = try await placesRepository.updateUserPlace(updatedSpot, updatedBy: user.id)
             },
             onDeletePlace: {
-                guard let user = authViewModel.currentUser else {
-                    throw PlacesRepositoryError.notAuthenticated
-                }
-                try await placesRepository.softDeleteUserPlace(id: spot.id, deletedBy: user.id)
-                placeSubmissionStore.remove(id: spot.id)
+                try await deleteUserPlace(spot)
                 detailPresentation = nil
             },
             communityViewModel: communityViewModel,
@@ -1435,6 +1518,27 @@ struct ContentView: View {
         // 교체하거나 다시 띄우지 않습니다.
         guard detailPresentation == nil else { return }
         detailPresentation = SpotDetailPresentation(spot: spot, source: source)
+    }
+
+    /// 마이 → 추가한 장소 → "…" → 수정.
+    /// 장소 상세를 열고, 상세가 다 올라오면 상세의 장소 편집기를 엽니다.
+    /// 편집기를 따로 만들지 않고 상세의 것을 그대로 써서, 저장 · 오류 처리가 한 곳에만 있습니다.
+    private func showPlaceEditor(_ spot: PhotoSpot) {
+        guard detailPresentation == nil else { return }
+        detailPresentation = SpotDetailPresentation(spot: spot, source: .saved, opensPlaceEditor: true)
+    }
+
+    /// 내가 추가한 장소를 지웁니다. (공개 목록에서 숨김)
+    /// 장소 상세의 "장소 삭제" 와 마이 → 추가한 장소 → "…" → 삭제 가 함께 씁니다.
+    private func deleteUserPlace(_ spot: PhotoSpot) async throws {
+        guard let user = authViewModel.currentUser else {
+            throw PlacesRepositoryError.notAuthenticated
+        }
+        guard spot.isOwned(by: user.id) else {
+            throw PlacesRepositoryError.notOwner
+        }
+        try await placesRepository.softDeleteUserPlace(id: spot.id, deletedBy: user.id)
+        placeSubmissionStore.remove(id: spot.id)
     }
 
     private func openMap(_ spot: PhotoSpot?) {

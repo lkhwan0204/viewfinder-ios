@@ -451,7 +451,7 @@ struct PhotoSpot: Identifiable, Equatable, Sendable {
             mood: mood,
             crowdLevelCode: crowdLevelCode,
             imageName: photo.imageName,
-            imageCredit: "ViewFinder 사용자 제보",
+            imageCredit: "뷰파인더 사용자 제보",
             imageLicense: "업로더 제공",
             imageSourceURL: nil,
             recommendationRegions: recommendationRegions,

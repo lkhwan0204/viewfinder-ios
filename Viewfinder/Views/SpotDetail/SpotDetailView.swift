@@ -32,12 +32,16 @@ struct SpotDetailPresentation: Identifiable {
     let id = UUID()
     let spot: PhotoSpot
     let source: SpotDetailSource
+    /// 마이 → 추가한 장소 → "…" → 수정 으로 열 때 true. 상세가 뜨면 곧바로 장소 편집기를 올립니다.
+    var opensPlaceEditor: Bool = false
 }
 
 struct SpotDetailView: View {
     @ObservedObject var authViewModel: AuthViewModel
     let spot: PhotoSpot
     let source: SpotDetailSource
+    /// true 면 상세 시트가 다 올라온 뒤 장소 편집기를 한 번 엽니다. (SpotDetailPresentation.opensPlaceEditor)
+    let opensPlaceEditorOnAppear: Bool
     let isSaved: Bool
     let communityPosts: [CommunityPost]
     let placePhotos: [PlacePhoto]
@@ -72,6 +76,7 @@ struct SpotDetailView: View {
     @State private var isPlaceDeleteConfirmationPresented = false
     @State private var isDeletingPlace = false
     @State private var placeOperationError: String?
+    @State private var didOpenPlaceEditorOnAppear = false
     @State private var authenticationDestination: AuthenticationDestination?
     @State private var pendingAuthenticatedAction: (() -> Void)?
     @State private var isVisitInformationExpanded = false
@@ -82,6 +87,7 @@ struct SpotDetailView: View {
         authViewModel: AuthViewModel,
         spot: PhotoSpot,
         source: SpotDetailSource,
+        opensPlaceEditorOnAppear: Bool = false,
         isSaved: Bool,
         communityPosts: [CommunityPost],
         placePhotos: [PlacePhoto] = [],
@@ -108,6 +114,7 @@ struct SpotDetailView: View {
         self.authViewModel = authViewModel
         self.spot = spot
         self.source = source
+        self.opensPlaceEditorOnAppear = opensPlaceEditorOnAppear
         self.isSaved = isSaved
         self.communityPosts = communityPosts
         self.placePhotos = placePhotos
@@ -313,6 +320,39 @@ struct SpotDetailView: View {
             selectedGalleryIndex = min(selectedGalleryIndex, max(sessionGalleryPhotos.count - 1, 0))
             await crowdReportStore.load(for: spot)
         }
+        .background {
+            // 마이에서 "수정" 으로 열었을 때만 붙습니다. 상세가 다 올라오면 장소 편집기를 엽니다.
+            if opensPlaceEditorOnAppear {
+                SpotDetailDidAppearObserver(onDidAppear: { openPlaceEditorIfRequested() })
+            }
+        }
+        .task {
+            // 위 관찰자가 알려주지 못했을 때를 위한 대비입니다. 시트가 넉넉히 다 올라왔을 때 한 번 더 봅니다.
+            // 이미 열었으면 아무것도 하지 않습니다. 그 사이 상세를 닫았으면 열지 않습니다.
+            guard opensPlaceEditorOnAppear else { return }
+            try? await Task.sleep(for: .milliseconds(800))
+            guard !Task.isCancelled else { return }
+            openPlaceEditorIfRequested()
+        }
+    }
+
+    /// 장소 정보 수정. 오른쪽 위 "…" 메뉴와, 마이에서 "수정" 으로 들어왔을 때 같은 길로 엽니다.
+    private func beginEditingOwnedPlace() {
+        requireAuthentication {
+            editingCommunityPost = nil
+            isEditingUserPlace = true
+            isCommunityComposerPresented = true
+        }
+    }
+
+    /// 마이 → 추가한 장소 → "…" → 수정. 상세가 다 올라온 뒤 장소 편집기를 한 번 엽니다.
+    ///
+    /// 편집기를 닫고 상세에 남아 있을 때 다시 열리지 않습니다.
+    /// 저장 · 오류 · 로그인 처리는 오른쪽 위 "…" 메뉴로 열 때와 같습니다.
+    private func openPlaceEditorIfRequested() {
+        guard opensPlaceEditorOnAppear, !didOpenPlaceEditorOnAppear, isCurrentUserPlace else { return }
+        didOpenPlaceEditorOnAppear = true
+        beginEditingOwnedPlace()
     }
 
     private func requireAuthentication(action: @escaping () -> Void) {
@@ -457,11 +497,7 @@ struct SpotDetailView: View {
                     if isCurrentUserPlace {
                         Menu {
                             Button {
-                                requireAuthentication {
-                                    editingCommunityPost = nil
-                                    isEditingUserPlace = true
-                                    isCommunityComposerPresented = true
-                                }
+                                beginEditingOwnedPlace()
                             } label: {
                                 Label("장소 정보 수정", systemImage: "pencil")
                             }
@@ -478,7 +514,10 @@ struct SpotDetailView: View {
                                 .foregroundStyle(AppColors.primary)
                                 .frame(width: 36, height: 36)
                                 .background(.thinMaterial, in: Circle())
-                                .contentShape(Circle())
+                                // 보이는 원은 36pt 그대로, 누를 수 있는 영역만 44pt 로 넓힙니다. (개선안 41)
+                                // 원은 44pt 영역 가운데에 놓여 전보다 4pt 안쪽에 보입니다.
+                                .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
+                                .contentShape(Rectangle())
                         }
                         .menuStyle(.borderlessButton)
                         .accessibilityLabel("내 장소 관리")
@@ -639,6 +678,43 @@ struct SpotDetailView: View {
     }
 }
 
+/// 상세 시트가 다 올라온 뒤(UIKit viewDidAppear) 한 번 알려줍니다.
+///
+/// 시트가 올라오는 도중에 그 위로 편집기 시트를 띄우면 UIKit 이 무시해서 편집기가 뜨지 않습니다.
+/// 시간을 어림해 기다리는 대신, 올라오기를 마친 순간을 받습니다.
+/// (커뮤니티 편집기의 CommunityDismissAttemptObserver 와 같은 방식)
+private struct SpotDetailDidAppearObserver: UIViewControllerRepresentable {
+    let onDidAppear: () -> Void
+
+    func makeUIViewController(context: Context) -> Controller {
+        let controller = Controller()
+        controller.onDidAppear = onDidAppear
+        return controller
+    }
+
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.onDidAppear = onDidAppear
+    }
+
+    final class Controller: UIViewController {
+        var onDidAppear: (() -> Void)?
+
+        override func viewDidLoad() {
+            super.viewDidLoad()
+            // 화면 뒤에 깔리는 빈 칸입니다. 누름을 받지 않습니다.
+            view.isUserInteractionEnabled = false
+        }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            // 나타나기 처리 중에 바로 띄우지 않고 다음 차례에 띄웁니다.
+            DispatchQueue.main.async { [weak self] in
+                self?.onDidAppear?()
+            }
+        }
+    }
+}
+
 struct SpotDetailHeroImage: View {
     let spot: PhotoSpot
     let height: CGFloat
@@ -761,6 +837,9 @@ struct SpotDetailPhotoGallery: View {
                                     .padding(.horizontal, 10)
                                     .frame(height: 28)
                                     .background(.black.opacity(0.46), in: Capsule())
+                                    // 보이는 캡슐은 28pt 그대로, 누를 수 있는 영역만 44pt 로 넓힙니다. (개선안 41)
+                                    .padding(.vertical, 8)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("이 장소에 사진 추가")
@@ -768,7 +847,9 @@ struct SpotDetailPhotoGallery: View {
 
                         Spacer(minLength: 0)
                     }
-                    .padding(10)
+                    // 위쪽 여백 10pt = 2pt + 넓힌 터치 영역 8pt. 캡슐 위치는 전과 같습니다.
+                    .padding(.horizontal, 10)
+                    .padding(.top, 2)
 
                     HStack(spacing: 8) {
                         if let attributionText {

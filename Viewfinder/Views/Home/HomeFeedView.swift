@@ -620,6 +620,8 @@ struct HomeFeedView: View {
                 onThresholdChange: handleRefreshThresholdChange
             )
         )
+        // iOS 26: 내리면 탭바가 숨고, 위로 조금만 올려도 다시 보입니다.
+        .vfReportsTabBarScroll()
         .onPreferenceChange(HomePullOffsetPreferenceKey.self) { offset in
             guard #unavailable(iOS 18.0) else {
                 return
@@ -1072,7 +1074,7 @@ private struct HomeLoadingRailSection: View {
                     ForEach(0..<2, id: \.self) { _ in
                         HomeLoadingPhotoCard()
                             .containerRelativeFrame(.horizontal) { length, _ in
-                                length * (title == nil ? 0.42 : 0.46)
+                                length * VFPhoto.railWidthRatio
                             }
                     }
                 }
@@ -2113,7 +2115,7 @@ private struct HomeSpotRailSection: View {
                                 : recommendation.spot.name + ", " + HomeSpotDisplayFormatter.region(for: recommendation.spot)
                         )
                         .containerRelativeFrame(.horizontal) { length, _ in
-                            length * (!showsRank && displayRecommendations.count > 2 ? 0.42 : 0.46)
+                            length * VFPhoto.railWidthRatio
                         }
                     }
                 }

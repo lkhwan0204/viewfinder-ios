@@ -23,8 +23,10 @@ import UIKit
 //   - finishInteraction(projectedDelta:)
 //   - setHidden(_:animated:)
 //
-//  Phase 3 에서 iOS 26 의 .tabBarMinimizeBehavior(.onScrollDown) 로
-//  이 파일 대부분을 대체할 예정입니다.
+//  iOS 26 에서도 이 컨트롤러로 탭바를 숨기고 보입니다. (개선안 38)
+//  시스템 줄이기(.tabBarMinimizeBehavior)는 끄고, 아래 VFTabBarScrollObserver 가
+//  스크롤 방향을 보고 setHidden(_:animated:) 을 부릅니다. 경위는 그쪽 주석에 있습니다.
+//  iOS 26 탭바는 탭을 누를 때 시스템 햅틱이 있으므로, 여기서 주는 햅틱은 iOS 17~18 에만 붙입니다.
 // ─────────────────────────────────────────────────────────────────
 
 final class NativeTabBarVisibilityController: NSObject {
@@ -57,7 +59,10 @@ final class NativeTabBarVisibilityController: NSObject {
         tabBar.isHidden = false
         // alpha 는 항상 1 로 고정합니다. 이것이 관통 버그 수정의 핵심입니다.
         tabBar.alpha = 1
-        attachSelectionFeedback(to: tabBar)
+        // iOS 26 탭바는 탭을 누를 때 시스템 햅틱이 이미 있습니다. 여기서 또 주면 두 번 울립니다.
+        if #unavailable(iOS 26.0) {
+            attachSelectionFeedback(to: tabBar)
+        }
 
         if animator == nil, !isInteracting {
             hideProgress = currentHiddenState ? 1 : 0
@@ -231,6 +236,24 @@ final class NativeTabBarVisibilityController: NSObject {
         tabBarAnimator.startAnimation()
     }
 
+    /// 숨겨 둔 탭바가 제자리로 돌아와 있으면 다시 숨깁니다. (스크롤하는 동안 부릅니다)
+    ///
+    /// 탭바는 앱이 transform 으로 밀어 둔 것이라, 시스템이 탭바를 다시 배치하면서
+    /// 제자리로 되돌려 놓을 수 있습니다. 애니메이션 중이면 건드리지 않습니다.
+    func keepHiddenIfNeeded() {
+        guard Thread.isMainThread,
+              currentHiddenState,
+              animator == nil,
+              !isInteracting,
+              let tabBar else { return }
+
+        hideProgress = 1
+        let expected = tabBarTransform
+        guard tabBar.transform != expected else { return }
+        tabBar.transform = expected
+        tabBar.isUserInteractionEnabled = false
+    }
+
     // MARK: - Geometry
 
     private var tabBarTransform: CGAffineTransform {
@@ -279,7 +302,12 @@ final class NativeTabBarVisibilityController: NSObject {
 // ─────────────────────────────────────────────────────────────────
 private struct VFOpaqueTabBar: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
+        if #available(iOS 26.0, *) {
+            // iOS 26 은 시스템 Liquid Glass 탭바를 그대로 씁니다. (개선안 38)
+            // 불투명 배경을 강제해도 확실히 적용되지 않았고,
+            // 시스템 재질과 싸우면 화면마다 탭바 색이 달라졌습니다.
+            content
+        } else if #available(iOS 18.0, *) {
             content
                 .toolbarBackground(Color(uiColor: VFPalette.surface2), for: .tabBar)
                 .toolbarBackgroundVisibility(.visible, for: .tabBar)
@@ -300,6 +328,270 @@ extension View {
     /// 경우가 있습니다. 한 번의 빌드로 판정하기 위해 양쪽 다 겁니다.
     func vfOpaqueTabBar() -> some View {
         modifier(VFOpaqueTabBar())
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  iOS 26: 스크롤 방향에 맞춰 탭바를 숨기고 다시 보입니다. (개선안 38)
+//
+//  [지나온 길]
+//  1) .tabBarMinimizeBehavior(.onScrollDown)
+//     내리면 탭바가 줄어들지만, 천천히 올려도 펼쳐지지 않고 맨 위에서만 펼쳐졌습니다.
+//     (실기기 iOS 26 확인. 개발자 포럼 · Stack Overflow 에도 같은 증상이 보고되어 있습니다)
+//  2) 스크롤 방향에 따라 .never ↔ .onScrollDown 을 바꿔 끼우기
+//     실기기에서 동작하지 않았습니다. 이미 줄어든 탭바를 모드만 바꿔서 다시
+//     펼쳐 준다는 보장이 없습니다. 문서에 없는 시스템 동작에 기댄 방법이었습니다.
+//
+//  [지금]
+//  시스템 줄이기는 끄고(.never), 앱이 탭바를 직접 숨기고 보입니다.
+//  숨기는 방법은 위의 NativeTabBarVisibilityController (탭바를 화면 아래로 밀기) 입니다.
+//   - 탭바를 레이아웃에서 빼지 않고 밀기만 해서 화면 아래 여백이 바뀌지 않습니다.
+//     SwiftUI 의 toolbar(.hidden, for: .tabBar) 는 여백이 바뀌어서, 홈처럼 화면 높이로
+//     사진 크기를 정하는 화면이 스크롤 도중 출렁입니다.
+//   - 아래로 16pt 내리면 숨고, 위로 8pt 올리면 보입니다. 속도가 아니라 누적 거리라서
+//     천천히 올려도 보입니다. 맨 위 24pt 안에서는 늘 보입니다.
+//   - "위로" 는 사용자가 올릴 때만 셉니다. (손가락으로 끌어 올리는 중, 위로 튕겨 올린 뒤의 관성)
+//     아래로 세게 내리면 손을 뗀 뒤 관성으로 맨 아래까지 가서 튕겨 돌아오는데, 이 돌아오는
+//     움직임을 "위로 올림" 으로 세면 탭바가 다시 나왔습니다. (실기기 확인) 그래서 스크롤 단계
+//     (onScrollPhaseChange: 손가락 닿음 / 관성)를 같이 보고, 목록 높이가 바뀌면서 위치가 위로
+//     보정된 순간도 세지 않습니다.
+//   - 맨 위 · 맨 아래에서 튕기는 구간은 방향 판단에 쓰지 않습니다.
+//   - 화면이 나타날 때 · 탭을 바꿀 때는 보이는 상태로 시작합니다.
+//   - 숨겨 둔 탭바를 시스템이 제자리로 돌려놓으면, 다음 스크롤 때 다시 숨깁니다.
+//   - 보이스오버 · 스위치 제어를 쓰는 중에는 숨기지 않습니다. 숨은 탭바로는 갈 수 없습니다.
+//
+//  iOS 17~18 은 스크롤을 보고하지 않으므로 전과 같습니다. (탭바가 늘 보임)
+// ─────────────────────────────────────────────────────────────────
+
+/// 세로 스크롤 위치 한 번의 기록입니다.
+struct VFTabBarScrollSample: Equatable, Sendable {
+    /// 맨 위가 0 입니다. (contentOffset.y + contentInsets.top)
+    let offset: CGFloat
+    /// 맨 아래에 닿았을 때의 offset 입니다.
+    let maxOffset: CGFloat
+
+    /// 맨 위보다 위, 맨 아래보다 아래로 튕기는 구간이 아닌지.
+    var isWithinContent: Bool {
+        offset >= 0 && offset <= maxOffset
+    }
+}
+
+/// 스크롤 한 번마다 탭바를 숨길지 정하는 규칙입니다.
+///
+/// 화면 · 시간 · UIKit 에 기대지 않는 값 타입이라, 이 코드를 그대로 떼어
+/// 여러 스크롤 상황(천천히 올리기, 흔들림, 튕김, 짧은 화면 등)으로 검증할 수 있습니다.
+struct VFTabBarAutoHideRule: Equatable, Sendable {
+    /// 이만큼 아래로 내리면 숨깁니다.
+    static let hideDistance: CGFloat = 16
+    /// 이만큼 위로 올리면 보입니다. 숨기는 거리보다 짧게 두어 다시 부르기 쉽게 합니다.
+    static let revealDistance: CGFloat = 8
+    /// 맨 위에서 이 거리 안이면 늘 보입니다.
+    static let topZone: CGFloat = 24
+    /// 스크롤 한 번 사이에 끝 위치(목록 높이)가 이보다 많이 바뀌면, 그때 위로 옮겨진 만큼은 세지 않습니다.
+    static let contentChangeTolerance: CGFloat = 0.5
+
+    private(set) var isHidden = false
+    private var upwardDistance: CGFloat = 0
+    private var downwardDistance: CGFloat = 0
+    /// 손가락으로 마지막에 움직인 방향이 위였는지. 손을 뗀 뒤 관성의 방향을 가립니다.
+    private var lastDragMovedUp = false
+
+    /// 스크롤 한 번을 반영합니다. 숨김 여부가 바뀌었으면 true.
+    ///
+    /// - Parameter isDragging: 손가락이 화면에 닿은 채 스크롤하는 중인지.
+    ///   손을 뗀 뒤의 관성 · 튕김이면 false.
+    mutating func scrollChanged(
+        from old: VFTabBarScrollSample,
+        to new: VFTabBarScrollSample,
+        isDragging: Bool
+    ) -> Bool {
+        // 맨 위 근처(당겨서 튕기는 구간 포함)와 화면보다 짧은 내용에서는 늘 보입니다.
+        guard new.offset > Self.topZone, new.maxOffset > Self.topZone else {
+            return reveal()
+        }
+        // 맨 아래에서 튕기는 구간은 방향 판단에 쓰지 않습니다.
+        guard old.isWithinContent, new.isWithinContent else { return false }
+
+        let delta = new.offset - old.offset
+        // 스크롤 도중 목록 높이가 바뀌면(아래 칸이 새로 그려지거나, 사진이 늦게 들어와 칸 높이가
+        // 바뀌면) 시스템이 보던 자리를 지키려고 위치를 옮깁니다. 그때 위로 옮겨진 만큼은 사용자가
+        // 올린 것이 아니므로 세지 않습니다. 내리는 쪽은 그대로 셉니다.
+        let contentHeightChanged = abs(new.maxOffset - old.maxOffset) > Self.contentChangeTolerance
+
+        if isDragging, delta != 0, !contentHeightChanged {
+            lastDragMovedUp = delta < 0
+        }
+
+        if delta < 0 {
+            // 위로 가는 움직임은 사용자가 올릴 때만 셉니다.
+            //  - 손가락으로 끌어 올리는 중
+            //  - 위로 튕겨 올린 뒤의 관성
+            // 아래로 세게 내린 뒤의 관성, 맨 아래에서 튕겨 돌아오는 움직임은 세지 않습니다.
+            guard !contentHeightChanged, isDragging || lastDragMovedUp else { return false }
+            upwardDistance += -delta
+            downwardDistance = 0
+            if upwardDistance >= Self.revealDistance {
+                return setHidden(false)
+            }
+        } else if delta > 0 {
+            // 내리는 움직임은 손가락이든 관성이든 셉니다. 아래로 튕겨 내려도 숨습니다.
+            downwardDistance += delta
+            upwardDistance = 0
+            if downwardDistance >= Self.hideDistance {
+                return setHidden(true)
+            }
+        }
+        return false
+    }
+
+    /// 보이는 상태로 되돌리고, 방향 판단을 처음부터 다시 합니다. 바뀌었으면 true.
+    mutating func reveal() -> Bool {
+        upwardDistance = 0
+        downwardDistance = 0
+        lastDragMovedUp = false
+        return setHidden(false)
+    }
+
+    private mutating func setHidden(_ hidden: Bool) -> Bool {
+        guard isHidden != hidden else { return false }
+        isHidden = hidden
+        upwardDistance = 0
+        downwardDistance = 0
+        return true
+    }
+}
+
+/// 스크롤 화면들이 보고한 스크롤로 탭바를 숨기고 보입니다. (iOS 26)
+///
+/// 탭바 상태는 앱 전체에 하나이므로 관찰자도 하나입니다.
+/// 탭바를 보이게 하는 호출은 모두 여기(reveal)를 거쳐야 규칙과 실제 탭바가 어긋나지 않습니다.
+@MainActor
+final class VFTabBarScrollObserver {
+    static let shared = VFTabBarScrollObserver()
+
+    private var rule = VFTabBarAutoHideRule()
+
+    private init() {}
+
+    /// 세로 스크롤 위치가 바뀔 때마다 부릅니다. (vfReportsTabBarScroll)
+    ///
+    /// - Parameter isDragging: 손가락이 화면에 닿은 채 스크롤하는 중인지. 관성 · 튕김이면 false.
+    func scrollChanged(from old: VFTabBarScrollSample, to new: VFTabBarScrollSample, isDragging: Bool) {
+        // 보이스오버 · 스위치 제어로는 숨은 탭바로 갈 수 없으므로 숨기지 않습니다.
+        guard !Self.isAssistiveNavigationRunning else {
+            reveal()
+            return
+        }
+
+        if rule.scrollChanged(from: old, to: new, isDragging: isDragging) {
+            NativeTabBarVisibilityController.shared.setHidden(rule.isHidden, animated: Self.animatesChanges)
+        } else if rule.isHidden {
+            // 규칙은 "숨김" 인데 탭바가 제자리에 돌아와 있으면 다시 숨깁니다.
+            NativeTabBarVisibilityController.shared.keepHiddenIfNeeded()
+        }
+    }
+
+    /// 탭바를 보이게 하고 방향 판단을 처음부터 다시 합니다.
+    /// 화면이 나타날 때, 탭을 바꿀 때, 작성 화면을 열 때 부릅니다.
+    func reveal() {
+        _ = rule.reveal()
+        // 규칙이 이미 "보임" 이어도 부릅니다. 다른 경로로 숨어 있던 탭바도 되돌립니다.
+        // 이미 보이는 상태면 컨트롤러가 아무 것도 하지 않습니다.
+        NativeTabBarVisibilityController.shared.setHidden(false, animated: Self.animatesChanges)
+    }
+
+    private static var isAssistiveNavigationRunning: Bool {
+        UIAccessibility.isVoiceOverRunning || UIAccessibility.isSwitchControlRunning
+    }
+
+    /// 동작 줄이기를 켠 사용자에게는 미끄러지는 움직임 없이 바로 바꿉니다.
+    private static var animatesChanges: Bool {
+        !UIAccessibility.isReduceMotionEnabled
+    }
+}
+
+/// TabView 에 붙습니다. iOS 26 시스템 탭바 줄이기를 끕니다.
+private struct VFTabBarSystemMinimizeDisabled: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            // 시스템 줄이기와 앱의 숨기기가 같은 탭바를 동시에 움직이지 않게 합니다.
+            content.tabBarMinimizeBehavior(.never)
+        } else {
+            content
+        }
+    }
+}
+
+/// 스크롤 화면 하나의 스크롤 단계입니다.
+///
+/// 스크롤할 때마다 바뀌는 값이라, 바뀌어도 화면을 다시 그리지 않도록 클래스에 담습니다.
+private final class VFScrollPhaseTracker {
+    /// 손가락이 닿은 채 스크롤하는 중인지. 손을 뗀 뒤의 관성 · 튕김이면 false.
+    var isDragging = false
+    /// 이 화면이 스크롤 단계를 한 번이라도 알려준 적이 있는지.
+    var reportsPhases = false
+}
+
+private struct VFTabBarScrollReporter: ViewModifier {
+    /// false 면 이 화면에서는 탭바를 숨기지 않습니다.
+    let hidesTabBar: Bool
+
+    @State private var phase = VFScrollPhaseTracker()
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                // 손가락으로 끄는 중인지, 손을 뗀 뒤 관성으로 움직이는 중인지 구분합니다.
+                // 아래로 세게 내린 뒤 맨 아래에서 튕겨 돌아오는 움직임을 "위로 올림" 으로 세지 않기 위해서입니다.
+                .onScrollPhaseChange { _, newPhase in
+                    phase.reportsPhases = true
+                    phase.isDragging = newPhase == .interacting
+                }
+                .onScrollGeometryChange(for: VFTabBarScrollSample.self) { geometry in
+                    VFTabBarScrollSample(
+                        offset: geometry.contentOffset.y + geometry.contentInsets.top,
+                        maxOffset: geometry.contentSize.height
+                            + geometry.contentInsets.top
+                            + geometry.contentInsets.bottom
+                            - geometry.containerSize.height
+                    )
+                } action: { oldValue, newValue in
+                    guard hidesTabBar else { return }
+                    // 스크롤 단계를 알려주지 않는 화면은 전처럼 모든 움직임을 손가락 움직임으로 봅니다.
+                    let isDragging = phase.reportsPhases ? phase.isDragging : true
+                    VFTabBarScrollObserver.shared.scrollChanged(
+                        from: oldValue,
+                        to: newValue,
+                        isDragging: isDragging
+                    )
+                }
+                // 화면은 탭바가 보이는 상태로 시작합니다. 숨긴 채로 들어오면 탭을 바꿀 수 없습니다.
+                .onAppear {
+                    VFTabBarScrollObserver.shared.reveal()
+                }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    /// TabView 에 붙입니다. iOS 26 시스템 탭바 줄이기를 끕니다.
+    /// 스크롤할 때 숨기고 보이는 것은 앱이 직접 합니다. (VFTabBarScrollObserver)
+    func vfTabBarHidesOnScroll() -> some View {
+        modifier(VFTabBarSystemMinimizeDisabled())
+    }
+
+    /// 탭 화면의 세로 ScrollView · List 에 붙입니다. (iOS 26)
+    /// 아래로 내리면 탭바가 숨고, 위로 조금만 올려도 다시 보입니다.
+    ///
+    /// 붙인 화면은 탭바가 보이는 상태로 시작합니다. 탭 안에서 새로 밀어 넣는(push)
+    /// 스크롤 화면에는 꼭 붙이세요. 붙이지 않으면 앞 화면에서 숨긴 탭바가 그대로 숨어 있습니다.
+    ///
+    /// - Parameter hidesTabBar: false 면 이 화면에서는 숨기지 않습니다.
+    ///   아래에 입력창이 붙어 있어 탭바 자리가 비면 어색한 화면에 씁니다. (글 상세)
+    func vfReportsTabBarScroll(hidesTabBar: Bool = true) -> some View {
+        modifier(VFTabBarScrollReporter(hidesTabBar: hidesTabBar))
     }
 }
 

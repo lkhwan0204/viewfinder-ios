@@ -326,10 +326,16 @@ struct HomeHeroSection: View {
     private static let controlHeight: CGFloat = 38
     /// 검색 버튼은 날씨 pill과 독립적으로 정사각형을 유지해야 합니다.
     private static let searchButtonSize: CGFloat = 38
+    /// 누를 수 있는 영역. 보이는 크기(38pt)는 그대로 두고 터치만 44pt 로 넓힙니다. (개선안 41)
+    private static let hitSize: CGFloat = AppLayout.touchTarget
+    /// 보이는 컨트롤 바깥으로 넓힌 여백. (44 - 38) / 2 = 3pt
+    private static let hitInset: CGFloat = (AppLayout.touchTarget - controlHeight) / 2
 
-    /// 카드 상단에서 컨트롤 줄이 끝나는 지점.
+    /// 카드 상단에서 컨트롤 줄(터치 영역 포함)이 끝나는 지점.
+    /// 보이는 컨트롤은 전과 같이 topInset + 8 에서 시작하고,
+    /// 터치 영역이 위아래로 3pt 씩 넓어진 만큼 줄의 끝도 3pt 내려갑니다.
     private var controlStripHeight: CGFloat {
-        topInset + VFSpace.sm + max(Self.controlHeight, Self.searchButtonSize)
+        topInset + VFSpace.sm - Self.hitInset + Self.hitSize
     }
 
     private var topControls: some View {
@@ -351,14 +357,20 @@ struct HomeHeroSection: View {
                     .contentShape(Circle())
                     .vfGlass(in: Circle(), interactive: true)
                     .clipShape(Circle())
+                    // 보이는 원은 38pt, 누를 수 있는 영역은 44pt 입니다.
+                    .frame(width: Self.hitSize, height: Self.hitSize)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .frame(width: Self.searchButtonSize, height: Self.searchButtonSize)
+            .frame(width: Self.hitSize, height: Self.hitSize)
             .fixedSize()
             .accessibilityLabel("출사지 검색")
         }
-        .padding(.horizontal, VFSpace.lg - VFSpace.xs)
-        .padding(.top, topInset + VFSpace.sm)
+        // 터치 영역이 넓어진 만큼 여백을 줄여, 보이는 위치는 전과 같게 둡니다.
+        // 왼쪽 날씨 pill 은 세로로만 넓어지므로 왼쪽 여백은 그대로입니다.
+        .padding(.leading, VFSpace.lg - VFSpace.xs)
+        .padding(.trailing, VFSpace.lg - VFSpace.xs - Self.hitInset)
+        .padding(.top, topInset + VFSpace.sm - Self.hitInset)
         // ═══════════════════════════════════════════════════════════
         //  ★ 이 background 가 상단 겹침 버그를 막는 유일한 장치입니다.
         //    지우면 날씨 칩·검색 버튼을 눌렀을 때 뒤의 Hero 카드까지
@@ -428,6 +440,9 @@ struct HomeHeroSection: View {
                 // 좌우 패딩 영역은 히트 영역이 아니었습니다.
                 .contentShape(Capsule())
                 .vfGlass(interactive: true)
+                // 보이는 pill 은 38pt, 누를 수 있는 영역은 위아래 3pt 씩 넓힌 44pt 입니다.
+                .padding(.vertical, Self.hitInset)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(onShowContext == nil)
@@ -448,6 +463,9 @@ struct HomeHeroSection: View {
                 .frame(height: Self.controlHeight)
                 .contentShape(Capsule())
                 .vfGlass(interactive: true)
+                // 보이는 pill 은 38pt, 누를 수 있는 영역은 위아래 3pt 씩 넓힌 44pt 입니다.
+                .padding(.vertical, Self.hitInset)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(onShowContext == nil)
