@@ -1,0 +1,53 @@
+rules_version = '2';
+
+// 뷰파인더 Cloud Storage 보안 규칙
+//
+// 앱이 쓰는 경로는 두 가지예요(Viewfinder/Community/CommunityService.swift).
+//   communityPosts/{uid}/{postID}/{photoID}.jpg                               커뮤니티 글 사진
+//   communityPosts/{uid}/place-contributions/{placeID}/place-{batch}-{n}.jpg  장소에 사진 등록
+//
+// - 올리기: 로그인한 본인 폴더에만, JPEG 만, 2MB 까지. 앱은 긴 변 2048px · JPEG 0.8 로 줄여 올려서
+//   보통 한 장에 300KB 안팎이에요(CommunityPhotoPrivacyProcessor). 2MB 는 넉넉한 상한이에요.
+//   누가 앱을 거치지 않고 큰 파일을 마구 올려 요금이 나오는 걸 막는 게 이 규칙의 일이에요.
+// - 다시 올리기(같은 이름): 본인만. 올리다 끊겨서 다시 시도할 때 필요해요.
+// - 읽기: 누구나 한 장씩. 공개 글 · 장소 사진이에요. 목록 보기(list)는 막아요.
+//   앱이 쓰는 다운로드 URL 에는 토큰이 붙어 있어서, 그 URL 은 이 규칙과 상관없이 열려요.
+// - 지우기: 본인만.
+// - 그 밖의 경로는 모두 막아요.
+//
+// 테스트: test/storage.rules.test.mjs (npm run test:rules)
+// 배포: firebase deploy --only storage
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isAllowedImage() {
+      return request.resource.size > 0
+        && request.resource.size <= 2 * 1024 * 1024
+        && request.resource.contentType == 'image/jpeg';
+    }
+
+    match /communityPosts/{uid}/{postID}/{fileName} {
+      allow get: if true;
+      allow create, update: if isOwner(uid)
+        && isAllowedImage()
+        && fileName.matches('[A-Za-z0-9_-]+[.]jpg');
+      allow delete: if isOwner(uid);
+    }
+
+    match /communityPosts/{uid}/place-contributions/{placeID}/{fileName} {
+      allow get: if true;
+      allow create, update: if isOwner(uid)
+        && isAllowedImage()
+        && fileName.matches('place-[A-Za-z0-9_-]+[.]jpg');
+      allow delete: if isOwner(uid);
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

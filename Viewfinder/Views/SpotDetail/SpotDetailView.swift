@@ -1,5 +1,6 @@
 import CoreLocation
 import Foundation
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -1501,7 +1502,7 @@ private struct SpotCommunityPostsSheet: View {
         // 수정 화면은 이 시트 위에 바로 띄워요. 전에는 장소 상세(이 시트를 띄운 화면)가 띄웠는데,
         // 이 시트가 떠 있는 동안 iOS 는 같은 화면에서 새 시트를 띄우지 않아서 이 시트를 닫아야 나왔어요.
         .sheet(item: $editingPost) { post in
-            // 한 줄 글은 쓸 때처럼 혼잡도 · 한 줄만 고쳐요. 그 밖의 글은 글쓰기 화면(수정)이에요.
+            // 한 줄 글은 쓸 때처럼 혼잡도 · 한 줄 · 사진 한 장만 고쳐요. 그 밖의 글은 글쓰기 화면(수정)이에요.
             if post.isQuickCrowdNote {
                 CommunityQuickNoteEditor(post: post, spot: spot) { draft in
                     try await onUpdate(post, draft)
@@ -1835,7 +1836,8 @@ struct SpotDetailCrowdChangeRequest: Identifiable {
 /// - 제보는 버튼을 누른 순간 이미 저장돼요. "나중에"를 눌러도 혼잡도 제보는 남아요.
 /// - 올리기는 커뮤니티 글쓰기와 같은 길(onSubmitCommunity → CommunityViewModel.addPost)을
 ///   씁니다. 장소 · 혼잡도가 글에 같이 저장되고, 혼잡도 제보가 이 글과 연결돼요.
-/// - 사진은 사진 업로드 작업 때 이 시트에 붙여요.
+/// - 사진 한 장을 붙일 수 있어요(선택). 촬영 정보는 공개하지 않고, "장소 사진에도 올리기"가 기본으로
+///   켜져 있어요(CommunityQuickNotePhotoField). 사진 올리기는 `CommunityPhotoUpload.isAvailable` 로 켜요.
 private struct SpotDetailCrowdNoteSheet: View {
     let spot: PhotoSpot
     let crowd: CommunityPost.Crowd
@@ -1854,6 +1856,11 @@ private struct SpotDetailCrowdNoteSheet: View {
     @State private var isPostSavedRemotely = false
     @State private var errorMessage: String?
     @FocusState private var isNoteFocused: Bool
+    /// 함께 올릴 현장 사진 한 장(선택). 올릴 때 줄이고 사진 속 정보를 지워요.
+    @State private var photo: CommunityPhotoDraft?
+    /// 사진을 장소 상세 사진에도 올릴지. 장소 사진이 늘어나도록 기본으로 켜 둬요.
+    @State private var sharesPhotoToPlaceGallery = true
+    @State private var isLoadingPhoto = false
 
     private var trimmedNote: String {
         note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1866,7 +1873,7 @@ private struct SpotDetailCrowdNoteSheet: View {
     }
 
     private var canPost: Bool {
-        !trimmedNote.isEmpty && !isPosting && !isCrowdReportSaving
+        !trimmedNote.isEmpty && !isPosting && !isCrowdReportSaving && !isLoadingPhoto
     }
 
     private var postButtonTitle: String {
@@ -1882,7 +1889,8 @@ private struct SpotDetailCrowdNoteSheet: View {
         if dynamicTypeSize.isAccessibilitySize {
             return [.large]
         }
-        return [.height(dynamicTypeSize > .large ? 400 : 340), .large]
+        // 사진 칸("사진 추가" 또는 작은 사진 · 장소 사진에도 올리기)까지 한 화면에 보이는 높이예요.
+        return [.height(dynamicTypeSize > .large ? 500 : 440), .large]
     }
 
     var body: some View {
@@ -1890,6 +1898,8 @@ private struct SpotDetailCrowdNoteSheet: View {
             VStack(alignment: .leading, spacing: VFSpace.lg) {
                 header
                 noteSection
+                photoSection
+                errorLabel
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, AppLayout.pageHorizontalPadding)
@@ -1963,7 +1973,7 @@ private struct SpotDetailCrowdNoteSheet: View {
                 .accessibilityHint("한 줄을 남기면 커뮤니티에도 함께 올라가요")
 
             HStack(alignment: .firstTextBaseline, spacing: VFSpace.sm) {
-                Text("한 줄을 남기면 커뮤니티에도 함께 올라가요.")
+                Text(CommunityQuickNotePhotoPolicy.noteCaption(hasPhoto: photo != nil))
                     .vfText(.caption)
                     .foregroundStyle(AppColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1978,17 +1988,33 @@ private struct SpotDetailCrowdNoteSheet: View {
                         .accessibilityLabel("\(note.count)자, 최대 \(SpotDetailCrowdNotePolicy.maximumLength)자")
                 }
             }
+        }
+    }
 
-            if let errorMessage {
-                Label {
-                    Text(errorMessage)
-                        .vfText(.caption.weight(.semibold))
-                        .foregroundStyle(AppColors.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } icon: {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundStyle(.red)
-                }
+    /// 현장 사진 한 장(선택). 한 줄 글 수정과 같은 칸이에요.
+    private var photoSection: some View {
+        CommunityQuickNotePhotoField(
+            newPhoto: $photo,
+            uploadedPhoto: .constant(nil),
+            sharesToPlaceGallery: $sharesPhotoToPlaceGallery,
+            isLoading: $isLoadingPhoto,
+            isDisabled: isPosting || isPostSavedRemotely,
+            onWillPresentPicker: { isNoteFocused = false }
+        )
+    }
+
+    /// 사진 칸 아래, 올리기 버튼 가까이에 보여요(사진 때문에 못 올릴 때도 여기).
+    @ViewBuilder
+    private var errorLabel: some View {
+        if let errorMessage {
+            Label {
+                Text(errorMessage)
+                    .vfText(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .foregroundStyle(.red)
             }
         }
     }
@@ -2037,15 +2063,41 @@ private struct SpotDetailCrowdNoteSheet: View {
 
     private func post() {
         guard canPost else { return }
+        // 사진 올리기가 아직 꺼져 있으면(CommunityPhotoUpload) 올리지 않고 알려요.
+        // 쓴 한 줄과 고른 사진은 그대로예요. 사진을 빼면 한 줄만 올릴 수 있어요.
+        if CommunityQuickNotePhotoPolicy.blocksUpload(
+            hasNewPhoto: photo != nil,
+            isUploadAvailable: CommunityPhotoUpload.isAvailable
+        ) {
+            errorMessage = CommunityQuickNotePhotoPolicy.unavailableMessage
+            return
+        }
+
         let message = trimmedNote
+        let selectedPhoto = photo
+        let sharesToPlaceGallery = sharesPhotoToPlaceGallery
         isNoteFocused = false
         isPosting = true
         errorMessage = nil
 
         Task {
             do {
+                // 사진은 줄이고 사진 속 정보를 지워서 올려요. 촬영 정보는 공개하지 않아요.
+                var attachments: [CommunityPhotoAttachment] = []
+                if let selectedPhoto {
+                    let attachment = try await selectedPhoto.preparedAttachment(
+                        sharesToPlaceGallery: sharesToPlaceGallery
+                    )
+                    attachments = [attachment]
+                }
                 try await onSubmit(
-                    CommunityPostDraft(spot: spot, title: nil, message: message, crowd: crowd),
+                    CommunityPostDraft(
+                        spot: spot,
+                        title: nil,
+                        message: message,
+                        photoAttachments: attachments,
+                        crowd: crowd
+                    ),
                     submissionID
                 )
                 isPosting = false
@@ -2057,11 +2109,12 @@ private struct SpotDetailCrowdNoteSheet: View {
                 if let communityError = error as? FirebaseCommunityError,
                    case .crowdReportPending = communityError {
                     // 글은 이미 올라갔어요. 같은 ID 로 다시 시도하면 글이 하나 더 생기지 않고
-                    // 혼잡도 연결만 마저 해요.
+                    // 혼잡도 연결만 마저 해요. 올라간 사진도 다시 올리지 않아요(CommunityAttachmentRetry).
                     isPostSavedRemotely = true
                     errorMessage = communityError.localizedDescription
                 } else {
-                    errorMessage = "올리지 못했어요. 쓴 내용은 그대로 있어요. 다시 시도해 주세요."
+                    errorMessage = CommunityQuickNotePhotoPolicy.errorMessage(for: error)
+                        ?? "올리지 못했어요. 쓴 내용은 그대로 있어요. 다시 시도해 주세요."
                 }
                 AppLog.persistence.error(
                     "Crowd note post failed: \(error.localizedDescription, privacy: .public)"
@@ -2071,9 +2124,287 @@ private struct SpotDetailCrowdNoteSheet: View {
     }
 }
 
+// MARK: - 한 줄 글 사진
+
+/// 한 줄 글 사진(한 장, 선택)을 다루는 규칙이에요. 화면과 떼어 둬서 Foundation 만으로 확인할 수 있어요.
+enum CommunityQuickNotePhotoPolicy {
+    static let unavailableMessage = "사진 올리기는 아직 준비 중이에요. 사진을 빼면 한 줄만 올릴 수 있어요."
+
+    /// "준비 중"이라 막아야 하는지: 새로 올려야 하는 사진이 있는데 사진 올리기가 꺼져 있을 때예요.
+    /// 이미 올라가 있는 사진을 그대로 두거나 빼는 건 올리기가 필요 없어서 막지 않아요.
+    static func blocksUpload(hasNewPhoto: Bool, isUploadAvailable: Bool) -> Bool {
+        hasNewPhoto && !isUploadAvailable
+    }
+
+    /// 한 줄 입력칸 아래 안내.
+    static func noteCaption(hasPhoto: Bool) -> String {
+        hasPhoto
+            ? "한 줄을 남기면 사진과 함께 커뮤니티에 올라가요."
+            : "한 줄을 남기면 커뮤니티에도 함께 올라가요."
+    }
+
+    /// 사진 때문에 올리지 못했을 때 보여줄 문구예요. 사진 문제가 아니면 nil.
+    static func errorMessage(for error: Error) -> String? {
+        if let photoError = error as? CommunityPhotoProcessingError {
+            return photoError.errorDescription
+        }
+        if let communityError = error as? FirebaseCommunityError,
+           case .photoUploadUnavailable = communityError {
+            return unavailableMessage
+        }
+        return nil
+    }
+
+    /// 한 줄 글 수정에서 사진이 바뀌었는지예요. 새로 골랐거나, 있던 사진을 뺐거나, 장소 사진 공유를 바꿨을 때예요.
+    /// 사진이 없던 글에서는 공유 스위치만 바꿔도 바뀐 게 아니에요(올릴 사진이 없어요).
+    static func photoChanged(
+        original: CommunityPhotoAttachment?,
+        kept: CommunityPhotoAttachment?,
+        hasNewPhoto: Bool,
+        sharesToPlaceGallery: Bool
+    ) -> Bool {
+        if hasNewPhoto { return true }
+        guard let original else { return false }
+        guard let kept, kept.id == original.id else { return true }
+        return original.sharesToPlaceGallery != sharesToPlaceGallery
+    }
+
+    /// 그대로 둔 사진을 저장할 모양으로 만들어요. 올라가 있는 주소를 그대로 써서 다시 올리지 않고,
+    /// "장소 사진에도 올리기"만 지금 값으로 바꿔요.
+    static func keptAttachment(
+        _ kept: CommunityPhotoAttachment,
+        sharesToPlaceGallery: Bool
+    ) -> CommunityPhotoAttachment {
+        CommunityPhotoAttachment(
+            id: kept.id,
+            imageData: nil,
+            remoteURL: kept.remoteURL,
+            metadata: kept.metadata,
+            location: nil,
+            sharesToPlaceGallery: sharesToPlaceGallery
+        )
+    }
+}
+
+/// 한 줄 글의 사진 한 장(선택)이에요. 한 줄 글 시트(쓰기)와 한 줄 글 수정이 같이 써요.
+///
+/// - 없을 때: "사진 추가".
+/// - 있을 때: 작은 사진 · 오른쪽 위 ×(빼기) · 사진을 누르면 다른 사진으로 바꾸기 · "장소 사진에도 올리기".
+/// - 촬영 정보(카메라 · 조리개 등)는 공개하지 않아요. 올릴 때 사진 파일 속 정보도 모두 지워요
+///   (CommunityPhotoPrivacyProcessor).
+/// - 사진 올리기가 꺼져 있으면(CommunityPhotoUpload.isAvailable) 고르고 볼 수는 있고, "준비 중"이라고 알려요.
+struct CommunityQuickNotePhotoField: View {
+    /// 새로 고른 사진(아직 올리지 않음).
+    @Binding var newPhoto: CommunityPhotoDraft?
+    /// 글에 이미 올라가 있는 사진. 한 줄 글 수정에서만 있어요. 빼거나 바꾸면 nil.
+    @Binding var uploadedPhoto: CommunityPhotoAttachment?
+    @Binding var sharesToPlaceGallery: Bool
+    /// 고른 사진을 불러오는 중. 그동안 올리기 · 저장을 막아요.
+    @Binding var isLoading: Bool
+    let isDisabled: Bool
+    /// 사진 고르기를 열기 전에 부르는 곳이에요(키보드 내리기 등).
+    var onWillPresentPicker: () -> Void = {}
+
+    @State private var isPickerPresented = false
+    @State private var pickerItem: PhotosPickerItem?
+    /// 새로 고른 사진의 작은 미리보기. 고를 때 한 번만 만들어요.
+    @State private var preview: UIImage?
+    @State private var loadFailed = false
+
+    private static let thumbnailSize: CGFloat = 64
+
+    private var hasPhoto: Bool {
+        newPhoto != nil || uploadedPhoto != nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            if isLoading {
+                loadingRow
+            } else if hasPhoto {
+                attachedRow
+            } else {
+                addButton
+            }
+
+            if loadFailed {
+                caption("사진을 불러오지 못했어요. 다른 사진을 골라 주세요.")
+            } else if !CommunityPhotoUpload.isAvailable, uploadedPhoto == nil {
+                caption("사진 올리기는 아직 준비 중이에요.")
+            }
+        }
+        .photosPicker(isPresented: $isPickerPresented, selection: $pickerItem, matching: .images)
+        .onChange(of: pickerItem) { _, item in
+            guard let item else { return }
+            load(item)
+        }
+    }
+
+    private var addButton: some View {
+        Button(action: presentPicker) {
+            Label("사진 추가", systemImage: "photo.badge.plus")
+                .vfText(.callout.weight(.semibold))
+                .foregroundStyle(AppColors.primary)
+                .padding(.horizontal, 16)
+                .frame(minHeight: AppLayout.touchTarget)
+                .background(AppColors.mutedSurface, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .accessibilityHint("현장 사진 한 장을 함께 올릴 수 있어요")
+    }
+
+    private var loadingRow: some View {
+        HStack(spacing: VFSpace.md) {
+            ProgressView()
+                .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
+                .background(
+                    AppColors.mutedSurface,
+                    in: RoundedRectangle(cornerRadius: VFRadius.tile, style: .continuous)
+                )
+
+            Text("사진을 불러오는 중…")
+                .vfText(.subhead)
+                .foregroundStyle(AppColors.secondaryText)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var attachedRow: some View {
+        HStack(alignment: .center, spacing: VFSpace.md) {
+            // 사진과 × 를 따로 둬서 보이스오버에서도 "사진 바꾸기" · "사진 빼기"가 각각 읽혀요.
+            ZStack(alignment: .topTrailing) {
+                Button(action: presentPicker) {
+                    thumbnail
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("사진 바꾸기")
+                .accessibilityHint("다른 사진을 고를 수 있어요")
+
+                Button(action: removePhoto) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 22, height: 22)
+                        .background(Color.black.opacity(0.55), in: Circle())
+                        // 보이는 원은 22pt, 누르는 영역만 36pt 로 넓혀요.
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .offset(x: 12, y: -12)
+                .accessibilityLabel("사진 빼기")
+            }
+            .disabled(isDisabled)
+
+            Toggle(isOn: $sharesToPlaceGallery) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("장소 사진에도 올리기")
+                        .vfText(.subhead.weight(.semibold))
+                        .foregroundStyle(AppColors.primary)
+
+                    Text("장소 상세 사진에 함께 보여요")
+                        .vfText(.caption)
+                        .foregroundStyle(AppColors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .tint(AppColors.accent)
+            .disabled(isDisabled)
+        }
+        // × 가 사진 위로 조금 나와서 그만큼 위 여백을 둬요.
+        .padding(.top, 6)
+    }
+
+    private var thumbnail: some View {
+        ZStack {
+            AppColors.mutedSurface
+
+            if let preview {
+                Image(uiImage: preview)
+                    .resizable()
+                    .scaledToFill()
+            } else if let remoteURL = uploadedPhoto?.remoteURL {
+                AsyncImage(url: remoteURL) { phase in
+                    if case .success(let image) = phase {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } else if case .failure = phase {
+                        Image(systemName: "photo")
+                            .foregroundStyle(AppColors.secondaryText)
+                    } else {
+                        ProgressView()
+                            .tint(AppColors.secondaryText)
+                    }
+                }
+            } else {
+                Image(systemName: "photo")
+                    .foregroundStyle(AppColors.secondaryText)
+            }
+        }
+        .frame(width: Self.thumbnailSize, height: Self.thumbnailSize)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: VFRadius.tile, style: .continuous))
+    }
+
+    private func caption(_ text: String) -> some View {
+        Text(text)
+            .vfText(.caption)
+            .foregroundStyle(AppColors.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func presentPicker() {
+        onWillPresentPicker()
+        isPickerPresented = true
+    }
+
+    private func removePhoto() {
+        newPhoto = nil
+        uploadedPhoto = nil
+        preview = nil
+        loadFailed = false
+    }
+
+    /// 고른 사진을 불러와요. 미리보기를 못 만드는 사진은 올릴 때도 줄일 수 없어서, 고를 때 바로 알려요.
+    /// 다른 사진을 고르면 있던 사진(올라가 있던 사진 포함)을 바꿔요.
+    private func load(_ item: PhotosPickerItem) {
+        loadFailed = false
+        isLoading = true
+
+        Task {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    throw CommunityPhotoProcessingError.unreadablePhoto
+                }
+                let decodedPreview = await Task.detached(priority: .userInitiated) {
+                    VFImageDownsampler.image(from: data, maxPixelSize: 240)
+                }.value
+                guard let decodedPreview else {
+                    throw CommunityPhotoProcessingError.unreadablePhoto
+                }
+                uploadedPhoto = nil
+                // 올릴 ID 는 고를 때마다 새로 만들어요(보관함 ID 는 쓰지 않아요).
+                newPhoto = CommunityPhotoDraft(id: UUID().uuidString, data: data)
+                preview = decodedPreview
+            } catch {
+                loadFailed = true
+                AppLog.persistence.error(
+                    "Quick note photo load failed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+            isLoading = false
+            pickerItem = nil
+        }
+    }
+}
+
 /// 한 줄 글(장소 상세에서 혼잡도와 함께 올린 글) 수정 화면이에요.
 ///
-/// 쓸 때와 같은 것만 고쳐요: 작성 당시 혼잡도 · 한 줄. 사진 · 태그 · 제목 · 촬영 위치는 없어요.
+/// 쓸 때와 같은 것만 고쳐요: 작성 당시 혼잡도 · 한 줄 · 사진 한 장(빼기 · 바꾸기 · 장소 사진에도 올리기).
+/// 태그 · 제목 · 촬영 위치 · 촬영 정보는 없어요.
 /// 한 줄 글인지는 `CommunityPost.isQuickCrowdNote` 로 나누고, 그 밖의 글은 전처럼 글쓰기 화면(수정)으로 열어요.
 /// 커뮤니티 탭 · 마이 → 내 글 · 커뮤니티에서 이 장소 어디서 고쳐도 같은 화면이에요.
 struct CommunityQuickNoteEditor: View {
@@ -2089,6 +2420,12 @@ struct CommunityQuickNoteEditor: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
     @FocusState private var isNoteFocused: Bool
+    /// 글에 이미 올라가 있는 사진. 빼거나 다른 사진으로 바꾸면 nil 이에요.
+    @State private var uploadedPhoto: CommunityPhotoAttachment?
+    /// 새로 고른 사진(아직 올리지 않음).
+    @State private var newPhoto: CommunityPhotoDraft?
+    @State private var sharesPhotoToPlaceGallery: Bool
+    @State private var isLoadingPhoto = false
 
     init(post: CommunityPost, spot: PhotoSpot?, onSubmit: @escaping (CommunityPostDraft) async throws -> Void) {
         self.post = post
@@ -2096,6 +2433,10 @@ struct CommunityQuickNoteEditor: View {
         self.onSubmit = onSubmit
         _note = State(initialValue: post.message)
         _crowd = State(initialValue: post.crowd)
+        let originalPhoto = post.publicPhotoAttachments.first
+        _uploadedPhoto = State(initialValue: originalPhoto)
+        // 사진이 없던 글에 새로 넣으면 한 줄 글 시트처럼 "장소 사진에도 올리기"를 켠 채로 시작해요.
+        _sharesPhotoToPlaceGallery = State(initialValue: originalPhoto?.sharesToPlaceGallery ?? true)
     }
 
     private var trimmedNote: String {
@@ -2103,11 +2444,18 @@ struct CommunityQuickNoteEditor: View {
     }
 
     private var hasChanges: Bool {
-        trimmedNote != post.message || crowd != post.crowd
+        trimmedNote != post.message
+            || crowd != post.crowd
+            || CommunityQuickNotePhotoPolicy.photoChanged(
+                original: post.publicPhotoAttachments.first,
+                kept: uploadedPhoto,
+                hasNewPhoto: newPhoto != nil,
+                sharesToPlaceGallery: sharesPhotoToPlaceGallery
+            )
     }
 
     private var canSave: Bool {
-        !trimmedNote.isEmpty && hasChanges && !isSaving
+        !trimmedNote.isEmpty && hasChanges && !isSaving && !isLoadingPhoto
     }
 
     /// 쓴 지 1시간(현장 정보 유효 시간)이 지난 글은 혼잡도를 바꿔도 현재 혼잡도는 그대로예요(CommunityViewModel.updatePost).
@@ -2123,7 +2471,8 @@ struct CommunityQuickNoteEditor: View {
         if dynamicTypeSize.isAccessibilitySize {
             return [.large]
         }
-        return [.height(dynamicTypeSize > .large ? 480 : 420), .large]
+        // 사진 칸까지 한 화면에 보이는 높이예요. 넘치면 스크롤되고, 위로 끌면 전체 높이예요.
+        return [.height(dynamicTypeSize > .large ? 600 : 540), .large]
     }
 
     var body: some View {
@@ -2132,6 +2481,8 @@ struct CommunityQuickNoteEditor: View {
                 header
                 crowdSection
                 noteSection
+                photoSection
+                errorLabel
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, AppLayout.pageHorizontalPadding)
@@ -2234,17 +2585,39 @@ struct CommunityQuickNoteEditor: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .accessibilityLabel("\(note.count)자, 최대 \(SpotDetailCrowdNotePolicy.maximumLength)자")
             }
+        }
+    }
 
-            if let errorMessage {
-                Label {
-                    Text(errorMessage)
-                        .vfText(.caption.weight(.semibold))
-                        .foregroundStyle(AppColors.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } icon: {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundStyle(.red)
-                }
+    /// 사진 한 장(선택). 한 줄 글 시트와 같은 칸이에요. 빼기 · 바꾸기 · 장소 사진에도 올리기를 고칠 수 있어요.
+    private var photoSection: some View {
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            Text("사진")
+                .vfText(.subhead.weight(.semibold))
+                .foregroundStyle(AppColors.primary)
+
+            CommunityQuickNotePhotoField(
+                newPhoto: $newPhoto,
+                uploadedPhoto: $uploadedPhoto,
+                sharesToPlaceGallery: $sharesPhotoToPlaceGallery,
+                isLoading: $isLoadingPhoto,
+                isDisabled: isSaving,
+                onWillPresentPicker: { isNoteFocused = false }
+            )
+        }
+    }
+
+    /// 사진 칸 아래, 저장 버튼 가까이에 보여요.
+    @ViewBuilder
+    private var errorLabel: some View {
+        if let errorMessage {
+            Label {
+                Text(errorMessage)
+                    .vfText(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .foregroundStyle(.red)
             }
         }
     }
@@ -2292,22 +2665,55 @@ struct CommunityQuickNoteEditor: View {
 
     private func save() {
         guard canSave else { return }
+        // 새 사진은 사진 올리기가 켜져 있어야 올릴 수 있어요(CommunityPhotoUpload).
+        // 있던 사진을 그대로 두거나 빼는 건 올리기가 필요 없어서 그대로 저장돼요.
+        if CommunityQuickNotePhotoPolicy.blocksUpload(
+            hasNewPhoto: newPhoto != nil,
+            isUploadAvailable: CommunityPhotoUpload.isAvailable
+        ) {
+            errorMessage = CommunityQuickNotePhotoPolicy.unavailableMessage
+            return
+        }
+
         isNoteFocused = false
         isSaving = true
         errorMessage = nil
-        // 한 줄 글에는 제목 · 태그 · 사진 · 촬영 위치가 없어서 비워 둔 채로 보내요(그대로예요).
-        let draft = CommunityPostDraft(
-            spot: spot,
-            title: nil,
-            relatedSpotID: post.relatedSpotID,
-            relatedSpotName: spot?.name ?? post.relatedSpotName,
-            message: trimmedNote,
-            crowd: crowd
-        )
+        let message = trimmedNote
+        let selectedCrowd = crowd
+        let addedPhoto = newPhoto
+        let keptPhoto = uploadedPhoto
+        let sharesToPlaceGallery = sharesPhotoToPlaceGallery
 
         Task {
             do {
-                try await onSubmit(draft)
+                // 새 사진은 줄이고 사진 속 정보를 지워서 올려요. 그대로 둔 사진은 다시 올리지 않아요.
+                // 사진을 뺐으면 사진 없이 저장해요.
+                var attachments: [CommunityPhotoAttachment] = []
+                if let addedPhoto {
+                    let attachment = try await addedPhoto.preparedAttachment(
+                        sharesToPlaceGallery: sharesToPlaceGallery
+                    )
+                    attachments = [attachment]
+                } else if let keptPhoto {
+                    attachments = [
+                        CommunityQuickNotePhotoPolicy.keptAttachment(
+                            keptPhoto,
+                            sharesToPlaceGallery: sharesToPlaceGallery
+                        )
+                    ]
+                }
+                // 한 줄 글에는 제목 · 태그 · 촬영 위치가 없어서 비워 둔 채로 보내요(그대로예요).
+                try await onSubmit(
+                    CommunityPostDraft(
+                        spot: spot,
+                        title: nil,
+                        relatedSpotID: post.relatedSpotID,
+                        relatedSpotName: spot?.name ?? post.relatedSpotName,
+                        message: message,
+                        photoAttachments: attachments,
+                        crowd: selectedCrowd
+                    )
+                )
                 isSaving = false
                 VFHaptics.success()
                 dismiss()
@@ -2318,7 +2724,8 @@ struct CommunityQuickNoteEditor: View {
                    case .crowdReportPending = communityError {
                     errorMessage = "글은 저장됐지만 현재 혼잡도에는 반영하지 못했어요. 다시 저장해 주세요."
                 } else {
-                    errorMessage = "저장하지 못했어요. 고친 내용은 그대로 있어요. 다시 시도해 주세요."
+                    errorMessage = CommunityQuickNotePhotoPolicy.errorMessage(for: error)
+                        ?? "저장하지 못했어요. 고친 내용은 그대로 있어요. 다시 시도해 주세요."
                 }
                 AppLog.persistence.error(
                     "Quick note edit failed: \(error.localizedDescription, privacy: .public)"

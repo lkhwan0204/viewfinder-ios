@@ -174,11 +174,15 @@ final class FirebaseCommunityPostStore {
         return snapshot.documents.compactMap(Self.decodePost)
     }
 
+    /// 같은 ID 로 다시 시도하면(첫 저장은 됐는데 응답을 못 받았을 때 등) 새 글을 만들지 않고 저장된 글을 써요.
+    /// 내용이 그대로면 그 글을 돌려주고, 다시 시도하는 사이에 고쳤으면 고친 내용으로 수정해요.
     func addPost(_ draft: CommunityPostDraft, author: AuthUser, id: String) async throws -> CommunityPost {
         guard FirebaseApp.app() != nil else {
             throw FirebaseCommunityError.notConfigured
         }
-        guard !draft.photoAttachments.contains(where: { $0.imageData != nil }) else {
+        // 새로 올려야 하는 사진(파일이 있음)은 사진 올리기가 켜져 있을 때만 받아요(CommunityPhotoUpload).
+        guard CommunityPhotoUpload.isAvailable
+                || !draft.photoAttachments.contains(where: { $0.imageData != nil }) else {
             throw FirebaseCommunityError.photoUploadUnavailable
         }
 
@@ -202,17 +206,36 @@ final class FirebaseCommunityPostStore {
             let sameCrowd = draft.crowd == nil
                 ? !post.hasStatusInfo
                 : post.hasStatusInfo && post.crowd == draft.crowd
+            // 이미 올라간 사진은 다시 올리지 않아요. 전에는 올라간 사진(주소)과 올릴 사진(파일)을
+            // 그대로 비교해서 늘 달랐고, 다시 시도할 때마다 사진을 또 올리고 글에 "수정됨"이 붙었어요.
+            let attachments = CommunityAttachmentRetry.reusingUploaded(
+                draft.photoAttachments,
+                from: post.publicPhotoAttachments
+            )
             if post.title == normalizedTitle,
                post.message == draft.message,
                post.tags == draft.tags,
                post.relatedSpotID == draft.relatedSpotID,
                post.relatedSpotName == draft.relatedSpotName,
                post.captureLocation == draft.captureLocation,
-               post.publicPhotoAttachments == draft.photoAttachments,
+               CommunityAttachmentRetry.samePhotos(post.publicPhotoAttachments, attachments),
                sameCrowd {
                 return post
             }
-            return try await updatePost(post, draft: draft)
+            return try await updatePost(
+                post,
+                draft: CommunityPostDraft(
+                    spot: draft.spot,
+                    title: draft.title,
+                    relatedSpotID: draft.relatedSpotID,
+                    relatedSpotName: draft.relatedSpotName,
+                    captureLocation: draft.captureLocation,
+                    message: draft.message,
+                    tags: draft.tags,
+                    photoAttachments: attachments,
+                    crowd: draft.crowd
+                )
+            )
         }
         let attachments = try await uploadAttachments(
             draft.photoAttachments,
@@ -243,7 +266,9 @@ final class FirebaseCommunityPostStore {
     }
 
     func updatePost(_ post: CommunityPost, draft: CommunityPostDraft) async throws -> CommunityPost {
-        guard !draft.photoAttachments.contains(where: { $0.imageData != nil }) else {
+        // 새로 올려야 하는 사진(파일이 있음)은 사진 올리기가 켜져 있을 때만 받아요(CommunityPhotoUpload).
+        guard CommunityPhotoUpload.isAvailable
+                || !draft.photoAttachments.contains(where: { $0.imageData != nil }) else {
             throw FirebaseCommunityError.photoUploadUnavailable
         }
         let attachments = try await uploadAttachments(
@@ -715,6 +740,64 @@ private extension CommunityPost {
     }
 }
 
+/// 커뮤니티 글에 사진 올리기를 켤지 정하는 한 곳이에요.
+///
+/// 지금은 꺼 둬요. Storage 준비(Blaze 요금제 · US 버킷 · `storage.rules` 배포, 또는 에뮬레이터)가 끝나면
+/// `true` 로 바꿔요. 이 값 하나로 커뮤니티 글쓰기 · 한 줄 글 시트 · 한 줄 글 수정 · 저장
+/// (`FirebaseCommunityPostStore.addPost` · `updatePost`)의 막음이 같이 풀려요.
+/// 꺼져 있어도 사진을 고르고 보는 것까지는 돼요. 올리려고 하면 "준비 중"이라고 알려요.
+/// 장소 상세 "사진 추가"(사진 등록)는 이 값과 상관없이 전부터 바로 올려요.
+enum CommunityPhotoUpload {
+    static let isAvailable = false
+}
+
+/// 글을 다시 저장할 때(같은 글 ID 로 다시 시도) 사진을 어떻게 볼지 정해요.
+///
+/// 사진 ID 는 사진을 고를 때 한 번 만들고 다시 시도해도 그대로예요(CommunityPhotoDraft.id).
+/// 그래서 올라간 사진(주소만 있음)과 아직 올리지 않은 사진(파일만 있음)도 ID 가 같으면 같은 사진이에요.
+enum CommunityAttachmentRetry {
+    /// 이미 올라간 사진은 저장된 주소를 써서 다시 올리지 않게 해요. 새로 넣은 사진만 올라가요.
+    static func reusingUploaded(
+        _ attachments: [CommunityPhotoAttachment],
+        from saved: [CommunityPhotoAttachment]
+    ) -> [CommunityPhotoAttachment] {
+        var uploadedURLs: [String: URL] = [:]
+        for attachment in saved {
+            if let remoteURL = attachment.remoteURL, uploadedURLs[attachment.id] == nil {
+                uploadedURLs[attachment.id] = remoteURL
+            }
+        }
+
+        return attachments.map { attachment in
+            guard attachment.imageData != nil, let remoteURL = uploadedURLs[attachment.id] else {
+                return attachment
+            }
+            return CommunityPhotoAttachment(
+                id: attachment.id,
+                imageData: nil,
+                remoteURL: remoteURL,
+                metadata: attachment.metadata,
+                location: attachment.location,
+                sharesToPlaceGallery: attachment.sharesToPlaceGallery
+            )
+        }
+    }
+
+    /// 사진이 그대로인지: 같은 사진이 같은 순서로, 촬영 정보 공개 · 장소 갤러리 공유도 같은지.
+    /// 파일(imageData) · 주소(remoteURL) 모양은 보지 않아요.
+    static func samePhotos(
+        _ saved: [CommunityPhotoAttachment],
+        _ attachments: [CommunityPhotoAttachment]
+    ) -> Bool {
+        guard saved.count == attachments.count else { return false }
+        return zip(saved, attachments).allSatisfy { saved, attachment in
+            saved.id == attachment.id
+                && saved.metadata == attachment.metadata
+                && saved.sharesToPlaceGallery == attachment.sharesToPlaceGallery
+        }
+    }
+}
+
 enum FirebaseCommunityError: LocalizedError {
     case notConfigured
     case emptyResponse
@@ -825,11 +908,9 @@ final class FirebasePlacePhotoStore {
             let storageMetadata = StorageMetadata()
             storageMetadata.contentType = "image/jpeg"
 
-            let sanitizedData = CommunityPhotoPrivacyProcessor.sanitizedData(
-                from: imageData,
-                exifVisibility: .privateOnly
-            )
-            _ = try await putData(sanitizedData, metadata: storageMetadata, at: reference)
+            // 사진 등록 화면이 이미 줄이고 메타데이터를 뺀 JPEG 를 넘겨요(CommunityPhotoDraft.publicAttachment).
+            // 한 번 더 인코딩하면 화질만 떨어져서 그대로 올려요.
+            _ = try await putData(imageData, metadata: storageMetadata, at: reference)
             let downloadURL = try await downloadURL(for: reference)
 
             photos.append(

@@ -2259,6 +2259,10 @@ struct CommunityComposerView: View {
                     } else {
                         contributePhotosForm
                     }
+
+                    // 공유하기는 화면 아래에 붙이지 않고 글 맨 아래(스크롤 안)에 둬요.
+                    // 붙여 두면 키보드를 올렸을 때 버튼과 키보드 사이로 글 내용이 비쳐 보였어요.
+                    composerSubmitSection
                 }
                 .padding(.top, VFSpace.md)
                 .padding(.horizontal, 20)
@@ -2288,7 +2292,7 @@ struct CommunityComposerView: View {
             .toolbar {
                 if purpose == .fieldReport {
                     // 닫기는 앱 전체에서 오른쪽 위 X 예요(로그인 · 사진 뷰어 · 커뮤니티에서 이 장소와 같아요).
-                    // 게시 버튼은 화면 아래에 있어서 오른쪽 위와 겹치지 않아요.
+                    // 게시 버튼은 글 맨 아래(스크롤 안)에 있어서 오른쪽 위와 겹치지 않아요.
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             requestComposerDismissal()
@@ -2300,10 +2304,9 @@ struct CommunityComposerView: View {
                         .accessibilityLabel("글쓰기 닫기")
                     }
                 }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("완료") { dismissComposerKeyboard() }
-                }
+                // 키보드 위 "완료" 막대(ToolbarItemGroup .keyboard)는 두지 않아요. iOS 26 은 그 막대가 투명해서
+                // 글 내용(사진 등)이 비쳐 보이고 "완료"와 겹쳤어요.
+                // 키보드는 글을 아래로 끌거나(scrollDismissesKeyboard) 빈 곳을 누르면 내려가요.
             }
             .confirmationDialog(
                 isPostSavedRemotely
@@ -2326,9 +2329,6 @@ struct CommunityComposerView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .contentShape(Rectangle())
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                composerSubmitBar
-            }
             .onChange(of: selectedPhotoItems) { _, newItems in
                 loadPhotos(from: newItems)
             }
@@ -2570,41 +2570,52 @@ struct CommunityComposerView: View {
         )
     }
 
-    private var composerSubmitBar: some View {
-        VStack(spacing: 0) {
-            Divider()
+    /// 글 맨 아래(스크롤 안)의 공유하기 버튼이에요. 글쓰기에서 버튼이 꺼져 있으면 까닭을 버튼 아래에 보여요.
+    private var composerSubmitSection: some View {
+        VStack(spacing: VFSpace.sm) {
+            submitButton
 
-            Button {
-                submit()
-            } label: {
-                // 주 동작이므로 앰버입니다.
-                // 전에는 AppColors.primary 였는데 다크에서 흰색이라
-                // 제출 버튼이 화면에서 가장 밝은 면이 됐습니다.
-                // VFDesign 의 앰버 허용 목록에 "주 동작" 이 있습니다.
-                HStack(spacing: 8) {
-                    if isPreparingSubmission { ProgressView() }
-                    Text(isPreparingSubmission
-                         ? submissionProgressTitle
-                         : submitButtonTitle)
-                }
-                    .vfText(.headline)
-                    .foregroundStyle((canSubmit || isPreparingSubmission) ? AppColors.onAccent : AppColors.secondaryText.opacity(0.45))
-                    .tint(AppColors.onAccent)
+            if let submitDisabledHint {
+                Text(submitDisabledHint)
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .frame(minHeight: 52)
-                    .background(
-                        (canSubmit || isPreparingSubmission) ? AppColors.accent : AppColors.mutedSurface,
-                        in: Capsule()
-                    )
             }
-            .buttonStyle(.plain)
-            .disabled(!canSubmit)
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
         }
-        .background(AppColors.background)
+        // 위 칸들이 아래 여백을 이미 갖고 있어서 조금만 더 띄워요.
+        .padding(.top, VFSpace.sm)
+        // 끝까지 스크롤해도 버튼이 화면 끝(홈 표시줄 · 키보드)에 붙지 않게 띄워요.
+        .padding(.bottom, VFSpace.lg)
+    }
+
+    private var submitButton: some View {
+        Button {
+            submit()
+        } label: {
+            // 주 동작이므로 앰버입니다.
+            // 전에는 AppColors.primary 였는데 다크에서 흰색이라
+            // 제출 버튼이 화면에서 가장 밝은 면이 됐습니다.
+            // VFDesign 의 앰버 허용 목록에 "주 동작" 이 있습니다.
+            HStack(spacing: 8) {
+                if isPreparingSubmission { ProgressView() }
+                Text(isPreparingSubmission
+                     ? submissionProgressTitle
+                     : submitButtonTitle)
+            }
+                .vfText(.headline)
+                .foregroundStyle((canSubmit || isPreparingSubmission) ? AppColors.onAccent : AppColors.secondaryText.opacity(0.45))
+                .tint(AppColors.onAccent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .frame(minHeight: 52)
+                .background(
+                    (canSubmit || isPreparingSubmission) ? AppColors.accent : AppColors.mutedSurface,
+                    in: Capsule()
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSubmit)
     }
 
     @ViewBuilder
@@ -2661,7 +2672,11 @@ struct CommunityComposerView: View {
                             .vfText(.headline)
                             .foregroundStyle(AppColors.primary)
 
-                        Text("사진은 아직 저장되지 않아요. 사진 없이 등록할 수 있어요.")
+                        // 장소 추가의 사진은 아직 저장하지 않아요(대표 사진 저장은 따로 작업해요).
+                        // 사진 등록은 실제로 올라가서, 전처럼 "아직 저장되지 않아요"라고 하면 틀려요.
+                        Text(purpose == .addSpot
+                             ? "사진은 아직 저장되지 않아요. 사진 없이 등록할 수 있어요."
+                             : "사진은 줄여서 올리고, 위치 등 사진 속 정보는 지워요.")
                             .vfText(.caption)
                             .foregroundStyle(AppColors.secondaryText)
                     }
@@ -3187,6 +3202,33 @@ struct CommunityComposerView: View {
         return true
     }
 
+    /// 글쓰기(fieldReport)에서 공유하기가 꺼져 있는 까닭이에요. 버튼 아래에 보여요.
+    /// 버튼을 누를 수 있거나, 올리는 중이거나, 글쓰기가 아닌 화면(장소 추가 등)이면 nil 이에요.
+    /// 글쓰기의 canSubmit 과 같은 조건(바꾼 내용 · 본문)을 봐요.
+    static func submitDisabledReason(
+        isFieldReport: Bool,
+        isPreparing: Bool,
+        isEditing: Bool,
+        hasMessage: Bool,
+        hasChanges: Bool
+    ) -> String? {
+        guard isFieldReport, !isPreparing else { return nil }
+        if !hasChanges { return "바꾼 내용이 없어요" }
+        // 고칠 때는 버튼이 "변경사항 저장"이라 "저장"이라고 해요.
+        if !hasMessage { return isEditing ? "본문을 쓰면 저장할 수 있어요" : "본문을 쓰면 공유할 수 있어요" }
+        return nil
+    }
+
+    private var submitDisabledHint: String? {
+        Self.submitDisabledReason(
+            isFieldReport: purpose == .fieldReport,
+            isPreparing: isPreparingSubmission,
+            isEditing: editingPost != nil,
+            hasMessage: !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            hasChanges: hasChanges
+        )
+    }
+
     private var hasPlaceChanges: Bool {
         guard let spot = selectedSpot else { return false }
         return message.trimmingCharacters(in: .whitespacesAndNewlines) != spot.summary
@@ -3557,7 +3599,8 @@ struct CommunityComposerView: View {
 
     private func submit() {
         guard canSubmit else { return }
-        if purpose == .fieldReport, !photoDrafts.isEmpty {
+        // 사진 올리기가 꺼져 있으면(CommunityPhotoUpload) 새 사진이 있는 글은 올리지 않고 알려요.
+        if purpose == .fieldReport, !CommunityPhotoUpload.isAvailable, !photoDrafts.isEmpty {
             isPhotoUnavailablePresented = true
             return
         }
@@ -3607,14 +3650,26 @@ struct CommunityComposerView: View {
                 // support is implemented; avoid encoding the selected files.
                 attachments = []
             } else {
-                attachments = await Task.detached(priority: .userInitiated) {
-                    Self.makePublicAttachments(
-                        drafts: drafts,
-                        retainedAttachments: retainedAttachments,
-                        shouldPublishExif: shouldPublishExif,
-                        canShareToPlaceGallery: canShareToPlaceGallery
+                do {
+                    attachments = try await Task.detached(priority: .userInitiated) {
+                        try Self.makePublicAttachments(
+                            drafts: drafts,
+                            retainedAttachments: retainedAttachments,
+                            shouldPublishExif: shouldPublishExif,
+                            canShareToPlaceGallery: canShareToPlaceGallery
+                        )
+                    }.value
+                } catch {
+                    // 읽지 못한 사진이 있으면 올리지 않고 알려요. 쓴 내용과 고른 사진은 그대로예요.
+                    isPreparingSubmission = false
+                    submissionPreparationTask = nil
+                    submissionError = (error as? LocalizedError)?.errorDescription
+                        ?? "사진을 준비하지 못했어요. 다시 시도해 주세요."
+                    AppLog.persistence.error(
+                        "Community photo processing failed: \(error.localizedDescription, privacy: .public)"
                     )
-                }.value
+                    return
+                }
             }
 
             guard !Task.isCancelled else {
@@ -3837,7 +3892,9 @@ struct CommunityComposerView: View {
                         : nil
                     loaded.append(
                         CommunityPhotoDraft(
-                            id: item.itemIdentifier ?? UUID().uuidString,
+                            // 보관함 ID 는 슬래시가 들어가 저장 경로가 쪼개져서, 올릴 ID 는 새로 만들어요.
+                            id: UUID().uuidString,
+                            sourceID: item.itemIdentifier,
                             data: data,
                             exif: exif
                         )
@@ -3853,9 +3910,7 @@ struct CommunityComposerView: View {
                 let previousIDs = Set(photoDrafts.map(\.id))
                 if purpose.isPlaceSubmissionFlow {
                     var merged = photoDrafts
-                    for draft in loaded where !merged.contains(where: {
-                        $0.id == draft.id || $0.data == draft.data
-                    }) {
+                    for draft in loaded where !merged.contains(where: { $0.isSamePhoto(as: draft) }) {
                         merged.append(draft)
                     }
 
@@ -3867,8 +3922,15 @@ struct CommunityComposerView: View {
                 } else {
                     var merged = photoDrafts.filter { previousIDs.contains($0.id) }
                     for draft in loaded {
-                        if let index = merged.firstIndex(where: { $0.id == draft.id }) {
-                            merged[index] = draft
+                        if let index = merged.firstIndex(where: { $0.isSamePhoto(as: draft) }) {
+                            // 같은 사진을 다시 고르면 그 자리에서 바꿔요. ID 는 그대로 둬서
+                            // 사진별 설정(촬영 정보 · 장소 갤러리 공유) 화면이 흔들리지 않게 해요.
+                            merged[index] = CommunityPhotoDraft(
+                                id: merged[index].id,
+                                sourceID: draft.sourceID,
+                                data: draft.data,
+                                exif: draft.exif
+                            )
                         } else {
                             merged.append(draft)
                         }
@@ -3905,7 +3967,7 @@ struct CommunityComposerView: View {
         retainedAttachments: [CommunityPhotoAttachment],
         shouldPublishExif: Bool,
         canShareToPlaceGallery: Bool
-    ) -> [CommunityPhotoAttachment] {
+    ) throws -> [CommunityPhotoAttachment] {
         let preservedAttachments = retainedAttachments.map { attachment in
             CommunityPhotoAttachment(
                 id: attachment.id,
@@ -3916,8 +3978,8 @@ struct CommunityComposerView: View {
                 sharesToPlaceGallery: canShareToPlaceGallery && attachment.sharesToPlaceGallery
             )
         }
-        let newAttachments = drafts.map { draft in
-            draft.publicAttachment(
+        let newAttachments = try drafts.map { draft in
+            try draft.publicAttachment(
                 exifVisibility: shouldPublishExif ? .publicInfo : .privateOnly,
                 sharesToPlaceGallery: canShareToPlaceGallery && draft.sharesToPlaceGallery
             )
@@ -3928,9 +3990,11 @@ struct CommunityComposerView: View {
     private func promptForPrivacyIfNeeded(for drafts: [CommunityPhotoDraft]) {
         guard purpose == .fieldReport else { return }
 
+        // 같은 사진을 다시 골라도 또 묻지 않게 보관함 ID 로 기억해요(올릴 ID 는 고를 때마다 새로 만들어요).
         let newExifIDs = drafts.compactMap { draft -> String? in
-            guard draft.exif != nil, !promptedExifPhotoIDs.contains(draft.id) else { return nil }
-            return draft.id
+            let key = draft.sourceID ?? draft.id
+            guard draft.exif != nil, !promptedExifPhotoIDs.contains(key) else { return nil }
+            return key
         }
         promptedExifPhotoIDs.formUnion(newExifIDs)
 

@@ -398,7 +398,7 @@ struct ContentView: View {
             communityViewModel.finishComposing()
             restoreHomeSearchIfPossible()
         }) {
-            // 한 줄 글(장소 상세에서 혼잡도와 함께 올린 글)은 쓸 때처럼 혼잡도 · 한 줄만 고쳐요.
+            // 한 줄 글(장소 상세에서 혼잡도와 함께 올린 글)은 쓸 때처럼 혼잡도 · 한 줄 · 사진 한 장만 고쳐요.
             // 커뮤니티 탭 · 마이 → 내 글 · 피드 카드의 수정이 모두 여기로 와요.
             if composerPurpose == .fieldReport,
                let post = communityViewModel.editingPostForComposer,
