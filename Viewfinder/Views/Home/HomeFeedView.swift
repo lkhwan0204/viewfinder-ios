@@ -1625,7 +1625,7 @@ struct CommunityPostSearchResultCard: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if post.hasStatusInfo {
-                    CommunityStatusRow(crowd: post.crowd, tags: post.statusTags)
+                    CommunityStatusRow(crowd: post.crowd, tags: post.statusTags, observedAt: post.createdAt)
                 }
             }
 

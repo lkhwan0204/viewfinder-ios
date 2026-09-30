@@ -494,6 +494,47 @@ test("Community, PlacePhoto, CrowdReport, Users allow/deny matrix", async (t) =>
     assert.equal((await getDoc(reference)).data()?.createdAt.toMillis(), original.createdAt.toMillis());
   });
 
+  await t.test("Place-detail re-report after 1h keeps createdAt and clears the old post link", async () => {
+    const placeID = "rereport-place";
+    const id = canonicalCrowdReportID(placeID, "alice");
+    const reference = doc(aliceDB, `crowdReports/${id}`);
+    const twoHoursAgo = Timestamp.fromDate(new Date(Date.now() - 2 * 60 * 60 * 1000));
+    const original = makeCrowdReport(id, "alice", {
+      placeID,
+      source: "community",
+      communityPostID: "old-post",
+      createdAt: twoHoursAgo,
+      updatedAt: twoHoursAgo,
+    });
+    await assertSucceeds(setDoc(reference, original));
+
+    // The app used to send a fresh createdAt once the previous report was
+    // older than the 1h freshness window. The rules keep createdAt fixed.
+    const now = Timestamp.fromDate(new Date(Date.now() - 1_000));
+    await assertFails(setDoc(reference, {
+      ...original,
+      crowd: "많음",
+      source: "placeDetail",
+      communityPostID: deleteField(),
+      createdAt: now,
+      updatedAt: now,
+    }, { merge: true }));
+
+    // What the app sends now: the canonical createdAt, and the old post link
+    // removed so deleting "old-post" later cannot delete this newer report.
+    await assertSucceeds(setDoc(reference, {
+      ...original,
+      crowd: "많음",
+      source: "placeDetail",
+      communityPostID: deleteField(),
+      updatedAt: now,
+    }, { merge: true }));
+    const saved = (await getDoc(reference)).data();
+    assert.equal(saved?.createdAt.toMillis(), twoHoursAgo.toMillis());
+    assert.equal(saved?.source, "placeDetail");
+    assert.equal(Object.hasOwn(saved ?? {}, "communityPostID"), false);
+  });
+
   await t.test("user can create/get/update only their own profile", async () => {
     const aliceProfile = doc(aliceDB, "users/alice");
     await assertSucceeds(setDoc(aliceProfile, {

@@ -55,7 +55,8 @@ struct SpotDetailView: View {
     let onToggleSave: () -> Void
     let onOpenMap: () -> Void
     let onReportPhoto: () -> Void
-    let onSubmitCrowdReport: (CommunityPost.Crowd) -> Void
+    /// 혼잡도를 제보하거나 취소합니다. 무엇을 했는지 돌려줘서, 새로 제보했을 때만 한 줄 글 시트를 띄워요.
+    let onSubmitCrowdReport: (CommunityPost.Crowd) -> CrowdReportToggleOutcome
     let onSubmitCommunity: (CommunityPostDraft, String) async throws -> Void
     let onUpdateCommunity: (CommunityPost, CommunityPostDraft) async throws -> Void
     let onDeleteCommunity: (CommunityPost) async throws -> Void
@@ -79,6 +80,13 @@ struct SpotDetailView: View {
     @State private var didOpenPlaceEditorOnAppear = false
     @State private var authenticationDestination: AuthenticationDestination?
     @State private var pendingAuthenticatedAction: (() -> Void)?
+    /// 혼잡도를 새로 제보한 뒤 띄우는 한 줄 글 시트.
+    @State private var crowdNotePrompt: SpotDetailCrowdNotePrompt?
+    /// 혼잡도를 취소하거나 바꾸려는데 이 제보와 함께 올린 글이 있을 때 먼저 묻는 확인.
+    @State private var pendingCrowdChange: SpotDetailCrowdChangeRequest?
+    /// 함께 올린 글을 지우거나 바꾸는 중. 그동안 혼잡도 버튼을 "저장 중…"으로 잠가요.
+    @State private var isApplyingCrowdChange = false
+    @State private var crowdChangeError: String?
     @State private var isVisitInformationExpanded = false
     @State private var sessionGalleryPhotos: [PlacePhoto]
     @State private var selectedGalleryIndex = 0
@@ -100,7 +108,7 @@ struct SpotDetailView: View {
         onToggleSave: @escaping () -> Void,
         onOpenMap: @escaping () -> Void,
         onReportPhoto: @escaping () -> Void,
-        onSubmitCrowdReport: @escaping (CommunityPost.Crowd) -> Void = { _ in },
+        onSubmitCrowdReport: @escaping (CommunityPost.Crowd) -> CrowdReportToggleOutcome = { _ in .ignored },
         onSubmitCommunity: @escaping (CommunityPostDraft, String) async throws -> Void,
         onUpdateCommunity: @escaping (CommunityPost, CommunityPostDraft) async throws -> Void,
         onDeleteCommunity: @escaping (CommunityPost) async throws -> Void,
@@ -147,6 +155,8 @@ struct SpotDetailView: View {
     private var isDetailOverlayPresented: Bool {
         isDirectionsDialogPresented
             || isCommunityComposerPresented
+            || crowdNotePrompt != nil
+            || pendingCrowdChange != nil
             || authenticationDestination != nil
             || isPlaceDeleteConfirmationPresented
             || isDeletingPlace
@@ -206,11 +216,11 @@ struct SpotDetailView: View {
                             crowdReports: crowdReports,
                             currentUserID: currentUserID,
                             spots: spots,
-                            isCrowdReportSubmitting: isCrowdReportSubmitting,
+                            isCrowdReportSubmitting: isCrowdReportSubmitting || isApplyingCrowdChange,
                             isCrowdReportLoading: isCrowdReportLoading,
                             onReportCrowd: { crowd in
                                 requireAuthentication {
-                                    onSubmitCrowdReport(crowd)
+                                    handleCrowdTap(crowd)
                                 }
                             },
                             onEdit: { post in
@@ -237,6 +247,32 @@ struct SpotDetailView: View {
                                 onAddCommunityComment(message, post)
                             }
                         )
+                        // 혼잡도를 취소하거나 바꿀 때 이 제보와 함께 올린 글이 있으면 먼저 물어봐요.
+                        // 상세 본문 끝의 확인 · 알림과 섞이지 않게 이 섹션에 붙입니다.
+                        .confirmationDialog(
+                            crowdChangeDialogTitle,
+                            isPresented: Binding(
+                                get: { pendingCrowdChange != nil },
+                                set: { if !$0 { pendingCrowdChange = nil } }
+                            ),
+                            titleVisibility: .visible,
+                            presenting: pendingCrowdChange
+                        ) { request in
+                            crowdChangeDialogActions(for: request)
+                        } message: { request in
+                            Text(crowdChangeDialogMessage(for: request))
+                        }
+                        .alert(
+                            "처리하지 못했어요",
+                            isPresented: Binding(
+                                get: { crowdChangeError != nil },
+                                set: { if !$0 { crowdChangeError = nil } }
+                            )
+                        ) {
+                            Button("확인", role: .cancel) { crowdChangeError = nil }
+                        } message: {
+                            Text(crowdChangeError ?? "다시 시도해 주세요.")
+                        }
                     }
                     .frame(width: contentWidth, alignment: .leading)
                     .padding(.horizontal, horizontalPadding)
@@ -306,6 +342,15 @@ struct SpotDetailView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
+        .sheet(item: $crowdNotePrompt) { prompt in
+            SpotDetailCrowdNoteSheet(
+                spot: spot,
+                crowd: prompt.crowd,
+                authorID: prompt.authorID,
+                crowdReportStore: crowdReportStore,
+                onSubmit: onSubmitCommunity
+            )
+        }
         .fullScreenCover(
             item: $authenticationDestination,
             onDismiss: resumePendingAuthenticatedActionIfPossible
@@ -353,6 +398,163 @@ struct SpotDetailView: View {
         guard opensPlaceEditorOnAppear, !didOpenPlaceEditorOnAppear, isCurrentUserPlace else { return }
         didOpenPlaceEditorOnAppear = true
         beginEditingOwnedPlace()
+    }
+
+    /// 혼잡도 버튼을 눌렀을 때. 지금 내 제보가 내가 올린 글과 연결돼 있으면 먼저 물어봐요.
+    /// - 같은 단계를 다시 눌러 취소: 글도 지울지
+    /// - 다른 단계로 바꾸기: 글의 혼잡도도 바꿀지 (잘못 누른 건지, 실제로 상황이 바뀐 건지 앱은 모르니까요)
+    /// 그 밖에는 바로 제보 · 취소 · 변경해요.
+    ///
+    /// 로그인한 뒤 이어서 실행될 때도 있어서, 사용자는 authViewModel 에서 바로 읽습니다.
+    private func handleCrowdTap(_ crowd: CommunityPost.Crowd) {
+        guard let authorID = authViewModel.currentUser?.id else {
+            reportCrowdAndOfferNote(crowd)
+            return
+        }
+
+        let ownPosts = communityPosts.filter { $0.relatedSpotID == spot.id && $0.authorID == authorID }
+        guard let question = SpotDetailCrowdLinkedPostPolicy.question(
+            tapped: crowd,
+            reports: crowdReports,
+            placeID: spot.id,
+            userID: authorID,
+            ownPostIDs: Set(ownPosts.map(\.id)),
+            now: Date(),
+            freshnessWindow: CrowdReportStore.freshnessWindow
+        ),
+              let post = ownPosts.first(where: { $0.id == question.postID }) else {
+            reportCrowdAndOfferNote(crowd)
+            return
+        }
+
+        pendingCrowdChange = SpotDetailCrowdChangeRequest(tapped: crowd, question: question, post: post)
+    }
+
+    private var crowdChangeDialogTitle: String {
+        guard let request = pendingCrowdChange else { return "" }
+        switch request.question {
+        case .cancel:
+            return "혼잡도 제보를 취소할까요?"
+        case .change:
+            let name = request.tapped.displayName
+            return "\(name)\(SpotDetailCrowdNotePolicy.directionalParticle(after: name)) 바꿀까요?"
+        }
+    }
+
+    private func crowdChangeDialogMessage(for request: SpotDetailCrowdChangeRequest) -> String {
+        switch request.question {
+        case .cancel:
+            return "이 제보와 함께 올린 글이 있어요. 글도 삭제하면 커뮤니티에서 사라져요."
+        case .change(_, let previous):
+            let name = previous.displayName
+            return "함께 올린 글에는 \"작성 당시 \(name)\"\(SpotDetailCrowdNotePolicy.directionalParticle(after: name)) 남아 있어요."
+        }
+    }
+
+    @ViewBuilder
+    private func crowdChangeDialogActions(for request: SpotDetailCrowdChangeRequest) -> some View {
+        switch request.question {
+        case .cancel:
+            Button("글도 함께 삭제", role: .destructive) {
+                deleteLinkedPost(request.post)
+            }
+            Button("제보만 취소") {
+                reportCrowdAndOfferNote(request.tapped)
+            }
+        case .change:
+            let name = request.tapped.displayName
+            Button("글도 \(name)\(SpotDetailCrowdNotePolicy.directionalParticle(after: name)) 바꾸기") {
+                changeLinkedPostCrowd(request.post, to: request.tapped)
+            }
+            Button("제보만 바꾸기") {
+                reportCrowdAndOfferNote(request.tapped)
+            }
+        }
+        Button("닫기", role: .cancel) {}
+    }
+
+    /// "글도 ○○으로 바꾸기". 글 내용은 그대로 두고 혼잡도만 바꿔요.
+    ///
+    /// 글을 고치면 CommunityViewModel.updatePost 가 쓴 지 1시간 안의 글만 현재 혼잡도에 반영해요.
+    /// 그보다 오래된 글이면 제보는 따로 바꿔요(그러면 글과의 연결은 풀려요).
+    private func changeLinkedPostCrowd(_ post: CommunityPost, to crowd: CommunityPost.Crowd) {
+        isApplyingCrowdChange = true
+        let draft = CommunityPostDraft(
+            spot: spot,
+            title: post.title,
+            captureLocation: post.captureLocation,
+            message: post.message,
+            tags: post.tags,
+            photoAttachments: post.photoAttachments,
+            crowd: crowd
+        )
+
+        Task {
+            do {
+                try await onUpdateCommunity(post, draft)
+                let postUpdatesLiveCrowd = CommunityViewModel.editRefreshesLiveCrowd(
+                    postCreatedAt: post.createdAt,
+                    now: Date(),
+                    freshnessWindow: CrowdReportStore.freshnessWindow
+                )
+                if !postUpdatesLiveCrowd {
+                    _ = onSubmitCrowdReport(crowd)
+                }
+                VFHaptics.success()
+            } catch {
+                if let communityError = error as? FirebaseCommunityError,
+                   case .crowdReportPending = communityError {
+                    crowdChangeError = "글은 바꿨지만 혼잡도 제보는 바꾸지 못했어요. 혼잡도를 다시 눌러 주세요."
+                } else {
+                    crowdChangeError = "글을 바꾸지 못했어요. 혼잡도 제보도 그대로 있어요. 다시 시도해 주세요."
+                }
+                VFHaptics.error()
+                AppLog.persistence.error(
+                    "Linked post crowd change failed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+            isApplyingCrowdChange = false
+        }
+    }
+
+    /// "글도 함께 삭제". 글을 지우면 이 글과 연결된 혼잡도 제보도 같이 지워져요
+    /// (CommunityViewModel.deletePost → CrowdReportStore.removeCommunityReport).
+    private func deleteLinkedPost(_ post: CommunityPost) {
+        isApplyingCrowdChange = true
+        Task {
+            do {
+                try await onDeleteCommunity(post)
+                VFHaptics.success()
+            } catch {
+                crowdChangeError = "글을 삭제하지 못했어요. 혼잡도 제보도 그대로 있어요. 다시 시도해 주세요."
+                VFHaptics.error()
+                AppLog.persistence.error(
+                    "Linked post delete failed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+            isApplyingCrowdChange = false
+        }
+    }
+
+    /// 혼잡도를 제보하고, 새로 제보했으면 한 줄 글 시트를 띄웁니다.
+    ///
+    /// 로그인하지 않았으면 로그인한 뒤 이어서 실행돼요(requireAuthentication). 그때는
+    /// 이 화면이 로그인 전 값을 들고 있을 수 있어서, 사용자는 authViewModel 에서 바로 읽습니다.
+    private func reportCrowdAndOfferNote(_ crowd: CommunityPost.Crowd) {
+        let outcome = onSubmitCrowdReport(crowd)
+        guard let authorID = authViewModel.currentUser?.id else { return }
+
+        let recentOwnPostDates = communityPosts
+            .filter { $0.relatedSpotID == spot.id && $0.authorID == authorID }
+            .map(\.createdAt)
+        guard SpotDetailCrowdNotePolicy.shouldOffer(
+            outcome: outcome,
+            recentOwnPostDates: recentOwnPostDates,
+            now: Date(),
+            freshnessWindow: CrowdReportStore.freshnessWindow
+        ) else { return }
+
+        crowdNotePrompt = SpotDetailCrowdNotePrompt(crowd: crowd, authorID: authorID)
     }
 
     private func requireAuthentication(action: @escaping () -> Void) {
@@ -1074,38 +1276,40 @@ struct SpotDetailCommunitySection: View {
     }
 
     private var selectedCrowd: CommunityPost.Crowd? {
-        guard !currentUserID.isEmpty else { return nil }
+        Self.currentUserSelection(
+            in: crowdReports,
+            placeID: spot.id,
+            userID: currentUserID,
+            now: Date(),
+            freshnessWindow: CrowdReportStore.freshnessWindow
+        )
+    }
 
-        let cutoff = Date().addingTimeInterval(-CrowdReportStore.freshnessWindow)
-        if let report = crowdReports
-            .filter({
-                $0.placeID == spot.id
-                    && $0.authorID == currentUserID
-                    && $0.updatedAt >= cutoff
-            })
-            .max(by: { $0.updatedAt < $1.updatedAt }) {
-            return report.crowd
-        }
-
-        // 구버전 Community 글은 아직 crowdReports 문서가 없을 수 있어
-        // 같은 유효 시간창 안에서만 UI 선택 상태를 복원합니다.
-        return posts
-            .filter({
-                $0.spotID == spot.id
-                    && $0.authorID == currentUserID
-                    && $0.hasStatusInfo
-                    && ($0.updatedAt ?? $0.createdAt) >= cutoff
-            })
-            .max(by: { ($0.updatedAt ?? $0.createdAt) < ($1.updatedAt ?? $1.createdAt) })?
+    /// 내가 지금 고른 혼잡도. 현장 정보가 유효한 시간(1시간) 안의 내 제보만 봅니다.
+    ///
+    /// 전에는 제보가 없으면 1시간 안에 쓴 내 글의 혼잡도로 대신했어요(아주 예전 앱은 제보 없이
+    /// 글에만 혼잡도를 넣었어요). 지금은 글을 올릴 때 늘 제보도 함께 저장해서 그럴 일이 없고,
+    /// 오히려 제보를 취소해도 방금 쓴 글 때문에 선택이 그대로 남아 취소가 안 되는 것처럼 보였어요.
+    /// 글의 혼잡도는 글에 "작성 당시"로만 보여줘요.
+    static func currentUserSelection(
+        in reports: [CrowdReport],
+        placeID: String,
+        userID: String,
+        now: Date,
+        freshnessWindow: TimeInterval
+    ) -> CommunityPost.Crowd? {
+        guard !userID.isEmpty else { return nil }
+        let cutoff = now.addingTimeInterval(-freshnessWindow)
+        return reports
+            .filter { $0.placeID == placeID && $0.authorID == userID && $0.updatedAt >= cutoff }
+            .max { $0.updatedAt < $1.updatedAt }?
             .crowd
     }
 
+    /// 장소의 현재 혼잡도. 최근 1시간 안의 제보만 셉니다. 글은 세지 않아요(위와 같은 이유로,
+    /// 제보를 취소해도 글 때문에 "현재 혼잡도"에 그대로 남았어요).
     private var recentCrowdSummary: CrowdReportSummary? {
-        VFLiveCrowd.summary(
-            spot: spot,
-            reports: crowdReports,
-            legacyPosts: posts
-        )
+        VFLiveCrowd.summary(spot: spot, reports: crowdReports)
     }
 
     var body: some View {
@@ -1121,7 +1325,8 @@ struct SpotDetailCommunitySection: View {
 
                 SpotDetailCrowdReportControl(
                     selection: selectedCrowd,
-                    isSubmitting: isCrowdReportSubmitting || isCrowdReportLoading,
+                    isSaving: isCrowdReportSubmitting,
+                    isLoading: isCrowdReportLoading,
                     onSelect: onReportCrowd
                 )
             }
@@ -1343,7 +1548,13 @@ private struct SpotCommunityPostRow: View {
                 if post.hasStatusInfo || !displayTags.isEmpty {
                     HStack(spacing: 6) {
                         if post.hasStatusInfo {
-                            CommunityCrowdBadge(crowd: post.crowd)
+                            // 바로 위 줄에 작성 시각이 있어서 "작성 당시"만 붙입니다.
+                            CommunityPostCrowdObservation(
+                                crowd: post.crowd,
+                                observedAt: post.createdAt,
+                                badgeStyle: .capsule,
+                                showsTime: false
+                            )
                         }
 
                         ForEach(displayTags, id: \.self) { tag in
@@ -1370,7 +1581,12 @@ private struct SpotCommunityPostRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .appCardSurface(cornerRadius: VFRadius.inner)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(post.authorName), \(communityRelativeTimeText(for: post.createdAt)), 게시글 보기")
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    private var accessibilitySummary: String {
+        let crowd = post.hasStatusInfo ? ", 작성 당시 혼잡도 \(post.crowd.displayName)" : ""
+        return "\(post.authorName), \(communityRelativeTimeText(for: post.createdAt))\(crowd), 게시글 보기"
     }
 }
 
@@ -1414,25 +1630,417 @@ private struct SpotCommunityPostThumbnail: View {
 
 private struct SpotDetailCrowdReportControl: View {
     let selection: CommunityPost.Crowd?
-    let isSubmitting: Bool
+    /// 방금 누른 제보(또는 취소)를 저장하는 중.
+    let isSaving: Bool
+    /// 이 장소의 제보를 처음 불러오는 중.
+    let isLoading: Bool
     let onSelect: (CommunityPost.Crowd) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isBusy: Bool {
+        isSaving || isLoading
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("지금 얼마나 붐비나요?")
-                .font(AppTypography.metadata.weight(.semibold))
-                .foregroundStyle(AppColors.secondaryText)
+            HStack(spacing: 6) {
+                Text("지금 얼마나 붐비나요?")
+                    .font(AppTypography.metadata.weight(.semibold))
+                    .foregroundStyle(AppColors.secondaryText)
+
+                Spacer(minLength: 0)
+
+                // 저장하는 동안(보통 1초 안쪽) 버튼이 잠겨요. 모양이 그대로면 누른 게
+                // 무시된 것처럼 보여서, 잠긴 동안에는 여기에 표시하고 버튼을 조금 옅게 둬요.
+                if isBusy {
+                    HStack(spacing: 4) {
+                        ProgressView()
+                            .controlSize(.mini)
+                        Text(isSaving ? "저장 중…" : "불러오는 중…")
+                            .font(AppTypography.metadata)
+                            .foregroundStyle(AppColors.secondaryText)
+                    }
+                    .transition(.opacity)
+                    .accessibilityElement(children: .combine)
+                }
+            }
 
             HStack(spacing: 8) {
                 ForEach(CommunityPost.Crowd.allCases) { crowd in
                     VFCrowdLevelButton(
                         crowd: crowd,
                         isSelected: selection == crowd,
-                        isDisabled: isSubmitting
+                        isDisabled: isBusy
                     ) {
                         onSelect(crowd)
                     }
                 }
+            }
+            .opacity(isBusy ? 0.6 : 1)
+        }
+        .animation(reduceMotion ? nil : VFMotion.quick, value: isBusy)
+    }
+}
+
+// MARK: - 혼잡도 제보 뒤 한 줄 글
+
+/// 혼잡도 버튼으로 새로 제보한 뒤 띄우는 한 줄 글 시트의 내용입니다.
+/// 띄울 때마다 id 가 새로 생겨서, 다시 띄우면 입력칸과 글 ID 가 새로 시작해요.
+struct SpotDetailCrowdNotePrompt: Identifiable, Equatable {
+    let id = UUID()
+    let crowd: CommunityPost.Crowd
+    /// 시트를 띄울 때 로그인한 사용자. 방금 누른 혼잡도 제보가 저장 중인지 볼 때 씁니다.
+    let authorID: String
+}
+
+/// 한 줄 글 시트를 띄울지, 입력을 어떻게 다듬을지 정하는 규칙입니다.
+/// 화면과 떼어 둬서 Foundation 만으로 확인할 수 있어요.
+enum SpotDetailCrowdNotePolicy {
+    /// 한 줄 글 최대 글자 수.
+    static let maximumLength = 100
+    /// 이 글자 수부터 "87/100" 처럼 글자 수를 보여줘요.
+    static let counterThreshold = 80
+
+    /// 새로 제보했거나 다른 단계로 바꿨을 때만 띄워요. 같은 버튼을 다시 눌러 취소했거나
+    /// 아무 일도 없었으면 띄우지 않아요. 현장 정보가 유효한 시간(1시간) 안에 이 장소에
+    /// 이미 글을 올렸다면, 혼잡도를 바꿔도 다시 띄우지 않아요(매번 뜨면 귀찮아요).
+    static func shouldOffer(
+        outcome: CrowdReportToggleOutcome,
+        recentOwnPostDates: [Date],
+        now: Date,
+        freshnessWindow: TimeInterval
+    ) -> Bool {
+        guard outcome == .submitted else { return false }
+        let cutoff = now.addingTimeInterval(-freshnessWindow)
+        return !recentOwnPostDates.contains { $0 >= cutoff }
+    }
+
+    /// 한 줄 글이라 줄바꿈은 빼요. 붙여 넣은 여러 줄은 한 칸 띄어 이어 붙이고,
+    /// 최대 글자 수까지만 남겨요.
+    static func sanitized(_ text: String) -> String {
+        let singleLine = text
+            .split(omittingEmptySubsequences: true, whereSeparator: \.isNewline)
+            .joined(separator: " ")
+        return String(singleLine.prefix(maximumLength))
+    }
+
+    /// "여유로 · 보통으로 · 혼잡으로 제보했어요".
+    static func reportedTitle(displayName: String) -> String {
+        "\(displayName)\(directionalParticle(after: displayName)) 제보했어요"
+    }
+
+    /// 받침이 없거나 ㄹ 받침이면 "로", 그 밖의 받침이면 "으로".
+    static func directionalParticle(after word: String) -> String {
+        guard let scalar = word.unicodeScalars.last,
+              (0xAC00...0xD7A3).contains(scalar.value) else {
+            return "(으)로"
+        }
+        let finalConsonant = (scalar.value - 0xAC00) % 28
+        // 0: 받침 없음, 8: ㄹ 받침
+        return finalConsonant == 0 || finalConsonant == 8 ? "로" : "으로"
+    }
+
+    /// "1시간" 처럼 현장 정보가 유효한 시간을 글로 나타내요.
+    static func durationText(_ interval: TimeInterval) -> String {
+        let minutes = max(1, Int((interval / 60).rounded()))
+        if minutes % 60 == 0 {
+            return "\(minutes / 60)시간"
+        }
+        return "\(minutes)분"
+    }
+}
+
+/// 혼잡도 버튼을 눌렀을 때, 이 제보와 함께 올린 내 글이 있으면 어떻게 할지 먼저 물어볼지 정합니다.
+/// 화면과 떼어 둬서 Foundation 만으로 확인할 수 있어요.
+enum SpotDetailCrowdLinkedPostPolicy {
+    enum Question: Equatable {
+        /// 같은 단계를 다시 눌러 취소하려는데, 이 제보와 함께 올린 글이 있어요.
+        case cancel(postID: String)
+        /// 다른 단계로 바꾸려는데, 이 제보와 함께 올린 글이 있어요.
+        case change(postID: String, from: CommunityPost.Crowd)
+
+        var postID: String {
+            switch self {
+            case .cancel(let postID), .change(let postID, _):
+                return postID
+            }
+        }
+    }
+
+    /// 지금 내 제보(현장 정보가 유효한 1시간 안)가 내가 올린 글과 연결돼 있을 때만 물어요.
+    /// 글 없이 한 제보, 처음 누르는 경우, 연결된 글이 목록에 없는 경우는 nil 이라 바로 제보 · 취소해요.
+    /// 제보를 바꾸면(글 없이) 글과의 연결이 풀려서, 그 뒤로는 묻지 않아요.
+    static func question(
+        tapped: CommunityPost.Crowd,
+        reports: [CrowdReport],
+        placeID: String,
+        userID: String,
+        ownPostIDs: Set<String>,
+        now: Date,
+        freshnessWindow: TimeInterval
+    ) -> Question? {
+        guard !userID.isEmpty else { return nil }
+        let cutoff = now.addingTimeInterval(-freshnessWindow)
+        guard let current = reports
+            .filter({ $0.placeID == placeID && $0.authorID == userID && $0.updatedAt >= cutoff })
+            .max(by: { $0.updatedAt < $1.updatedAt }),
+              let postID = current.communityPostID,
+              ownPostIDs.contains(postID) else {
+            return nil
+        }
+        return current.crowd == tapped
+            ? .cancel(postID: postID)
+            : .change(postID: postID, from: current.crowd)
+    }
+}
+
+/// 혼잡도를 취소 · 변경하기 전에 띄우는 확인의 내용입니다.
+struct SpotDetailCrowdChangeRequest: Identifiable {
+    let id = UUID()
+    /// 사용자가 누른 단계.
+    let tapped: CommunityPost.Crowd
+    let question: SpotDetailCrowdLinkedPostPolicy.Question
+    /// 이 제보와 함께 올린 내 글.
+    let post: CommunityPost
+}
+
+/// 혼잡도를 새로 제보한 뒤 한 번 떠요. 한 줄을 남기면 그 혼잡도와 함께 커뮤니티에 올라가요.
+///
+/// - 제보는 버튼을 누른 순간 이미 저장돼요. "나중에"를 눌러도 혼잡도 제보는 남아요.
+/// - 올리기는 커뮤니티 글쓰기와 같은 길(onSubmitCommunity → CommunityViewModel.addPost)을
+///   씁니다. 장소 · 혼잡도가 글에 같이 저장되고, 혼잡도 제보가 이 글과 연결돼요.
+/// - 사진은 사진 업로드 작업 때 이 시트에 붙여요.
+private struct SpotDetailCrowdNoteSheet: View {
+    let spot: PhotoSpot
+    let crowd: CommunityPost.Crowd
+    let authorID: String
+    @ObservedObject var crowdReportStore: CrowdReportStore
+    let onSubmit: (CommunityPostDraft, String) async throws -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var note = ""
+    /// 다시 시도해도 글이 하나만 생기게 시트마다 한 번 만들어 둡니다.
+    /// (addPost 는 같은 ID 의 글이 이미 있으면 새로 만들지 않아요)
+    @State private var submissionID = UUID().uuidString
+    @State private var isPosting = false
+    /// 글은 올라갔는데 혼잡도 연결만 못 했을 때. 같은 글로 다시 시도하도록 입력을 잠가요.
+    @State private var isPostSavedRemotely = false
+    @State private var errorMessage: String?
+    @FocusState private var isNoteFocused: Bool
+
+    private var trimmedNote: String {
+        note.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// 방금 누른 혼잡도 제보가 아직 저장 중인지. 저장 중에 글을 올리면 같은 제보 문서를
+    /// 동시에 두 번 쓰게 되어 실패해요(CrowdReportStore.submitCommunityReport → alreadyInProgress).
+    private var isCrowdReportSaving: Bool {
+        crowdReportStore.isSubmitting(placeID: spot.id, authorID: authorID)
+    }
+
+    private var canPost: Bool {
+        !trimmedNote.isEmpty && !isPosting && !isCrowdReportSaving
+    }
+
+    private var postButtonTitle: String {
+        if isPosting { return "올리는 중…" }
+        if isCrowdReportSaving { return "제보 저장 중…" }
+        if isPostSavedRemotely { return "다시 시도" }
+        return "커뮤니티에 올리기"
+    }
+
+    /// 내용에 맞춘 낮은 높이로 올라와요. 글자를 크게 쓰면 더 높이, 손쉬운 사용 크기면 전체 높이로.
+    /// 넘치면 스크롤되고, 위로 끌어 전체 높이로 펼칠 수도 있어요.
+    private var detents: Set<PresentationDetent> {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [.large]
+        }
+        return [.height(dynamicTypeSize > .large ? 400 : 340), .large]
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: VFSpace.lg) {
+                header
+                noteSection
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, AppLayout.pageHorizontalPadding)
+            .padding(.top, VFSpace.lg + VFSpace.sm)
+            .padding(.bottom, VFSpace.md)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            actions
+        }
+        .background(AppColors.background.ignoresSafeArea())
+        .presentationDetents(detents)
+        .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(isPosting)
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: VFSpace.md) {
+            Image(systemName: "checkmark.circle.fill")
+                .vfIcon(22, relativeTo: .headline)
+                .foregroundStyle(crowd.tint)
+
+            VStack(alignment: .leading, spacing: VFSpace.xs) {
+                Text(SpotDetailCrowdNotePolicy.reportedTitle(displayName: crowd.displayName))
+                    .vfText(.headline)
+                    .foregroundStyle(AppColors.primary)
+
+                Text("\(SpotDetailCrowdNotePolicy.durationText(CrowdReportStore.freshnessWindow)) 동안 이 장소의 현재 혼잡도에 반영돼요.")
+                    .vfText(.subhead)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var noteSection: some View {
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            Text("지금 현장은 어때요?")
+                .vfText(.subhead.weight(.semibold))
+                .foregroundStyle(AppColors.primary)
+
+            TextField("예: 노을은 다리 왼쪽 계단이 명당이에요", text: $note, axis: .vertical)
+                .lineLimit(1...3)
+                .vfText(.body)
+                .tint(AppColors.accent)
+                .submitLabel(.done)
+                .focused($isNoteFocused)
+                .disabled(isPosting || isPostSavedRemotely)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .frame(maxWidth: .infinity, minHeight: AppLayout.touchTarget, alignment: .leading)
+                .background(
+                    AppColors.mutedSurface,
+                    in: RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous)
+                )
+                .onChange(of: note) { _, newValue in
+                    if newValue.contains(where: \.isNewline) {
+                        // 한 줄 글이라 return 은 입력 끝내기로 씁니다.
+                        isNoteFocused = false
+                    }
+                    let cleaned = SpotDetailCrowdNotePolicy.sanitized(newValue)
+                    if cleaned != newValue {
+                        note = cleaned
+                    }
+                }
+                .accessibilityLabel("한 줄 남기기")
+                .accessibilityHint("한 줄을 남기면 커뮤니티에도 함께 올라가요")
+
+            HStack(alignment: .firstTextBaseline, spacing: VFSpace.sm) {
+                Text("한 줄을 남기면 커뮤니티에도 함께 올라가요.")
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 0)
+
+                if note.count >= SpotDetailCrowdNotePolicy.counterThreshold {
+                    Text("\(note.count)/\(SpotDetailCrowdNotePolicy.maximumLength)")
+                        .monospacedDigit()
+                        .vfText(.caption)
+                        .foregroundStyle(AppColors.secondaryText)
+                        .accessibilityLabel("\(note.count)자, 최대 \(SpotDetailCrowdNotePolicy.maximumLength)자")
+                }
+            }
+
+            if let errorMessage {
+                Label {
+                    Text(errorMessage)
+                        .vfText(.caption.weight(.semibold))
+                        .foregroundStyle(AppColors.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: VFSpace.sm + 2) {
+            Button {
+                dismiss()
+            } label: {
+                Text(isPostSavedRemotely ? "닫기" : "나중에")
+                    .vfText(.callout.weight(.semibold))
+                    .foregroundStyle(AppColors.primary)
+                    .frame(maxWidth: .infinity, minHeight: AppLayout.touchTarget)
+                    .background(AppColors.mutedSurface, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(isPosting)
+
+            Button(action: post) {
+                HStack(spacing: 6) {
+                    if isPosting || isCrowdReportSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(AppColors.secondaryText)
+                    }
+
+                    Text(postButtonTitle)
+                        .vfText(.callout.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+                .foregroundStyle(canPost ? AppColors.onAccent : AppColors.secondaryText)
+                .frame(maxWidth: .infinity, minHeight: AppLayout.touchTarget)
+                .background(canPost ? AppColors.accent : AppColors.mutedSurface, in: Capsule())
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canPost)
+        }
+        .padding(.horizontal, AppLayout.pageHorizontalPadding)
+        .padding(.top, VFSpace.sm)
+        .padding(.bottom, VFSpace.md)
+        .background(AppColors.background)
+    }
+
+    private func post() {
+        guard canPost else { return }
+        let message = trimmedNote
+        isNoteFocused = false
+        isPosting = true
+        errorMessage = nil
+
+        Task {
+            do {
+                try await onSubmit(
+                    CommunityPostDraft(spot: spot, title: nil, message: message, crowd: crowd),
+                    submissionID
+                )
+                isPosting = false
+                VFHaptics.success()
+                dismiss()
+            } catch {
+                isPosting = false
+                VFHaptics.error()
+                if let communityError = error as? FirebaseCommunityError,
+                   case .crowdReportPending = communityError {
+                    // 글은 이미 올라갔어요. 같은 ID 로 다시 시도하면 글이 하나 더 생기지 않고
+                    // 혼잡도 연결만 마저 해요.
+                    isPostSavedRemotely = true
+                    errorMessage = communityError.localizedDescription
+                } else {
+                    errorMessage = "올리지 못했어요. 쓴 내용은 그대로 있어요. 다시 시도해 주세요."
+                }
+                AppLog.persistence.error(
+                    "Crowd note post failed: \(error.localizedDescription, privacy: .public)"
+                )
             }
         }
     }

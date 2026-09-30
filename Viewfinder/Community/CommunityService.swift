@@ -527,7 +527,10 @@ final class FirebaseCommunityPostStore {
         let spotName = (data["relatedSpotName"] as? String) ?? (data["spotName"] as? String) ?? ""
         let tags = data["tags"] as? [String] ?? []
         let crowd = CommunityPost.Crowd.fromStoredValue(data["crowd"] as? String) ?? .normal
-        let hasStatusInfo = data["hasStatusInfo"] as? Bool ?? data["crowd"] != nil
+        // `??` 가 `!=` 보다 먼저 묶이므로 괄호가 필요합니다. 괄호가 없으면
+        // hasStatusInfo: false 인 글도 true 가 되어 "혼잡도 보통"으로 보입니다.
+        // 필드가 없는 아주 예전 글만 crowd 가 있는지로 판단합니다.
+        let hasStatusInfo = (data["hasStatusInfo"] as? Bool) ?? (data["crowd"] != nil)
         let attachments: [CommunityPhotoAttachment] = (data["attachments"] as? [[String: Any]] ?? []).compactMap {
             (attachment: [String: Any]) -> CommunityPhotoAttachment? in
             guard let id = attachment["id"] as? String,
@@ -1180,18 +1183,26 @@ final class FirebaseCrowdReportStore {
             .sorted { $0.updatedAt > $1.updatedAt }
     }
 
-    func latestReport(
+    /// 같은 사용자+장소의 canonical 문서와, 그 밖의 최근(`freshSince` 이후) 문서를
+    /// 한 번에 읽습니다. canonical 문서는 오래됐어도 돌려줍니다. 서버 규칙이
+    /// canonical 문서의 createdAt 을 바꾸지 못하게 하므로, 재제보할 때 그 값이 필요합니다.
+    func existingReports(
         placeID: String,
         authorID: String,
-        since: Date
-    ) async throws -> CrowdReport? {
-        guard FirebaseApp.app() != nil else { return nil }
+        canonicalID: String,
+        freshSince: Date
+    ) async throws -> (canonical: CrowdReport?, fresh: [CrowdReport]) {
+        guard FirebaseApp.app() != nil else { return (nil, []) }
 
         let documents = try await userReportDocuments(placeID: placeID, authorID: authorID)
-        return documents
+        let canonical = documents
+            .first(where: { $0.documentID == canonicalID })
+            .flatMap(Self.decode)
+        let fresh = documents
+            .filter { $0.documentID != canonicalID }
             .compactMap(Self.decode)
-            .filter { $0.updatedAt >= since }
-            .max { $0.updatedAt < $1.updatedAt }
+            .filter { $0.updatedAt >= freshSince }
+        return (canonical, fresh)
     }
 
     func canonicalReport(placeID: String, authorID: String, id: String) async throws -> CrowdReport? {
@@ -1269,6 +1280,12 @@ final class FirebaseCrowdReportStore {
         ]
         if let communityPostID = report.communityPostID {
             data["communityPostID"] = communityPostID
+        } else {
+            // upsert 는 merge 로 저장해서, 값을 빼기만 하면 예전 글 연결이 문서에 남습니다.
+            // 그러면 그 예전 글을 지울 때(removeCommunityReport(postID:)) 이 새 제보까지
+            // 같이 지워져요. 글 없이 다시 제보하면 연결을 확실히 지웁니다.
+            // (merge 저장에서만 쓸 수 있는 값이에요. 이 함수는 upsert 에서만 씁니다.)
+            data["communityPostID"] = FieldValue.delete()
         }
         return data
     }
@@ -1368,7 +1385,10 @@ final class CrowdReportStore: ObservableObject {
     private let remoteStore: FirebaseCrowdReportStore
     private var loadedPlaceIDs: Set<String> = []
     @Published private(set) var loadingPlaceIDs: Set<String> = []
-    private var submittingKeys: Set<String> = []
+    /// 저장 중인 사용자+장소. 화면이 이 값으로 혼잡도 버튼과 한 줄 글 "올리기" 버튼을 잠가요.
+    /// 바뀔 때 화면에 알려야 해서 @Published 입니다. 전에는 알리지 않아서, 저장이 끝나도
+    /// 다른 일로 화면이 다시 그려질 때까지 버튼이 잠긴 채로 남았어요(누르면 아무 일도 없음).
+    @Published private var submittingKeys: Set<String> = []
 
     init(remoteStore: FirebaseCrowdReportStore = FirebaseCrowdReportStore()) {
         self.remoteStore = remoteStore
@@ -1407,13 +1427,14 @@ final class CrowdReportStore: ObservableObject {
 
     /// 같은 상태를 다시 누르면 기존 제보를 취소하고,
     /// 다른 상태를 누르면 같은 사용자+장소 문서를 갱신합니다.
+    /// 무엇을 했는지 돌려줘서, 장소 상세가 새로 제보했을 때만 한 줄 글 시트를 띄울 수 있게 합니다.
     @discardableResult
     func toggle(
         placeID: String,
         crowd: CommunityPost.Crowd,
         authorID: String,
         source: CrowdReportSource
-    ) -> Bool {
+    ) -> CrowdReportToggleOutcome {
         let now = Date()
         if let existing = latestFreshReport(
             in: reports,
@@ -1421,15 +1442,16 @@ final class CrowdReportStore: ObservableObject {
             authorID: authorID,
             now: now
         ), existing.crowd == crowd {
-            return remove(placeID: placeID, authorID: authorID)
+            return remove(placeID: placeID, authorID: authorID) ? .removed : .ignored
         }
 
-        return submit(
+        let didSubmit = submit(
             placeID: placeID,
             crowd: crowd,
             authorID: authorID,
             source: source
         )
+        return didSubmit ? .submitted : .ignored
     }
 
     /// 사용자의 장소별 active 제보를 즉시 로컬에서 제거한 뒤,
@@ -1510,12 +1532,13 @@ final class CrowdReportStore: ObservableObject {
 
         Task { [weak self, remoteStore] in
             let lookupDate = Date()
-            var remoteExisting: CrowdReport?
+            var remoteExisting: (canonical: CrowdReport?, fresh: [CrowdReport]) = (nil, [])
             do {
-                remoteExisting = try await remoteStore.latestReport(
+                remoteExisting = try await remoteStore.existingReports(
                     placeID: placeID,
                     authorID: authorID,
-                    since: lookupDate.addingTimeInterval(-Self.freshnessWindow)
+                    canonicalID: fallbackReportID,
+                    freshSince: lookupDate.addingTimeInterval(-Self.freshnessWindow)
                 )
             } catch {
                 AppLog.persistence.error(
@@ -1523,9 +1546,6 @@ final class CrowdReportStore: ObservableObject {
                 )
             }
 
-            let existing = [localExisting, remoteExisting]
-                .compactMap { $0 }
-                .max { $0.updatedAt < $1.updatedAt }
             let submissionDate = Date()
             // 기존 random ID 문서가 발견되어도 항상 canonical ID로 저장합니다.
             // 그래야 다음 상태 변경이 새 문서를 만들지 않고 같은 문서를 갱신합니다.
@@ -1534,7 +1554,11 @@ final class CrowdReportStore: ObservableObject {
                 placeID: placeID,
                 crowd: crowd,
                 authorID: authorID,
-                createdAt: existing?.createdAt ?? submissionDate,
+                createdAt: Self.createdAtToPreserve(
+                    canonical: remoteExisting.canonical,
+                    freshReports: [localExisting].compactMap { $0 } + remoteExisting.fresh,
+                    submissionDate: submissionDate
+                ),
                 updatedAt: submissionDate,
                 source: reportSource,
                 communityPostID: communityPostID
@@ -1652,6 +1676,25 @@ final class CrowdReportStore: ObservableObject {
 
     private func submissionKey(placeID: String, authorID: String) -> String {
         "\(placeID)\u{001F}\(authorID)"
+    }
+
+    /// 재제보할 때 저장할 createdAt 을 고릅니다.
+    ///
+    /// 서버 규칙(firestore.rules `crowdReports` update)은 canonical 문서의 createdAt 을
+    /// 바꾸지 못하게 합니다. 그래서 canonical 문서가 있으면 오래됐어도 그 값을 그대로 씁니다.
+    /// 전에는 1시간 안의 제보만 찾아서, 1시간이 지난 재제보는 createdAt 이 지금 시각으로
+    /// 바뀌어 서버에서 거절됐어요(실패는 로그에만 남았어요).
+    /// canonical 문서가 없을 때(처음 제보 · 예전 random ID 문서만 있을 때)만 최근 제보를
+    /// 이어받고, 그것도 없으면 지금 시각을 씁니다.
+    static func createdAtToPreserve(
+        canonical: CrowdReport?,
+        freshReports: [CrowdReport],
+        submissionDate: Date
+    ) -> Date {
+        if let canonical {
+            return canonical.createdAt
+        }
+        return freshReports.max { $0.updatedAt < $1.updatedAt }?.createdAt ?? submissionDate
     }
 
     private static func deterministicReportID(placeID: String, authorID: String) -> String {

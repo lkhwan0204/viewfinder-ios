@@ -662,6 +662,18 @@ enum CrowdReportSource: String, Codable, Sendable {
     case community
 }
 
+/// 장소 상세에서 혼잡도 버튼을 눌렀을 때 실제로 일어난 일입니다.
+/// 새로 제보했거나 바꿨을 때만 한 줄 글 시트를 띄우고, 같은 버튼을 다시 눌러
+/// 취소했을 때는 띄우지 않으려고 나눠 둡니다.
+enum CrowdReportToggleOutcome: Equatable, Sendable {
+    /// 새로 제보했거나 다른 단계로 바꿨어요.
+    case submitted
+    /// 같은 단계를 다시 눌러 제보를 취소했어요.
+    case removed
+    /// 이미 저장 중이거나 로그인 정보가 없어 아무것도 하지 않았어요.
+    case ignored
+}
+
 /// 장소에 대한 혼잡도 제보입니다. Community 글과 분리된 장소 상태이며,
 /// Community 글에서 선택적으로 생성된 경우에만 `communityPostID`를 가집니다.
 struct CrowdReport: Identifiable, Equatable, Sendable {

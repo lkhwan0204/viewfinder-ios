@@ -170,7 +170,13 @@ final class CommunityViewModel: ObservableObject {
             if post.relatedSpotID != draft.relatedSpotID || draft.crowd == nil {
                 try await crowdReportStore.removeCommunityReportConfirmed(postID: post.id)
             }
-            try await saveCrowdReport(for: updated, draft: draft, authorID: post.authorID)
+            if Self.editRefreshesLiveCrowd(
+                postCreatedAt: post.createdAt,
+                now: Date(),
+                freshnessWindow: CrowdReportStore.freshnessWindow
+            ) {
+                try await saveCrowdReport(for: updated, draft: draft, authorID: post.authorID)
+            }
         } catch {
             throw FirebaseCommunityError.crowdReportPending
         }
@@ -252,6 +258,18 @@ final class CommunityViewModel: ObservableObject {
             }
         }
         posts = merged.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// 글의 혼잡도는 "작성 당시" 정보예요. 글을 고칠 때마다 혼잡도 제보를 다시 저장하면
+    /// 제보 시각이 지금이 되어, 며칠 전 혼잡도가 장소 상세 "현재 혼잡도"에 다시 올라옵니다.
+    /// 그래서 현장 정보가 유효한 시간(1시간) 안에 쓴 글을 고칠 때만 현재 혼잡도에 반영해요.
+    /// 옛 글은 글에 적힌 혼잡도만 바뀝니다.
+    static func editRefreshesLiveCrowd(
+        postCreatedAt: Date,
+        now: Date,
+        freshnessWindow: TimeInterval
+    ) -> Bool {
+        postCreatedAt >= now.addingTimeInterval(-freshnessWindow)
     }
 
     private func saveCrowdReport(
