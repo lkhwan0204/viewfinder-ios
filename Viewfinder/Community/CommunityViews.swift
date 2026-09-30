@@ -559,9 +559,10 @@ struct CommunityPostCard: View {
     //      ●●○ 보통 · 꽃 만개 · 사람 적음
     //
     //  상태 태그는 장식이 아니라 제보의 본문입니다.
-    //  혼잡도 하나로는 "사람은 보통인데 꽃이 만개했다" 를 전할 수 없고,
-    //  작성 화면에서 사용자에게 고르라고 요구하는 값이기도 합니다.
-    //  요구해놓고 보여주지 않으면 그 입력은 버려지는 노동입니다.
+    //  혼잡도 하나로는 "사람은 보통인데 꽃이 만개했다" 를 전할 수 없습니다.
+    //
+    //  글쓰기에서 태그 칸은 뺐습니다(CommunityComposerView.communityPostForm).
+    //  새 글은 그런 현장 소식을 본문에 쓰고, 이 줄은 태그가 있는 옛 글에서만 태그를 보여줍니다.
     // ═══════════════════════════════════════════════════════════════
     @ViewBuilder
     private var conditionLine: some View {
@@ -2027,7 +2028,7 @@ enum CommunityComposerPurpose: Equatable {
     var messagePlaceholder: String {
         switch self {
         case .fieldReport:
-            return "사진, 카메라, 장비, 촬영 후기를 자유롭게 적어보세요"
+            return "현장 소식이나 촬영 후기를 자유롭게 적어 보세요"
         case .addSpot:
             return "예: 저녁빛이 좋은 골목이고 오래된 간판이 많아 필름 사진에 잘 어울려요"
         case .editPlace:
@@ -2134,6 +2135,8 @@ struct CommunityComposerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedField: ComposerField?
+    /// 글쓰기에서 장소 검색이 열려 있는지. "장소 추가"를 누르면 열리고, 장소를 고르거나 "취소"하면 닫혀요.
+    @State private var isCommunityPlaceSearchPresented = false
     @State private var selectedSpotID: String
     @State private var selectedSearchedSpot: PhotoSpot?
     @State private var placeSearchText: String
@@ -2165,14 +2168,13 @@ struct CommunityComposerView: View {
     @State private var isCaptureLocationPickerPresented = false
     @State private var isMapPlacePickerPresented = false
     @State private var metadataEditorTarget: MetadataEditorTarget?
-    @State private var showExifConsent = false
-    @State private var promptedExifPhotoIDs: Set<String> = []
+    /// 새로 고른 사진의 "장소 사진에도 올리기". 처음에는 켬이에요(한 줄 글과 같아요). 스위치를 바꾸면 따라 바뀌어요.
+    @State private var sharesNewPhotosToPlaceGallery: Bool
     @State private var isPreparingSubmission = false
     @State private var isPostSavedRemotely = false
     @State private var submissionID = UUID().uuidString
     @State private var submissionError: String?
     @State private var isDiscardConfirmationPresented = false
-    @State private var isPhotoUnavailablePresented = false
     @State private var submissionPreparationTask: Task<Void, Never>?
     /// 결과를 골라 검색어를 장소명으로 바꿀 때, 그 변경이 다시 검색을
     /// 일으키지 않게 막습니다.
@@ -2237,6 +2239,12 @@ struct CommunityComposerView: View {
             initialValue: editingPost?.publicPhotoAttachments.filter {
                 $0.imageData == nil && $0.remoteURL != nil
             } ?? []
+        )
+        _sharesNewPhotosToPlaceGallery = State(
+            initialValue: editingPost.map { post in
+                post.publicPhotoAttachments.isEmpty
+                    || Self.sharesAllPhotos(post.publicPhotoAttachments.map(\.sharesToPlaceGallery))
+            } ?? true
         )
         _selectedPhotoData = State(initialValue: editingPost?.photoData)
         _isExifPublic = State(
@@ -2322,11 +2330,6 @@ struct CommunityComposerView: View {
                 }
                 Button("계속 작성", role: .cancel) { }
             }
-            .alert("사진 업로드 안내", isPresented: $isPhotoUnavailablePresented) {
-                Button("확인", role: .cancel) { }
-            } message: {
-                Text("사진 업로드는 현재 준비 중입니다. 사진을 제거하면 글을 게시할 수 있어요.")
-            }
             .scrollDismissesKeyboard(.interactively)
             .contentShape(Rectangle())
             .onChange(of: selectedPhotoItems) { _, newItems in
@@ -2348,16 +2351,6 @@ struct CommunityComposerView: View {
                     dismissComposerKeyboard()
                 }
             )
-            .alert("촬영 정보 공개", isPresented: $showExifConsent) {
-                Button("공개하기") {
-                    isExifPublic = true
-                }
-                Button("공개하지 않기", role: .cancel) {
-                    isExifPublic = false
-                }
-            } message: {
-                Text("사진에서 촬영 정보를 찾았어요. 카메라와 촬영 설정을 게시물에 공개하시겠어요?")
-            }
             .sheet(item: $metadataEditorTarget) { target in
                 CommunityPhotoExifEditor(
                     initialMetadata: metadata(for: target.id),
@@ -2384,47 +2377,541 @@ struct CommunityComposerView: View {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    //  커뮤니티 글쓰기
+    //
+    //  [전] 제목 · 본문 · 사진 · 촬영정보 · 관련 출사지 · 태그 · 갤러리 공유 · 혼잡도
+    //  8칸이 모두 큰 제목을 단 설정 화면 같았어요. 혼잡도는 장소를 고른 뒤 맨 아래에
+    //  나타나서 잘 안 보였고, 빈 사진 칸이 화면에서 가장 컸어요.
+    //
+    //  [지금] 장소(+ 혼잡도) → 글(제목 + 본문 한 칸) → 사진 → 공유하기.
+    //  장소는 "장소 추가" 버튼을 누를 때만 검색이 열려요. 칸 이름은 작게 둬요.
+    //
+    //  태그 칸은 뺐어요. 쓴 태그는 혼잡도를 고른 글에만 보였고(장소 없는 글은 어디에도 안 보임),
+    //  장소 · 지역 이름과 같은 태그는 걸러졌고, 눌러도 아무 일이 없었어요.
+    //  "노을 좋음 · 꽃 만개" 같은 현장 소식은 본문에 쓰고, 홈 검색이 본문까지 찾아요.
+    //  태그가 있는 옛 글을 고칠 때만 태그 칸을 보여서, 모르게 지워지지 않게 해요.
+    //  장소 추가 · 장소 수정의 태그(장소 해시태그)는 검색 · 지도 필터가 써서 그대로예요.
+    // ═══════════════════════════════════════════════════════════════════
     private var communityPostForm: some View {
         Group {
-            ComposerFormSection(title: "제목", detail: "") {
-                TextField("제목을 입력하세요", text: $title)
-                    .vfText(.body)
-                    .focused($focusedField, equals: .title)
-                    .submitLabel(.next)
-                    .onSubmit {
-                        focusedField = .message
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 13)
-                    .background(
-                        AppColors.mutedSurface,
-                        in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
-                    )
+            communityPlaceGroup
+            communityWritingCard
+            communityPhotoGroup
+
+            if let editingPost, !editingPost.tags.isEmpty {
+                communityTagGroup
+            }
+        }
+    }
+
+    /// 글쓰기 칸 묶음. 이름은 작게(subhead), 묶음 사이는 VFSpace.xl 여백으로 나눠요.
+    private func composerGroup<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            Text(title)
+                .vfText(.subhead.weight(.semibold))
+                .foregroundStyle(AppColors.primary)
+
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, VFSpace.xl)
+    }
+
+    private var communityPlaceGroup: some View {
+        composerGroup("장소") {
+            communityPlacePicker
+
+            if selectedSpot != nil {
+                communityCrowdPicker
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var communityPlacePicker: some View {
+        if isSpotLocked, let selectedSpot {
+            communityPlaceRow(selectedSpot, canChange: false)
+        } else if isCommunityPlaceSearchPresented {
+            placeSearchSection
+        } else if let selectedSpot {
+            communityPlaceRow(selectedSpot, canChange: true)
+        } else if let missingLinkedPlaceName {
+            missingLinkedPlaceRow(missingLinkedPlaceName)
+        } else {
+            VStack(alignment: .leading, spacing: VFSpace.sm) {
+                Button {
+                    openCommunityPlaceSearch()
+                } label: {
+                    Label("장소 추가", systemImage: "mappin.and.ellipse")
+                        .vfText(.callout.weight(.semibold))
+                        .foregroundStyle(AppColors.primary)
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: AppLayout.touchTarget)
+                        .background(AppColors.mutedSurface, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+
+                Text("장소를 고르면 지금 혼잡도도 함께 남길 수 있어요.")
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// 고른 장소 한 줄. 바꿀 수 있으면 줄을 눌러 다시 검색하고, × 로 빼요.
+    @ViewBuilder
+    private func communityPlaceRow(_ spot: PhotoSpot, canChange: Bool) -> some View {
+        HStack(spacing: VFSpace.xs) {
+            if canChange {
+                Button {
+                    openCommunityPlaceSearch()
+                } label: {
+                    communityPlaceRowLabel(spot)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("누르면 다른 장소를 고를 수 있어요")
+
+                Button {
+                    clearRelatedSpotSelection()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(AppColors.secondaryText.opacity(0.7))
+                        .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("장소 빼기")
+            } else {
+                communityPlaceRowLabel(spot)
+            }
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, canChange ? 4 : 14)
+        .background(
+            AppColors.mutedSurface,
+            in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
+        )
+    }
+
+    private func communityPlaceRowLabel(_ spot: PhotoSpot) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "mappin.and.ellipse")
+                .vfIcon(15, weight: .medium)
+                .foregroundStyle(AppColors.primary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(spot.name)
+                    .vfText(.callout.weight(.semibold))
+                    .foregroundStyle(AppColors.primary)
+                    .lineLimit(1)
+
+                Text(spot.region)
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .lineLimit(1)
             }
 
-            ComposerFormSection(title: "본문", detail: "") {
-                messageField
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    /// 고치는 글의 장소가 목록에 없을 때(지워진 장소 등). 전처럼 이름과 "빼기"만 보여요.
+    private var missingLinkedPlaceName: String? {
+        guard purpose == .fieldReport,
+              selectedSpot == nil,
+              !selectedSpotID.isEmpty,
+              let editingPost,
+              editingPost.spotID == selectedSpotID else { return nil }
+        return editingPost.spotName
+    }
+
+    private func missingLinkedPlaceRow(_ name: String) -> some View {
+        HStack(spacing: VFSpace.sm) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .vfText(.callout.weight(.semibold))
+                    .foregroundStyle(AppColors.primary)
+                    .lineLimit(1)
+
+                Text("연결된 장소를 찾을 수 없어요")
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
             }
 
-            photoSection
+            Spacer(minLength: 0)
 
-            photoPrivacySection
+            Button("빼기") {
+                clearRelatedSpotSelection()
+            }
+            .vfText(.callout.weight(.semibold))
+            .foregroundStyle(AppColors.primary)
+            .buttonStyle(.plain)
+            .frame(minHeight: AppLayout.touchTarget)
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 56)
+        .background(
+            AppColors.mutedSurface,
+            in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
+        )
+    }
 
-            ComposerFormSection(title: "관련 출사지", detail: "") {
-                if isSpotLocked, let selectedSpot {
-                    selectedPlaceRow(selectedSpot)
-                } else {
-                    placeSearchSection
+    /// 장소를 고르면 바로 아래에 보여요. 전에는 글 맨 아래에 있었어요.
+    private var communityCrowdPicker: some View {
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            Text(editingPost == nil ? "지금 혼잡도" : "작성 당시 혼잡도")
+                .vfText(.subhead.weight(.semibold))
+                .foregroundStyle(AppColors.primary)
+
+            CommunityCrowdSelectionControl(selection: $selectedCommunityCrowd)
+
+            if let communityCrowdCaption {
+                Text(communityCrowdCaption)
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.top, VFSpace.md)
+    }
+
+    /// 혼잡도 아래 안내. 새 글은 현재 혼잡도에 반영된다는 것, 고치는 글은 1시간이 지났으면 반영되지 않는다는 것.
+    /// 고치기는 CommunityViewModel.updatePost 가 쓴 지 1시간 안의 글만 현재 혼잡도에 반영해요(한 줄 글 수정과 같아요).
+    static func crowdCaption(isEditing: Bool, changesLiveCrowd: Bool) -> String? {
+        guard isEditing else {
+            return "고르면 1시간 동안 이 장소의 현재 혼잡도에 반영돼요. 한 번 더 누르면 빠져요."
+        }
+        return changesLiveCrowd ? nil : "쓴 지 1시간이 지나서, 바꿔도 현재 혼잡도에는 반영되지 않아요."
+    }
+
+    private var communityCrowdCaption: String? {
+        Self.crowdCaption(
+            isEditing: editingPost != nil,
+            changesLiveCrowd: editingPost.map { post in
+                CommunityViewModel.editRefreshesLiveCrowd(
+                    postCreatedAt: post.createdAt,
+                    now: Date(),
+                    freshnessWindow: CrowdReportStore.freshnessWindow
+                )
+            } ?? true
+        )
+    }
+
+    /// 제목과 본문을 한 칸에 둬요. 제목은 안 써도 돼요.
+    private var communityWritingCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TextField("제목 (선택)", text: $title)
+                .vfText(.headline)
+                .focused($focusedField, equals: .title)
+                .submitLabel(.next)
+                .onSubmit {
+                    focusedField = .message
+                }
+                // 본문 글자와 왼쪽 끝을 맞춰요(MessageEditorMetrics).
+                .padding(.horizontal, MessageEditorMetrics.contentHorizontalPadding)
+                .padding(.top, 14)
+                .padding(.bottom, 12)
+
+            Rectangle()
+                .fill(AppColors.divider)
+                .frame(height: AppLayout.borderWidth)
+                .padding(.horizontal, MessageEditorMetrics.contentHorizontalPadding)
+                .accessibilityHidden(true)
+
+            messageField
+        }
+        .background(
+            AppColors.mutedSurface,
+            in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
+        )
+        .padding(.bottom, VFSpace.xl)
+    }
+
+    private static let communityThumbnailSize: CGFloat = 96
+
+    /// 사진 칸. 빈 칸 대신 작은 "사진 추가" 버튼이고, 고르면 작은 사진 줄이 돼요.
+    private var communityPhotoGroup: some View {
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: VFSpace.sm) {
+                Text("사진")
+                    .vfText(.subhead.weight(.semibold))
+                    .foregroundStyle(AppColors.primary)
+
+                Spacer(minLength: VFSpace.sm)
+
+                if communityPhotoCount > 0 {
+                    Text("\(communityPhotoCount) / \(Self.maxCommunityPhotoCount)")
+                        .vfText(.caption)
+                        .foregroundStyle(AppColors.secondaryText)
+                        .monospacedDigit()
                 }
             }
 
-            ComposerFormSection(title: "태그", detail: "") {
-                CustomTagInputSection(tags: $customTags, text: $customTagText)
+            if communityPhotoCount == 0 {
+                communityPhotoPicker {
+                    Label("사진 추가", systemImage: "photo.badge.plus")
+                        .vfText(.callout.weight(.semibold))
+                        .foregroundStyle(AppColors.primary)
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: AppLayout.touchTarget)
+                        .background(AppColors.mutedSurface, in: Capsule())
+                        .contentShape(Capsule())
+                }
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: VFSpace.sm) {
+                        ForEach(retainedRemoteAttachments) { attachment in
+                            communityPhotoThumbnail(onRemove: { removePhoto(id: attachment.id) }) {
+                                CommunityAttachedPhotoView(
+                                    attachment: attachment,
+                                    imageDetail: .thumbnail,
+                                    isTappableForPreview: false
+                                )
+                            }
+                        }
+
+                        ForEach(photoDrafts) { draft in
+                            communityPhotoThumbnail(onRemove: { removePhoto(id: draft.id) }) {
+                                CommunityAttachedPhotoView(
+                                    photoData: draft.data,
+                                    cacheKey: draft.id,
+                                    imageDetail: .thumbnail,
+                                    isTappableForPreview: false
+                                )
+                            }
+                        }
+
+                        if remainingCommunityPhotoCount > 0 {
+                            communityPhotoPicker {
+                                communityAddPhotoTile
+                            }
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
             }
 
-            placeGallerySharingSection
-            communityCrowdSection
+            if photoLoadFailed {
+                Text("사진을 불러오지 못했어요. 다른 사진을 골라 주세요.")
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.primary)
+            }
+
+            // 올리기가 꺼져 있으면 고르기 전에 미리 알려요(한 줄 글 사진 칸과 같아요).
+            if !CommunityPhotoUpload.isAvailable {
+                Text("사진 올리기는 아직 준비 중이에요.")
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+            }
+
+            if communityPhotoCount > 0 {
+                communityPhotoOptions
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, VFSpace.xl)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  사진 설정은 사진 바로 아래 스위치 두 개예요.
+    //
+    //  [전] "촬영정보" 칸과 "출사지 갤러리 공유" 칸이 따로 있었고, 사진이 세 번 보였어요
+    //  (사진 줄 · 촬영정보 줄 · 갤러리 공유 줄). 사진을 고르면 "촬영 정보 공개" 창도 떴어요.
+    //  [지금] "장소 사진에도 올리기"는 사진 전체에 한 번에(기본 켬, 한 줄 글과 같아요).
+    //  촬영 정보는 창 대신 스위치 아래 안내로 알려요. 기본은 공개 안 함이에요.
+    // ═══════════════════════════════════════════════════════════════════
+    private var communityPhotoOptions: some View {
+        VStack(alignment: .leading, spacing: VFSpace.md) {
+            if selectedSpot != nil {
+                Toggle(isOn: communityGallerySharingBinding) {
+                    communityOptionLabel("장소 사진에도 올리기", detail: "장소 상세 사진에 함께 보여요")
+                }
+                .tint(AppColors.accent)
+            }
+
+            Toggle(isOn: $isExifPublic) {
+                communityOptionLabel(
+                    "촬영 정보 공개",
+                    detail: Self.exifCaption(isPublic: isExifPublic, hasFoundExif: hasFoundCommunityExif)
+                )
+            }
+            .tint(AppColors.accent)
+
+            if isExifPublic {
+                ForEach(retainedRemoteAttachments) { attachment in
+                    CommunityComposerRemoteMetadataRow(
+                        attachment: attachment,
+                        onEdit: {
+                            metadataEditorTarget = MetadataEditorTarget(id: attachment.id)
+                        }
+                    )
+                }
+
+                ForEach(photoDrafts) { draft in
+                    CommunityComposerMetadataRow(
+                        draft: draft,
+                        onEdit: {
+                            metadataEditorTarget = MetadataEditorTarget(id: draft.id)
+                        }
+                    )
+                }
+            }
+        }
+        .padding(.top, VFSpace.sm)
+    }
+
+    private func communityOptionLabel(_ title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .vfText(.subhead.weight(.semibold))
+                .foregroundStyle(AppColors.primary)
+
+            Text(detail)
+                .vfText(.caption)
+                .foregroundStyle(AppColors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// 촬영 정보 스위치 아래 안내. 사진에서 촬영 정보를 찾았으면 켤 수 있다고 알려요(전에는 창으로 물었어요).
+    static func exifCaption(isPublic: Bool, hasFoundExif: Bool) -> String {
+        if isPublic {
+            return "카메라와 촬영 설정이 글에 보여요. 사진마다 고칠 수 있어요."
+        }
+        return hasFoundExif
+            ? "사진에서 촬영 정보를 찾았어요. 켜면 카메라와 촬영 설정이 글에 보여요."
+            : "켜면 카메라와 촬영 설정을 글에 남길 수 있어요."
+    }
+
+    private var hasFoundCommunityExif: Bool {
+        photoDrafts.contains { $0.exif != nil }
+            || retainedRemoteAttachments.contains { $0.metadata != nil }
+    }
+
+    /// 사진이 모두 장소 사진에도 올라가면 켬이에요. 사진이 없으면 끔이에요.
+    static func sharesAllPhotos(_ flags: [Bool]) -> Bool {
+        !flags.isEmpty && !flags.contains(false)
+    }
+
+    /// 사진 전체의 "장소 사진에도 올리기". 사진마다 값은 그대로 저장돼요(글 모양은 전과 같아요).
+    private var communityGallerySharingBinding: Binding<Bool> {
+        Binding(
+            get: {
+                Self.sharesAllPhotos(
+                    retainedRemoteAttachments.map(\.sharesToPlaceGallery)
+                        + photoDrafts.map(\.sharesToPlaceGallery)
+                )
+            },
+            set: { value in
+                sharesNewPhotosToPlaceGallery = value
+                for index in photoDrafts.indices {
+                    photoDrafts[index].sharesToPlaceGallery = value
+                }
+                retainedRemoteAttachments = retainedRemoteAttachments.map { attachment in
+                    CommunityPhotoAttachment(
+                        id: attachment.id,
+                        imageData: attachment.imageData,
+                        remoteURL: attachment.remoteURL,
+                        metadata: attachment.metadata,
+                        location: attachment.location,
+                        sharesToPlaceGallery: value
+                    )
+                }
+            }
+        )
+    }
+
+    private func communityPhotoPicker<PickerLabel: View>(
+        @ViewBuilder label: () -> PickerLabel
+    ) -> some View {
+        let pickerLabel = label()
+        return PhotosPicker(
+            selection: $selectedPhotoItems,
+            maxSelectionCount: max(remainingCommunityPhotoCount, 1),
+            matching: .images,
+            photoLibrary: .shared()
+        ) {
+            pickerLabel
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("사진 추가")
+    }
+
+    private var communityAddPhotoTile: some View {
+        VStack(spacing: VFSpace.xs) {
+            Image(systemName: "plus")
+                // Dynamic Type 제외: 고정 96pt 칸 안의 기호.
+                .font(.system(size: 18, weight: .semibold))
+
+            Text("추가")
+                .vfText(.caption)
+        }
+        .foregroundStyle(AppColors.primary)
+        .frame(width: Self.communityThumbnailSize, height: Self.communityThumbnailSize)
+        .background(
+            AppColors.mutedSurface,
+            in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
+    }
+
+    private func communityPhotoThumbnail<Content: View>(
+        onRemove: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        ZStack(alignment: .topTrailing) {
+            content()
+                .frame(width: Self.communityThumbnailSize, height: Self.communityThumbnailSize)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
+
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    // Dynamic Type 제외: 고정 22pt 원 안의 기호.
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 22, height: 22)
+                    .background(Color.black.opacity(0.55), in: Circle())
+                    // 보이는 원은 22pt, 누르는 영역만 36pt 로 넓혀요. 사진 안쪽 모서리에 둬서 잘리지 않아요.
+                    .frame(width: 36, height: 36)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("사진 빼기")
+        }
+        .frame(width: Self.communityThumbnailSize, height: Self.communityThumbnailSize)
+    }
+
+    private var communityTagGroup: some View {
+        composerGroup("태그") {
+            CustomTagInputSection(tags: $customTags, text: $customTagText)
+        }
+    }
+
+    private func openCommunityPlaceSearch() {
+        placeSearchText = ""
+        placeFinder.clear()
+        isCommunityPlaceSearchPresented = true
+        // 검색칸이 화면에 나온 다음에 커서를 옮겨요.
+        DispatchQueue.main.async {
+            focusedField = .placeSearch
+        }
+    }
+
+    private func closeCommunityPlaceSearch() {
+        isCommunityPlaceSearchPresented = false
+        focusedField = nil
+        placeFinder.clear()
+        placeSearchText = ""
     }
 
     private var placeSubmissionForm: some View {
@@ -2711,43 +3198,8 @@ struct CommunityComposerView: View {
                 }
 
                 addSpotPhotoPickerSection
-            } else {
-                HStack(alignment: .center, spacing: VFSpace.sm) {
-                    Text("사진")
-                        .vfText(.headline)
-                        .foregroundStyle(AppColors.primary)
-
-                    Spacer(minLength: VFSpace.sm)
-
-                    HStack(spacing: 8) {
-                        Text("\(communityPhotoCount) / \(Self.maxCommunityPhotoCount)")
-                            .vfText(.caption)
-                            .foregroundStyle(AppColors.secondaryText)
-                            .monospacedDigit()
-
-                        if communityPhotoCount > 0,
-                           communityPhotoCount < Self.maxCommunityPhotoCount {
-                            PhotosPicker(
-                                selection: $selectedPhotoItems,
-                                maxSelectionCount: remainingCommunityPhotoCount,
-                                matching: .images,
-                                photoLibrary: .shared()
-                            ) {
-                                Label("추가", systemImage: "plus")
-                                    .vfText(.caption.weight(.semibold))
-                                    .foregroundStyle(AppColors.primary)
-                                    .padding(.horizontal, 10)
-                                    .frame(minHeight: 36)
-                                    .vfGlass(in: Capsule(), interactive: true)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("사진 추가")
-                        }
-                    }
-                }
-
-                photoPickerSection
             }
+            // 커뮤니티 글쓰기는 communityPhotoGroup 을 써요.
         }
         .padding(.bottom, VFSpace.md)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2921,59 +3373,6 @@ struct CommunityComposerView: View {
         }
     }
 
-    private var photoPickerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if !photoDrafts.isEmpty || !retainedRemoteAttachments.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(Array(retainedRemoteAttachments.enumerated()), id: \.element.id) { index, attachment in
-                            addSpotPhotoThumbnail(
-                                isRepresentative: index == 0,
-                                onRemove: { removePhoto(id: attachment.id) }
-                            ) {
-                                CommunityAttachedPhotoView(
-                                    attachment: attachment,
-                                    isTappableForPreview: false
-                                )
-                            }
-                        }
-
-                        ForEach(Array(photoDrafts.enumerated()), id: \.element.id) { index, draft in
-                            addSpotPhotoThumbnail(
-                                isRepresentative: retainedRemoteAttachments.isEmpty && index == 0,
-                                onRemove: { removePhoto(id: draft.id) }
-                            ) {
-                                CommunityAttachedPhotoView(
-                                    photoData: draft.data,
-                                    isTappableForPreview: false
-                                )
-                            }
-                        }
-                    }
-                }
-
-            } else {
-                PhotosPicker(
-                    selection: $selectedPhotoItems,
-                    maxSelectionCount: remainingCommunityPhotoCount,
-                    matching: .images,
-                    photoLibrary: .shared()
-                ) {
-                    placePhotoPlaceholder
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("사진 추가")
-            }
-
-            if photoLoadFailed {
-                Text("사진을 불러오지 못했어요. 다른 사진을 선택해주세요.")
-                    .vfText(.caption)
-                    .foregroundStyle(AppColors.primary)
-            }
-
-        }
-    }
-
     private var submissionConsentSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Divider()
@@ -2998,143 +3397,6 @@ struct CommunityComposerView: View {
         }
         .padding(.top, 4)
         .padding(.bottom, 16)
-    }
-
-    @ViewBuilder
-    private var photoPrivacySection: some View {
-        if !photoDrafts.isEmpty || !retainedRemoteAttachments.isEmpty {
-            ComposerFormSection(
-                title: "촬영정보",
-                detail: ""
-            ) {
-                VStack(alignment: .leading, spacing: VFSpace.sm) {
-                    Toggle("공개하기", isOn: $isExifPublic)
-                        .tint(AppColors.accent)
-
-                    if isExifPublic {
-                        ForEach(photoDrafts) { draft in
-                            CommunityComposerMetadataRow(
-                                draft: draft,
-                                onEdit: {
-                                    metadataEditorTarget = MetadataEditorTarget(id: draft.id)
-                                }
-                            )
-                        }
-
-                        ForEach(retainedRemoteAttachments) { attachment in
-                            CommunityComposerRemoteMetadataRow(
-                                attachment: attachment,
-                                onEdit: {
-                                    metadataEditorTarget = MetadataEditorTarget(id: attachment.id)
-                                }
-                            )
-                        }
-                    } else {
-                        Text("촬영정보는 게시물에 표시되지 않아요. 다시 켜면 입력한 정보가 복원됩니다.")
-                            .vfText(.caption)
-                            .foregroundStyle(AppColors.secondaryText)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var placeGallerySharingSection: some View {
-        if purpose == .fieldReport,
-           selectedSpot != nil,
-           !photoDrafts.isEmpty || !retainedRemoteAttachments.isEmpty {
-            ComposerFormSection(
-                title: "출사지 갤러리 공유",
-                detail: ""
-            ) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("선택한 사진만 장소 상세 갤러리에 추가돼요.")
-                        .vfText(.caption)
-                        .foregroundStyle(AppColors.secondaryText)
-
-                    ForEach(Array(retainedRemoteAttachments.enumerated()), id: \.element.id) { index, attachment in
-                        galleryShareRow(
-                            title: "사진 \(index + 1)",
-                            isOn: galleryShareBinding(for: attachment.id)
-                        ) {
-                            CommunityAttachedPhotoView(
-                                attachment: attachment,
-                                isTappableForPreview: false
-                            )
-                        }
-                    }
-
-                    ForEach(Array(photoDrafts.enumerated()), id: \.element.id) { index, draft in
-                        galleryShareRow(
-                            title: "사진 \(retainedRemoteAttachments.count + index + 1)",
-                            isOn: galleryShareBinding(for: draft.id)
-                        ) {
-                            CommunityAttachedPhotoView(
-                                photoData: draft.data,
-                                isTappableForPreview: false
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var communityCrowdSection: some View {
-        if purpose == .fieldReport, selectedSpot != nil {
-            ComposerFormSection(title: "현장 혼잡도", detail: "") {
-                CommunityCrowdSelectionControl(selection: $selectedCommunityCrowd)
-            }
-        }
-    }
-
-    private func galleryShareRow<Content: View>(
-        title: String,
-        isOn: Binding<Bool>,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        Toggle(isOn: isOn) {
-            HStack(spacing: 10) {
-                content()
-                    .frame(width: 42, height: 42)
-                    .clipShape(RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
-
-                Text(title)
-                    .vfText(.callout.weight(.medium))
-                    .foregroundStyle(AppColors.primary)
-            }
-        }
-        .tint(AppColors.accent)
-        .frame(minHeight: AppLayout.touchTarget)
-    }
-
-    private func galleryShareBinding(for id: String) -> Binding<Bool> {
-        Binding(
-            get: {
-                photoDrafts.first(where: { $0.id == id })?.sharesToPlaceGallery
-                    ?? retainedRemoteAttachments.first(where: { $0.id == id })?.sharesToPlaceGallery
-                    ?? false
-            },
-            set: { value in
-                if let index = photoDrafts.firstIndex(where: { $0.id == id }) {
-                    photoDrafts[index].sharesToPlaceGallery = value
-                    return
-                }
-
-                guard let index = retainedRemoteAttachments.firstIndex(where: { $0.id == id }) else { return }
-                let attachment = retainedRemoteAttachments[index]
-                retainedRemoteAttachments[index] = CommunityPhotoAttachment(
-                    id: attachment.id,
-                    imageData: attachment.imageData,
-                    remoteURL: attachment.remoteURL,
-                    metadata: attachment.metadata,
-                    location: attachment.location,
-                    sharesToPlaceGallery: value
-                )
-            }
-        )
     }
 
     private var selectedSpot: PhotoSpot? {
@@ -3191,6 +3453,12 @@ struct CommunityComposerView: View {
             return false
         }
 
+        // 사진 올리기가 꺼져 있으면(CommunityPhotoUpload) 새 사진이 있는 글은 올리지 않아요.
+        // 전에는 누른 뒤 알림 창으로 알렸어요. 이제 버튼을 끄고 버튼 아래에 까닭을 보여요.
+        if blocksPhotoUpload {
+            return false
+        }
+
         if purpose == .addSpot {
             guard selectedSpot != nil, !selectedSpotAlreadyRegistered else { return false }
             if editingPost == nil, !hasAcknowledgedSubmissionGuidelines {
@@ -3210,12 +3478,19 @@ struct CommunityComposerView: View {
         isPreparing: Bool,
         isEditing: Bool,
         hasMessage: Bool,
-        hasChanges: Bool
+        hasChanges: Bool,
+        blocksPhotoUpload: Bool
     ) -> String? {
         guard isFieldReport, !isPreparing else { return nil }
         if !hasChanges { return "바꾼 내용이 없어요" }
         // 고칠 때는 버튼이 "변경사항 저장"이라 "저장"이라고 해요.
         if !hasMessage { return isEditing ? "본문을 쓰면 저장할 수 있어요" : "본문을 쓰면 공유할 수 있어요" }
+        if blocksPhotoUpload {
+            // 고칠 때 이미 올라간 사진은 그대로 둘 수 있어서 "새 사진"이라고 해요.
+            return isEditing
+                ? "사진 올리기는 아직 준비 중이에요. 새 사진을 빼면 저장할 수 있어요"
+                : "사진 올리기는 아직 준비 중이에요. 사진을 빼면 공유할 수 있어요"
+        }
         return nil
     }
 
@@ -3225,8 +3500,15 @@ struct CommunityComposerView: View {
             isPreparing: isPreparingSubmission,
             isEditing: editingPost != nil,
             hasMessage: !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            hasChanges: hasChanges
+            hasChanges: hasChanges,
+            blocksPhotoUpload: blocksPhotoUpload
         )
+    }
+
+    /// 글쓰기에 새로 고른 사진이 있는데 사진 올리기가 꺼져 있는지(CommunityPhotoUpload).
+    /// 이미 올라간 사진(retainedRemoteAttachments)은 올릴 파일이 없어서 막지 않아요.
+    private var blocksPhotoUpload: Bool {
+        purpose == .fieldReport && !CommunityPhotoUpload.isAvailable && !photoDrafts.isEmpty
     }
 
     private var hasPlaceChanges: Bool {
@@ -3398,58 +3680,58 @@ struct CommunityComposerView: View {
             //  원격 검색만 입력이 멈춘 뒤 350ms 후에 한 번 호출합니다.
             //  키 입력마다 네트워크를 때리지 않기 위해서입니다.
             // ═══════════════════════════════════════════════════════
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .vfIcon(15, weight: .medium)
-                    .foregroundStyle(AppColors.secondaryText)
+            HStack(spacing: VFSpace.sm) {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .vfIcon(15, weight: .medium)
+                        .foregroundStyle(AppColors.secondaryText)
 
-                TextField("장소명 또는 주소 검색", text: $placeSearchText)
+                    TextField("장소명 또는 주소 검색", text: $placeSearchText)
+                        .vfText(.callout)
+                        .tint(AppColors.accent)
+                        .focused($focusedField, equals: .placeSearch)
+                        .submitLabel(.done)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onSubmit {
+                            // 확인을 누르면 첫 결과를 고릅니다.
+                            guard let first = visiblePlaceSearchResults.first else { return }
+                            handlePlaceSearchResult(first)
+                        }
+
+                    if !placeSearchText.isEmpty {
+                        Button {
+                            placeSearchText = ""
+                            placeFinder.clear()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(AppColors.secondaryText.opacity(0.65))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("검색어 지우기")
+                    }
+                }
+                .padding(.horizontal, 13)
+                .padding(.vertical, 8)
+                .frame(minHeight: 48)
+                .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
+
+                // 글쓰기는 "장소 추가"를 눌러 연 검색이라, 고르지 않고 닫는 길을 둬요(iOS 검색창의 "취소"와 같아요).
+                if purpose == .fieldReport, isCommunityPlaceSearchPresented {
+                    Button("취소") {
+                        closeCommunityPlaceSearch()
+                    }
                     .vfText(.callout)
-                    .tint(AppColors.accent)
-                    .focused($focusedField, equals: .placeSearch)
-                    .submitLabel(.done)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .onSubmit {
-                        // 확인을 누르면 첫 결과를 고릅니다.
-                        guard let first = visiblePlaceSearchResults.first else { return }
-                        handlePlaceSearchResult(first)
-                    }
-
-                if !placeSearchText.isEmpty {
-                    Button {
-                        placeSearchText = ""
-                        placeFinder.clear()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(AppColors.secondaryText.opacity(0.65))
-                    }
+                    .foregroundStyle(AppColors.primary)
                     .buttonStyle(.plain)
-                    .accessibilityLabel("검색어 지우기")
+                    .frame(minHeight: AppLayout.touchTarget)
                 }
             }
-            .padding(.horizontal, 13)
-            .padding(.vertical, 8)
-            .frame(minHeight: 48)
-            .background(AppColors.mutedSurface, in: RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
 
-            if let selectedSpot, !isSelectedPlaceResultVisible {
-                if purpose == .fieldReport, !isSpotLocked {
-                    Button {
-                        clearRelatedSpotSelection()
-                    } label: {
-                        selectedPlaceRow(selectedSpot)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("관련 출사지 \(selectedSpot.name), 선택됨")
-                    .accessibilityHint("다시 탭하면 선택을 해제합니다")
+            // 글쓰기는 고른 장소를 검색 밖 한 줄(communityPlaceRow)로 보여 줘서 여기서는 빼요.
+            if purpose != .fieldReport, let selectedSpot, !isSelectedPlaceResultVisible {
+                selectedPlaceRow(selectedSpot)
                     .padding(.top, 2)
-                } else {
-                    selectedPlaceRow(selectedSpot)
-                        .padding(.top, 2)
-                }
             }
 
             if purpose == .fieldReport,
@@ -3556,9 +3838,9 @@ struct CommunityComposerView: View {
                         .vfIcon(14, relativeTo: .caption)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("검색 결과가 없습니다")
+                        Text("검색 결과가 없어요")
                             .vfText(.callout.weight(.medium))
-                        Text("장소명이나 도로명 주소를 바꿔 다시 검색해보세요.")
+                        Text("장소명이나 도로명 주소를 바꿔 다시 검색해 보세요.")
                             .vfText(.caption)
                     }
                 }
@@ -3598,12 +3880,8 @@ struct CommunityComposerView: View {
     }
 
     private func submit() {
+        // 사진 올리기가 꺼져 있어 새 사진을 올릴 수 없으면 canSubmit 이 false 예요(blocksPhotoUpload).
         guard canSubmit else { return }
-        // 사진 올리기가 꺼져 있으면(CommunityPhotoUpload) 새 사진이 있는 글은 올리지 않고 알려요.
-        if purpose == .fieldReport, !CommunityPhotoUpload.isAvailable, !photoDrafts.isEmpty {
-            isPhotoUnavailablePresented = true
-            return
-        }
         focusedField = nil
         let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -3774,11 +4052,12 @@ struct CommunityComposerView: View {
             // 게시글의 관련 출사지는 활성 Firestore Place ID만 사용합니다.
             guard result.availability == .registered,
                   spots.contains(where: { $0.id == result.id }) else { return }
-            if isSelectedPlaceSearchResult(result) {
-                clearRelatedSpotSelection()
-            } else {
+            // 고르면 검색을 닫고 고른 장소 한 줄을 보여 줘요. 이미 고른 장소를 다시 누르면 그대로 둬요.
+            // 빼기는 그 한 줄의 × 로 해요.
+            if !isSelectedPlaceSearchResult(result) {
                 selectPlaceSearchResult(result, allowNonNewAvailability: true)
             }
+            closeCommunityPlaceSearch()
             return
         }
 
@@ -3837,23 +4116,11 @@ struct CommunityComposerView: View {
         clearPlaceDependentOptions()
     }
 
+    /// 장소를 바꾸거나 빼면 그 장소의 혼잡도는 지워요.
+    /// "장소 사진에도 올리기"는 사진 칸 스위치에 그대로 보여서 두어요. 장소가 없으면 올릴 때 쓰지 않아요.
     private func clearPlaceDependentOptions() {
         guard purpose == .fieldReport else { return }
         selectedCommunityCrowd = nil
-        for index in photoDrafts.indices {
-            photoDrafts[index].sharesToPlaceGallery = false
-        }
-        for index in retainedRemoteAttachments.indices {
-            let attachment = retainedRemoteAttachments[index]
-            retainedRemoteAttachments[index] = CommunityPhotoAttachment(
-                id: attachment.id,
-                imageData: attachment.imageData,
-                remoteURL: attachment.remoteURL,
-                metadata: attachment.metadata,
-                location: attachment.location,
-                sharesToPlaceGallery: false
-            )
-        }
     }
 
     private static func normalizedTags(_ values: [String]) -> [String] {
@@ -3880,6 +4147,7 @@ struct CommunityComposerView: View {
     private func loadPhotos(from items: [PhotosPickerItem]) {
         photoLoadFailed = false
         guard !items.isEmpty else { return }
+        let sharesNewPhotoToGallery = purpose == .fieldReport && sharesNewPhotosToPlaceGallery
 
         Task {
             var loaded: [CommunityPhotoDraft] = []
@@ -3896,7 +4164,9 @@ struct CommunityComposerView: View {
                             id: UUID().uuidString,
                             sourceID: item.itemIdentifier,
                             data: data,
-                            exif: exif
+                            exif: exif,
+                            // 글쓰기는 사진 칸의 "장소 사진에도 올리기"를 따라요(처음에는 켬).
+                            sharesToPlaceGallery: sharesNewPhotoToGallery
                         )
                     )
                 } catch {
@@ -3923,13 +4193,14 @@ struct CommunityComposerView: View {
                     var merged = photoDrafts.filter { previousIDs.contains($0.id) }
                     for draft in loaded {
                         if let index = merged.firstIndex(where: { $0.isSamePhoto(as: draft) }) {
-                            // 같은 사진을 다시 고르면 그 자리에서 바꿔요. ID 는 그대로 둬서
-                            // 사진별 설정(촬영 정보 · 장소 갤러리 공유) 화면이 흔들리지 않게 해요.
+                            // 같은 사진을 다시 고르면 그 자리에서 바꿔요. ID 와 사진별 설정(고친 촬영 정보 ·
+                            // 장소 사진에도 올리기)은 그대로 둬요. 전에는 이 둘이 새로 읽은 값 · 끔으로 돌아갔어요.
                             merged[index] = CommunityPhotoDraft(
                                 id: merged[index].id,
                                 sourceID: draft.sourceID,
                                 data: draft.data,
-                                exif: draft.exif
+                                exif: merged[index].exif ?? draft.exif,
+                                sharesToPlaceGallery: merged[index].sharesToPlaceGallery
                             )
                         } else {
                             merged.append(draft)
@@ -3940,9 +4211,6 @@ struct CommunityComposerView: View {
 
                 selectedPhotoData = photoDrafts.first?.data
                 selectedPhotoItems = []
-                if purpose == .fieldReport {
-                    promptForPrivacyIfNeeded(for: loaded)
-                }
             }
         }
     }
@@ -3985,22 +4253,6 @@ struct CommunityComposerView: View {
             )
         }
         return preservedAttachments + newAttachments
-    }
-
-    private func promptForPrivacyIfNeeded(for drafts: [CommunityPhotoDraft]) {
-        guard purpose == .fieldReport else { return }
-
-        // 같은 사진을 다시 골라도 또 묻지 않게 보관함 ID 로 기억해요(올릴 ID 는 고를 때마다 새로 만들어요).
-        let newExifIDs = drafts.compactMap { draft -> String? in
-            let key = draft.sourceID ?? draft.id
-            guard draft.exif != nil, !promptedExifPhotoIDs.contains(key) else { return nil }
-            return key
-        }
-        promptedExifPhotoIDs.formUnion(newExifIDs)
-
-        if !newExifIDs.isEmpty {
-            showExifConsent = true
-        }
     }
 
     private func metadata(for id: String) -> CommunityPhotoExif {
@@ -4056,6 +4308,7 @@ private struct CommunityCrowdSelectionControl: View {
                     crowd: crowd,
                     isSelected: selection == crowd
                 ) {
+                    VFHaptics.selection()
                     selection = selection == crowd ? nil : crowd
                 }
             }
