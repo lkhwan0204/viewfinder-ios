@@ -527,7 +527,10 @@ final class FirebaseCommunityPostStore {
         let spotName = (data["relatedSpotName"] as? String) ?? (data["spotName"] as? String) ?? ""
         let tags = data["tags"] as? [String] ?? []
         let crowd = CommunityPost.Crowd.fromStoredValue(data["crowd"] as? String) ?? .normal
-        let hasStatusInfo = data["hasStatusInfo"] as? Bool ?? data["crowd"] != nil
+        // `??` 가 `!=` 보다 먼저 묶이므로 괄호가 필요합니다. 괄호가 없으면
+        // hasStatusInfo: false 인 글도 true 가 되어 "혼잡도 보통"으로 보입니다.
+        // 필드가 없는 아주 예전 글만 crowd 가 있는지로 판단합니다.
+        let hasStatusInfo = (data["hasStatusInfo"] as? Bool) ?? (data["crowd"] != nil)
         let attachments: [CommunityPhotoAttachment] = (data["attachments"] as? [[String: Any]] ?? []).compactMap {
             (attachment: [String: Any]) -> CommunityPhotoAttachment? in
             guard let id = attachment["id"] as? String,
