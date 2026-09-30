@@ -1108,38 +1108,40 @@ struct SpotDetailCommunitySection: View {
     }
 
     private var selectedCrowd: CommunityPost.Crowd? {
-        guard !currentUserID.isEmpty else { return nil }
+        Self.currentUserSelection(
+            in: crowdReports,
+            placeID: spot.id,
+            userID: currentUserID,
+            now: Date(),
+            freshnessWindow: CrowdReportStore.freshnessWindow
+        )
+    }
 
-        let cutoff = Date().addingTimeInterval(-CrowdReportStore.freshnessWindow)
-        if let report = crowdReports
-            .filter({
-                $0.placeID == spot.id
-                    && $0.authorID == currentUserID
-                    && $0.updatedAt >= cutoff
-            })
-            .max(by: { $0.updatedAt < $1.updatedAt }) {
-            return report.crowd
-        }
-
-        // 구버전 Community 글은 아직 crowdReports 문서가 없을 수 있어
-        // 같은 유효 시간창 안에서만 UI 선택 상태를 복원합니다.
-        return posts
-            .filter({
-                $0.spotID == spot.id
-                    && $0.authorID == currentUserID
-                    && $0.hasStatusInfo
-                    && ($0.updatedAt ?? $0.createdAt) >= cutoff
-            })
-            .max(by: { ($0.updatedAt ?? $0.createdAt) < ($1.updatedAt ?? $1.createdAt) })?
+    /// 내가 지금 고른 혼잡도. 현장 정보가 유효한 시간(1시간) 안의 내 제보만 봅니다.
+    ///
+    /// 전에는 제보가 없으면 1시간 안에 쓴 내 글의 혼잡도로 대신했어요(아주 예전 앱은 제보 없이
+    /// 글에만 혼잡도를 넣었어요). 지금은 글을 올릴 때 늘 제보도 함께 저장해서 그럴 일이 없고,
+    /// 오히려 제보를 취소해도 방금 쓴 글 때문에 선택이 그대로 남아 취소가 안 되는 것처럼 보였어요.
+    /// 글의 혼잡도는 글에 "작성 당시"로만 보여줘요.
+    static func currentUserSelection(
+        in reports: [CrowdReport],
+        placeID: String,
+        userID: String,
+        now: Date,
+        freshnessWindow: TimeInterval
+    ) -> CommunityPost.Crowd? {
+        guard !userID.isEmpty else { return nil }
+        let cutoff = now.addingTimeInterval(-freshnessWindow)
+        return reports
+            .filter { $0.placeID == placeID && $0.authorID == userID && $0.updatedAt >= cutoff }
+            .max { $0.updatedAt < $1.updatedAt }?
             .crowd
     }
 
+    /// 장소의 현재 혼잡도. 최근 1시간 안의 제보만 셉니다. 글은 세지 않아요(위와 같은 이유로,
+    /// 제보를 취소해도 글 때문에 "현재 혼잡도"에 그대로 남았어요).
     private var recentCrowdSummary: CrowdReportSummary? {
-        VFLiveCrowd.summary(
-            spot: spot,
-            reports: crowdReports,
-            legacyPosts: posts
-        )
+        VFLiveCrowd.summary(spot: spot, reports: crowdReports)
     }
 
     var body: some View {
