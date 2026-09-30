@@ -300,21 +300,35 @@ struct CommunityPhotoAttachment: Identifiable, Equatable, Sendable {
 }
 
 struct CommunityPhotoDraft: Identifiable, Equatable, Sendable {
+    /// 올릴 때 파일 이름과 글에 쓰는 ID 예요. 사진을 고를 때 새로 만들어요(UUID).
     let id: String
+    /// 사진 보관함의 ID(PhotosPickerItem.itemIdentifier). 같은 사진을 다시 골랐는지 볼 때만 써요.
+    /// "…/L0/001" 처럼 슬래시가 들어가 저장 경로가 폴더로 쪼개지고, 이 기기 보관함의 ID 라 밖에 올리지 않아요.
+    let sourceID: String?
     let data: Data
     var exif: CommunityPhotoExif?
     var sharesToPlaceGallery: Bool
 
     init(
         id: String,
+        sourceID: String? = nil,
         data: Data,
         exif: CommunityPhotoExif? = nil,
         sharesToPlaceGallery: Bool = false
     ) {
         self.id = id
+        self.sourceID = sourceID
         self.data = data
         self.exif = exif
         self.sharesToPlaceGallery = sharesToPlaceGallery
+    }
+
+    /// 같은 사진을 다시 골랐는지. 보관함 ID 가 둘 다 있으면 그걸로, 아니면 내용으로 봐요.
+    func isSamePhoto(as other: CommunityPhotoDraft) -> Bool {
+        if let sourceID, let otherSourceID = other.sourceID {
+            return sourceID == otherSourceID
+        }
+        return data == other.data
     }
 
     /// 올릴 사진을 만들어요. 사진 파일은 줄이고 메타데이터를 모두 빼요(CommunityPhotoPrivacyProcessor).

@@ -3853,7 +3853,9 @@ struct CommunityComposerView: View {
                         : nil
                     loaded.append(
                         CommunityPhotoDraft(
-                            id: item.itemIdentifier ?? UUID().uuidString,
+                            // 보관함 ID 는 슬래시가 들어가 저장 경로가 쪼개져서, 올릴 ID 는 새로 만들어요.
+                            id: UUID().uuidString,
+                            sourceID: item.itemIdentifier,
                             data: data,
                             exif: exif
                         )
@@ -3869,9 +3871,7 @@ struct CommunityComposerView: View {
                 let previousIDs = Set(photoDrafts.map(\.id))
                 if purpose.isPlaceSubmissionFlow {
                     var merged = photoDrafts
-                    for draft in loaded where !merged.contains(where: {
-                        $0.id == draft.id || $0.data == draft.data
-                    }) {
+                    for draft in loaded where !merged.contains(where: { $0.isSamePhoto(as: draft) }) {
                         merged.append(draft)
                     }
 
@@ -3883,8 +3883,15 @@ struct CommunityComposerView: View {
                 } else {
                     var merged = photoDrafts.filter { previousIDs.contains($0.id) }
                     for draft in loaded {
-                        if let index = merged.firstIndex(where: { $0.id == draft.id }) {
-                            merged[index] = draft
+                        if let index = merged.firstIndex(where: { $0.isSamePhoto(as: draft) }) {
+                            // 같은 사진을 다시 고르면 그 자리에서 바꿔요. ID 는 그대로 둬서
+                            // 사진별 설정(촬영 정보 · 장소 갤러리 공유) 화면이 흔들리지 않게 해요.
+                            merged[index] = CommunityPhotoDraft(
+                                id: merged[index].id,
+                                sourceID: draft.sourceID,
+                                data: draft.data,
+                                exif: draft.exif
+                            )
                         } else {
                             merged.append(draft)
                         }
@@ -3944,9 +3951,11 @@ struct CommunityComposerView: View {
     private func promptForPrivacyIfNeeded(for drafts: [CommunityPhotoDraft]) {
         guard purpose == .fieldReport else { return }
 
+        // 같은 사진을 다시 골라도 또 묻지 않게 보관함 ID 로 기억해요(올릴 ID 는 고를 때마다 새로 만들어요).
         let newExifIDs = drafts.compactMap { draft -> String? in
-            guard draft.exif != nil, !promptedExifPhotoIDs.contains(draft.id) else { return nil }
-            return draft.id
+            let key = draft.sourceID ?? draft.id
+            guard draft.exif != nil, !promptedExifPhotoIDs.contains(key) else { return nil }
+            return key
         }
         promptedExifPhotoIDs.formUnion(newExifIDs)
 
