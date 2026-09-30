@@ -2167,8 +2167,8 @@ struct CommunityComposerView: View {
     @State private var isCaptureLocationPickerPresented = false
     @State private var isMapPlacePickerPresented = false
     @State private var metadataEditorTarget: MetadataEditorTarget?
-    @State private var showExifConsent = false
-    @State private var promptedExifPhotoIDs: Set<String> = []
+    /// 새로 고른 사진의 "장소 사진에도 올리기". 처음에는 켬이에요(한 줄 글과 같아요). 스위치를 바꾸면 따라 바뀌어요.
+    @State private var sharesNewPhotosToPlaceGallery: Bool
     @State private var isPreparingSubmission = false
     @State private var isPostSavedRemotely = false
     @State private var submissionID = UUID().uuidString
@@ -2239,6 +2239,12 @@ struct CommunityComposerView: View {
             initialValue: editingPost?.publicPhotoAttachments.filter {
                 $0.imageData == nil && $0.remoteURL != nil
             } ?? []
+        )
+        _sharesNewPhotosToPlaceGallery = State(
+            initialValue: editingPost.map { post in
+                post.publicPhotoAttachments.isEmpty
+                    || Self.sharesAllPhotos(post.publicPhotoAttachments.map(\.sharesToPlaceGallery))
+            } ?? true
         )
         _selectedPhotoData = State(initialValue: editingPost?.photoData)
         _isExifPublic = State(
@@ -2350,16 +2356,6 @@ struct CommunityComposerView: View {
                     dismissComposerKeyboard()
                 }
             )
-            .alert("촬영 정보 공개", isPresented: $showExifConsent) {
-                Button("공개하기") {
-                    isExifPublic = true
-                }
-                Button("공개하지 않기", role: .cancel) {
-                    isExifPublic = false
-                }
-            } message: {
-                Text("사진에서 촬영 정보를 찾았어요. 카메라와 촬영 설정을 게시물에 공개하시겠어요?")
-            }
             .sheet(item: $metadataEditorTarget) { target in
                 CommunityPhotoExifEditor(
                     initialMetadata: metadata(for: target.id),
@@ -2401,9 +2397,7 @@ struct CommunityComposerView: View {
             communityPlaceGroup
             communityWritingCard
             communityPhotoGroup
-            photoPrivacySection
             communityTagGroup
-            placeGallerySharingSection
         }
     }
 
@@ -2707,9 +2701,122 @@ struct CommunityComposerView: View {
                     .vfText(.caption)
                     .foregroundStyle(AppColors.primary)
             }
+
+            if communityPhotoCount > 0 {
+                communityPhotoOptions
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.bottom, VFSpace.xl)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  사진 설정은 사진 바로 아래 스위치 두 개예요.
+    //
+    //  [전] "촬영정보" 칸과 "출사지 갤러리 공유" 칸이 따로 있었고, 사진이 세 번 보였어요
+    //  (사진 줄 · 촬영정보 줄 · 갤러리 공유 줄). 사진을 고르면 "촬영 정보 공개" 창도 떴어요.
+    //  [지금] "장소 사진에도 올리기"는 사진 전체에 한 번에(기본 켬, 한 줄 글과 같아요).
+    //  촬영 정보는 창 대신 스위치 아래 안내로 알려요. 기본은 공개 안 함이에요.
+    // ═══════════════════════════════════════════════════════════════════
+    private var communityPhotoOptions: some View {
+        VStack(alignment: .leading, spacing: VFSpace.md) {
+            if selectedSpot != nil {
+                Toggle(isOn: communityGallerySharingBinding) {
+                    communityOptionLabel("장소 사진에도 올리기", detail: "장소 상세 사진에 함께 보여요")
+                }
+                .tint(AppColors.accent)
+            }
+
+            Toggle(isOn: $isExifPublic) {
+                communityOptionLabel(
+                    "촬영 정보 공개",
+                    detail: Self.exifCaption(isPublic: isExifPublic, hasFoundExif: hasFoundCommunityExif)
+                )
+            }
+            .tint(AppColors.accent)
+
+            if isExifPublic {
+                ForEach(retainedRemoteAttachments) { attachment in
+                    CommunityComposerRemoteMetadataRow(
+                        attachment: attachment,
+                        onEdit: {
+                            metadataEditorTarget = MetadataEditorTarget(id: attachment.id)
+                        }
+                    )
+                }
+
+                ForEach(photoDrafts) { draft in
+                    CommunityComposerMetadataRow(
+                        draft: draft,
+                        onEdit: {
+                            metadataEditorTarget = MetadataEditorTarget(id: draft.id)
+                        }
+                    )
+                }
+            }
+        }
+        .padding(.top, VFSpace.sm)
+    }
+
+    private func communityOptionLabel(_ title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .vfText(.subhead.weight(.semibold))
+                .foregroundStyle(AppColors.primary)
+
+            Text(detail)
+                .vfText(.caption)
+                .foregroundStyle(AppColors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// 촬영 정보 스위치 아래 안내. 사진에서 촬영 정보를 찾았으면 켤 수 있다고 알려요(전에는 창으로 물었어요).
+    static func exifCaption(isPublic: Bool, hasFoundExif: Bool) -> String {
+        if isPublic {
+            return "카메라와 촬영 설정이 글에 보여요. 사진마다 고칠 수 있어요."
+        }
+        return hasFoundExif
+            ? "사진에서 촬영 정보를 찾았어요. 켜면 카메라와 촬영 설정이 글에 보여요."
+            : "켜면 카메라와 촬영 설정을 글에 남길 수 있어요."
+    }
+
+    private var hasFoundCommunityExif: Bool {
+        photoDrafts.contains { $0.exif != nil }
+            || retainedRemoteAttachments.contains { $0.metadata != nil }
+    }
+
+    /// 사진이 모두 장소 사진에도 올라가면 켬이에요. 사진이 없으면 끔이에요.
+    static func sharesAllPhotos(_ flags: [Bool]) -> Bool {
+        !flags.isEmpty && !flags.contains(false)
+    }
+
+    /// 사진 전체의 "장소 사진에도 올리기". 사진마다 값은 그대로 저장돼요(글 모양은 전과 같아요).
+    private var communityGallerySharingBinding: Binding<Bool> {
+        Binding(
+            get: {
+                Self.sharesAllPhotos(
+                    retainedRemoteAttachments.map(\.sharesToPlaceGallery)
+                        + photoDrafts.map(\.sharesToPlaceGallery)
+                )
+            },
+            set: { value in
+                sharesNewPhotosToPlaceGallery = value
+                for index in photoDrafts.indices {
+                    photoDrafts[index].sharesToPlaceGallery = value
+                }
+                retainedRemoteAttachments = retainedRemoteAttachments.map { attachment in
+                    CommunityPhotoAttachment(
+                        id: attachment.id,
+                        imageData: attachment.imageData,
+                        remoteURL: attachment.remoteURL,
+                        metadata: attachment.metadata,
+                        location: attachment.location,
+                        sharesToPlaceGallery: value
+                    )
+                }
+            }
+        )
     }
 
     private func communityPhotoPicker<PickerLabel: View>(
@@ -3279,134 +3386,6 @@ struct CommunityComposerView: View {
         }
         .padding(.top, 4)
         .padding(.bottom, 16)
-    }
-
-    @ViewBuilder
-    private var photoPrivacySection: some View {
-        if !photoDrafts.isEmpty || !retainedRemoteAttachments.isEmpty {
-            ComposerFormSection(
-                title: "촬영정보",
-                detail: ""
-            ) {
-                VStack(alignment: .leading, spacing: VFSpace.sm) {
-                    Toggle("공개하기", isOn: $isExifPublic)
-                        .tint(AppColors.accent)
-
-                    if isExifPublic {
-                        ForEach(photoDrafts) { draft in
-                            CommunityComposerMetadataRow(
-                                draft: draft,
-                                onEdit: {
-                                    metadataEditorTarget = MetadataEditorTarget(id: draft.id)
-                                }
-                            )
-                        }
-
-                        ForEach(retainedRemoteAttachments) { attachment in
-                            CommunityComposerRemoteMetadataRow(
-                                attachment: attachment,
-                                onEdit: {
-                                    metadataEditorTarget = MetadataEditorTarget(id: attachment.id)
-                                }
-                            )
-                        }
-                    } else {
-                        Text("촬영정보는 게시물에 표시되지 않아요. 다시 켜면 입력한 정보가 복원됩니다.")
-                            .vfText(.caption)
-                            .foregroundStyle(AppColors.secondaryText)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var placeGallerySharingSection: some View {
-        if purpose == .fieldReport,
-           selectedSpot != nil,
-           !photoDrafts.isEmpty || !retainedRemoteAttachments.isEmpty {
-            ComposerFormSection(
-                title: "출사지 갤러리 공유",
-                detail: ""
-            ) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("선택한 사진만 장소 상세 갤러리에 추가돼요.")
-                        .vfText(.caption)
-                        .foregroundStyle(AppColors.secondaryText)
-
-                    ForEach(Array(retainedRemoteAttachments.enumerated()), id: \.element.id) { index, attachment in
-                        galleryShareRow(
-                            title: "사진 \(index + 1)",
-                            isOn: galleryShareBinding(for: attachment.id)
-                        ) {
-                            CommunityAttachedPhotoView(
-                                attachment: attachment,
-                                isTappableForPreview: false
-                            )
-                        }
-                    }
-
-                    ForEach(Array(photoDrafts.enumerated()), id: \.element.id) { index, draft in
-                        galleryShareRow(
-                            title: "사진 \(retainedRemoteAttachments.count + index + 1)",
-                            isOn: galleryShareBinding(for: draft.id)
-                        ) {
-                            CommunityAttachedPhotoView(
-                                photoData: draft.data,
-                                isTappableForPreview: false
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func galleryShareRow<Content: View>(
-        title: String,
-        isOn: Binding<Bool>,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        Toggle(isOn: isOn) {
-            HStack(spacing: 10) {
-                content()
-                    .frame(width: 42, height: 42)
-                    .clipShape(RoundedRectangle(cornerRadius: VFRadius.inner, style: .continuous))
-
-                Text(title)
-                    .vfText(.callout.weight(.medium))
-                    .foregroundStyle(AppColors.primary)
-            }
-        }
-        .tint(AppColors.accent)
-        .frame(minHeight: AppLayout.touchTarget)
-    }
-
-    private func galleryShareBinding(for id: String) -> Binding<Bool> {
-        Binding(
-            get: {
-                photoDrafts.first(where: { $0.id == id })?.sharesToPlaceGallery
-                    ?? retainedRemoteAttachments.first(where: { $0.id == id })?.sharesToPlaceGallery
-                    ?? false
-            },
-            set: { value in
-                if let index = photoDrafts.firstIndex(where: { $0.id == id }) {
-                    photoDrafts[index].sharesToPlaceGallery = value
-                    return
-                }
-
-                guard let index = retainedRemoteAttachments.firstIndex(where: { $0.id == id }) else { return }
-                let attachment = retainedRemoteAttachments[index]
-                retainedRemoteAttachments[index] = CommunityPhotoAttachment(
-                    id: attachment.id,
-                    imageData: attachment.imageData,
-                    remoteURL: attachment.remoteURL,
-                    metadata: attachment.metadata,
-                    location: attachment.location,
-                    sharesToPlaceGallery: value
-                )
-            }
-        )
     }
 
     private var selectedSpot: PhotoSpot? {
@@ -4110,23 +4089,11 @@ struct CommunityComposerView: View {
         clearPlaceDependentOptions()
     }
 
+    /// 장소를 바꾸거나 빼면 그 장소의 혼잡도는 지워요.
+    /// "장소 사진에도 올리기"는 사진 칸 스위치에 그대로 보여서 두어요. 장소가 없으면 올릴 때 쓰지 않아요.
     private func clearPlaceDependentOptions() {
         guard purpose == .fieldReport else { return }
         selectedCommunityCrowd = nil
-        for index in photoDrafts.indices {
-            photoDrafts[index].sharesToPlaceGallery = false
-        }
-        for index in retainedRemoteAttachments.indices {
-            let attachment = retainedRemoteAttachments[index]
-            retainedRemoteAttachments[index] = CommunityPhotoAttachment(
-                id: attachment.id,
-                imageData: attachment.imageData,
-                remoteURL: attachment.remoteURL,
-                metadata: attachment.metadata,
-                location: attachment.location,
-                sharesToPlaceGallery: false
-            )
-        }
     }
 
     private static func normalizedTags(_ values: [String]) -> [String] {
@@ -4153,6 +4120,7 @@ struct CommunityComposerView: View {
     private func loadPhotos(from items: [PhotosPickerItem]) {
         photoLoadFailed = false
         guard !items.isEmpty else { return }
+        let sharesNewPhotoToGallery = purpose == .fieldReport && sharesNewPhotosToPlaceGallery
 
         Task {
             var loaded: [CommunityPhotoDraft] = []
@@ -4169,7 +4137,9 @@ struct CommunityComposerView: View {
                             id: UUID().uuidString,
                             sourceID: item.itemIdentifier,
                             data: data,
-                            exif: exif
+                            exif: exif,
+                            // 글쓰기는 사진 칸의 "장소 사진에도 올리기"를 따라요(처음에는 켬).
+                            sharesToPlaceGallery: sharesNewPhotoToGallery
                         )
                     )
                 } catch {
@@ -4196,13 +4166,14 @@ struct CommunityComposerView: View {
                     var merged = photoDrafts.filter { previousIDs.contains($0.id) }
                     for draft in loaded {
                         if let index = merged.firstIndex(where: { $0.isSamePhoto(as: draft) }) {
-                            // 같은 사진을 다시 고르면 그 자리에서 바꿔요. ID 는 그대로 둬서
-                            // 사진별 설정(촬영 정보 · 장소 갤러리 공유) 화면이 흔들리지 않게 해요.
+                            // 같은 사진을 다시 고르면 그 자리에서 바꿔요. ID 와 사진별 설정(고친 촬영 정보 ·
+                            // 장소 사진에도 올리기)은 그대로 둬요. 전에는 이 둘이 새로 읽은 값 · 끔으로 돌아갔어요.
                             merged[index] = CommunityPhotoDraft(
                                 id: merged[index].id,
                                 sourceID: draft.sourceID,
                                 data: draft.data,
-                                exif: draft.exif
+                                exif: merged[index].exif ?? draft.exif,
+                                sharesToPlaceGallery: merged[index].sharesToPlaceGallery
                             )
                         } else {
                             merged.append(draft)
@@ -4213,9 +4184,6 @@ struct CommunityComposerView: View {
 
                 selectedPhotoData = photoDrafts.first?.data
                 selectedPhotoItems = []
-                if purpose == .fieldReport {
-                    promptForPrivacyIfNeeded(for: loaded)
-                }
             }
         }
     }
@@ -4258,22 +4226,6 @@ struct CommunityComposerView: View {
             )
         }
         return preservedAttachments + newAttachments
-    }
-
-    private func promptForPrivacyIfNeeded(for drafts: [CommunityPhotoDraft]) {
-        guard purpose == .fieldReport else { return }
-
-        // 같은 사진을 다시 골라도 또 묻지 않게 보관함 ID 로 기억해요(올릴 ID 는 고를 때마다 새로 만들어요).
-        let newExifIDs = drafts.compactMap { draft -> String? in
-            let key = draft.sourceID ?? draft.id
-            guard draft.exif != nil, !promptedExifPhotoIDs.contains(key) else { return nil }
-            return key
-        }
-        promptedExifPhotoIDs.formUnion(newExifIDs)
-
-        if !newExifIDs.isEmpty {
-            showExifConsent = true
-        }
     }
 
     private func metadata(for id: String) -> CommunityPhotoExif {
