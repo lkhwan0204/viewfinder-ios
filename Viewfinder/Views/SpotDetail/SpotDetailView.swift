@@ -82,9 +82,9 @@ struct SpotDetailView: View {
     @State private var pendingAuthenticatedAction: (() -> Void)?
     /// 혼잡도를 새로 제보한 뒤 띄우는 한 줄 글 시트.
     @State private var crowdNotePrompt: SpotDetailCrowdNotePrompt?
-    /// 혼잡도를 취소하려는데 이 제보와 함께 올린 글이 있을 때 먼저 묻는 확인.
+    /// 혼잡도를 취소하거나 바꾸려는데 이 제보와 함께 올린 글이 있을 때 먼저 묻는 확인.
     @State private var pendingCrowdChange: SpotDetailCrowdChangeRequest?
-    /// 함께 올린 글을 지우는 중. 그동안 혼잡도 버튼을 "저장 중…"으로 잠가요.
+    /// 함께 올린 글을 지우거나 바꾸는 중. 그동안 혼잡도 버튼을 "저장 중…"으로 잠가요.
     @State private var isApplyingCrowdChange = false
     @State private var crowdChangeError: String?
     @State private var isVisitInformationExpanded = false
@@ -247,7 +247,7 @@ struct SpotDetailView: View {
                                 onAddCommunityComment(message, post)
                             }
                         )
-                        // 혼잡도를 취소할 때 이 제보와 함께 올린 글이 있으면 먼저 물어봐요.
+                        // 혼잡도를 취소하거나 바꿀 때 이 제보와 함께 올린 글이 있으면 먼저 물어봐요.
                         // 상세 본문 끝의 확인 · 알림과 섞이지 않게 이 섹션에 붙입니다.
                         .confirmationDialog(
                             crowdChangeDialogTitle,
@@ -400,8 +400,10 @@ struct SpotDetailView: View {
         beginEditingOwnedPlace()
     }
 
-    /// 혼잡도 버튼을 눌렀을 때. 지금 내 제보가 내가 올린 글과 연결돼 있고 같은 단계를 다시 눌러
-    /// 취소하려는 거면, 글도 지울지 먼저 물어봐요. 그 밖에는 바로 제보 · 취소해요.
+    /// 혼잡도 버튼을 눌렀을 때. 지금 내 제보가 내가 올린 글과 연결돼 있으면 먼저 물어봐요.
+    /// - 같은 단계를 다시 눌러 취소: 글도 지울지
+    /// - 다른 단계로 바꾸기: 글의 혼잡도도 바꿀지 (잘못 누른 건지, 실제로 상황이 바뀐 건지 앱은 모르니까요)
+    /// 그 밖에는 바로 제보 · 취소 · 변경해요.
     ///
     /// 로그인한 뒤 이어서 실행될 때도 있어서, 사용자는 authViewModel 에서 바로 읽습니다.
     private func handleCrowdTap(_ crowd: CommunityPost.Crowd) {
@@ -420,7 +422,6 @@ struct SpotDetailView: View {
             now: Date(),
             freshnessWindow: CrowdReportStore.freshnessWindow
         ),
-              case .cancel = question,
               let post = ownPosts.first(where: { $0.id == question.postID }) else {
             reportCrowdAndOfferNote(crowd)
             return
@@ -461,11 +462,59 @@ struct SpotDetailView: View {
                 reportCrowdAndOfferNote(request.tapped)
             }
         case .change:
+            let name = request.tapped.displayName
+            Button("글도 \(name)\(SpotDetailCrowdNotePolicy.directionalParticle(after: name)) 바꾸기") {
+                changeLinkedPostCrowd(request.post, to: request.tapped)
+            }
             Button("제보만 바꾸기") {
                 reportCrowdAndOfferNote(request.tapped)
             }
         }
         Button("닫기", role: .cancel) {}
+    }
+
+    /// "글도 ○○으로 바꾸기". 글 내용은 그대로 두고 혼잡도만 바꿔요.
+    ///
+    /// 글을 고치면 CommunityViewModel.updatePost 가 쓴 지 1시간 안의 글만 현재 혼잡도에 반영해요.
+    /// 그보다 오래된 글이면 제보는 따로 바꿔요(그러면 글과의 연결은 풀려요).
+    private func changeLinkedPostCrowd(_ post: CommunityPost, to crowd: CommunityPost.Crowd) {
+        isApplyingCrowdChange = true
+        let draft = CommunityPostDraft(
+            spot: spot,
+            title: post.title,
+            captureLocation: post.captureLocation,
+            message: post.message,
+            tags: post.tags,
+            photoAttachments: post.photoAttachments,
+            crowd: crowd
+        )
+
+        Task {
+            do {
+                try await onUpdateCommunity(post, draft)
+                let postUpdatesLiveCrowd = CommunityViewModel.editRefreshesLiveCrowd(
+                    postCreatedAt: post.createdAt,
+                    now: Date(),
+                    freshnessWindow: CrowdReportStore.freshnessWindow
+                )
+                if !postUpdatesLiveCrowd {
+                    _ = onSubmitCrowdReport(crowd)
+                }
+                VFHaptics.success()
+            } catch {
+                if let communityError = error as? FirebaseCommunityError,
+                   case .crowdReportPending = communityError {
+                    crowdChangeError = "글은 바꿨지만 혼잡도 제보는 바꾸지 못했어요. 혼잡도를 다시 눌러 주세요."
+                } else {
+                    crowdChangeError = "글을 바꾸지 못했어요. 혼잡도 제보도 그대로 있어요. 다시 시도해 주세요."
+                }
+                VFHaptics.error()
+                AppLog.persistence.error(
+                    "Linked post crowd change failed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+            isApplyingCrowdChange = false
+        }
     }
 
     /// "글도 함께 삭제". 글을 지우면 이 글과 연결된 혼잡도 제보도 같이 지워져요
