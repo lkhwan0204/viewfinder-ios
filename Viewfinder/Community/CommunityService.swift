@@ -825,11 +825,9 @@ final class FirebasePlacePhotoStore {
             let storageMetadata = StorageMetadata()
             storageMetadata.contentType = "image/jpeg"
 
-            let sanitizedData = CommunityPhotoPrivacyProcessor.sanitizedData(
-                from: imageData,
-                exifVisibility: .privateOnly
-            )
-            _ = try await putData(sanitizedData, metadata: storageMetadata, at: reference)
+            // 사진 등록 화면이 이미 줄이고 메타데이터를 뺀 JPEG 를 넘겨요(CommunityPhotoDraft.publicAttachment).
+            // 한 번 더 인코딩하면 화질만 떨어져서 그대로 올려요.
+            _ = try await putData(imageData, metadata: storageMetadata, at: reference)
             let downloadURL = try await downloadURL(for: reference)
 
             photos.append(

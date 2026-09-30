@@ -317,20 +317,22 @@ struct CommunityPhotoDraft: Identifiable, Equatable, Sendable {
         self.sharesToPlaceGallery = sharesToPlaceGallery
     }
 
+    /// 올릴 사진을 만들어요. 사진 파일은 줄이고 메타데이터를 모두 빼요(CommunityPhotoPrivacyProcessor).
+    /// 공개하기로 한 촬영 정보(`exif`, 사용자가 고친 값)는 파일이 아니라 글에 따로 저장돼요.
+    /// 사진을 읽지 못하면 오류예요. 원본을 그대로 올리지 않아요.
     func publicAttachment(
         exifVisibility: CommunityExifVisibility,
         sharesToPlaceGallery: Bool = false
-    ) -> CommunityPhotoAttachment {
-        let publicMetadata = exifVisibility == .publicInfo ? exif : nil
+    ) throws -> CommunityPhotoAttachment {
+        guard let imageData = CommunityPhotoPrivacyProcessor.uploadData(from: data) else {
+            throw CommunityPhotoProcessingError.unreadablePhoto
+        }
 
         return CommunityPhotoAttachment(
             id: id,
-            imageData: CommunityPhotoPrivacyProcessor.sanitizedData(
-                from: data,
-                exifVisibility: exifVisibility
-            ),
+            imageData: imageData,
             remoteURL: nil,
-            metadata: publicMetadata,
+            metadata: exifVisibility == .publicInfo ? exif : nil,
             location: nil,
             sharesToPlaceGallery: sharesToPlaceGallery
         )
@@ -406,47 +408,66 @@ enum CommunityPhotoEXIFReader {
 
 }
 
+enum CommunityPhotoProcessingError: LocalizedError {
+    case unreadablePhoto
+
+    var errorDescription: String? {
+        "사진 한 장을 읽지 못했어요. 그 사진을 빼고 다시 시도해 주세요."
+    }
+}
+
+/// 올릴 사진 파일을 만들어요.
+///
+/// - **크기:** 긴 변을 2048px 로 줄여요(작은 사진은 그대로). 휴대폰 화면 전체보다 넉넉하고, 한 장이 보통
+///   300KB 안팎이에요. 원본(요즘 휴대폰 사진은 한 장에 수 MB)을 올리면 저장 · 전송 무료 사용량이 금방 차고,
+///   피드가 느려져요. 원본 크기로 한 번에 풀지 않아서 큰 사진도 메모리를 적게 써요.
+/// - **방향:** 사진의 방향(EXIF Orientation)을 픽셀에 반영해요. 파일에 방향 정보를 따로 남기지 않아서
+///   두 번 돌아가지 않아요.
+/// - **메타데이터:** 파일에는 하나도 넣지 않아요. GPS · 기기 일련번호 · 원래 촬영 정보가 남지 않아요.
+///   공개하기로 한 촬영 정보는 사용자가 고친 값으로 글(Firestore)에 따로 저장해요.
+/// - **실패:** 읽지 못하면 nil 이에요. 전처럼 원본을 그대로 올리지 않아요(원본에는 GPS 가 있을 수 있어요).
 enum CommunityPhotoPrivacyProcessor {
-    static func sanitizedData(
+    static let maxPixelSize = 2048
+    static let jpegQuality: CGFloat = 0.8
+
+    static func uploadData(
         from data: Data,
-        exifVisibility: CommunityExifVisibility
-    ) -> Data {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
-              let destinationData = CFDataCreateMutable(nil, 0),
+        maxPixelSize: Int = maxPixelSize,
+        quality: CGFloat = jpegQuality
+    ) -> Data? {
+        guard let source = CGImageSourceCreateWithData(
+                  data as CFData,
+                  [kCGImageSourceShouldCache: false] as CFDictionary
+              ),
+              CGImageSourceGetCount(source) > 0 else {
+            return nil
+        }
+
+        let thumbnailOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+            kCGImageSourceShouldCacheImmediately: true
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary),
+              let output = CFDataCreateMutable(nil, 0),
               let destination = CGImageDestinationCreateWithData(
-                  destinationData,
+                  output,
                   UTType.jpeg.identifier as CFString,
                   1,
                   nil
               ) else {
-            return UIImage(data: data)?.jpegData(compressionQuality: 0.92) ?? data
+            return nil
         }
 
-        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-        var metadata: [CFString: Any] = [:]
-
-        if let orientation = properties?[kCGImagePropertyOrientation] {
-            metadata[kCGImagePropertyOrientation] = orientation
-        }
-
-        if exifVisibility == .publicInfo {
-            if let tiff = properties?[kCGImagePropertyTIFFDictionary] {
-                metadata[kCGImagePropertyTIFFDictionary] = tiff
-            }
-            if var exif = properties?[kCGImagePropertyExifDictionary] as? [CFString: Any] {
-                // MakerNote는 제조사별 비공개 blob이라 GPS가 포함될 수 있어
-                // 촬영 위치를 별도로 추가했더라도 항상 제거합니다.
-                exif[kCGImagePropertyExifMakerNote] = nil
-                metadata[kCGImagePropertyExifDictionary] = exif
-            }
-        }
-
-        CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
-        guard CGImageDestinationFinalize(destination) else {
-            return UIImage(data: data)?.jpegData(compressionQuality: 0.92) ?? data
-        }
-        return destinationData as Data
+        // 넣는 건 압축 품질 하나뿐이에요. 메타데이터 사전을 주지 않아서 EXIF · TIFF · GPS 가 없어요.
+        CGImageDestinationAddImage(
+            destination,
+            image,
+            [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary
+        )
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
     }
 }
 

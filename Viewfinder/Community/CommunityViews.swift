@@ -2661,7 +2661,11 @@ struct CommunityComposerView: View {
                             .vfText(.headline)
                             .foregroundStyle(AppColors.primary)
 
-                        Text("사진은 아직 저장되지 않아요. 사진 없이 등록할 수 있어요.")
+                        // 장소 추가의 사진은 아직 저장하지 않아요(대표 사진 저장은 따로 작업해요).
+                        // 사진 등록은 실제로 올라가서, 전처럼 "아직 저장되지 않아요"라고 하면 틀려요.
+                        Text(purpose == .addSpot
+                             ? "사진은 아직 저장되지 않아요. 사진 없이 등록할 수 있어요."
+                             : "사진은 줄여서 올리고, 위치 등 사진 속 정보는 지워요.")
                             .vfText(.caption)
                             .foregroundStyle(AppColors.secondaryText)
                     }
@@ -3607,14 +3611,26 @@ struct CommunityComposerView: View {
                 // support is implemented; avoid encoding the selected files.
                 attachments = []
             } else {
-                attachments = await Task.detached(priority: .userInitiated) {
-                    Self.makePublicAttachments(
-                        drafts: drafts,
-                        retainedAttachments: retainedAttachments,
-                        shouldPublishExif: shouldPublishExif,
-                        canShareToPlaceGallery: canShareToPlaceGallery
+                do {
+                    attachments = try await Task.detached(priority: .userInitiated) {
+                        try Self.makePublicAttachments(
+                            drafts: drafts,
+                            retainedAttachments: retainedAttachments,
+                            shouldPublishExif: shouldPublishExif,
+                            canShareToPlaceGallery: canShareToPlaceGallery
+                        )
+                    }.value
+                } catch {
+                    // 읽지 못한 사진이 있으면 올리지 않고 알려요. 쓴 내용과 고른 사진은 그대로예요.
+                    isPreparingSubmission = false
+                    submissionPreparationTask = nil
+                    submissionError = (error as? LocalizedError)?.errorDescription
+                        ?? "사진을 준비하지 못했어요. 다시 시도해 주세요."
+                    AppLog.persistence.error(
+                        "Community photo processing failed: \(error.localizedDescription, privacy: .public)"
                     )
-                }.value
+                    return
+                }
             }
 
             guard !Task.isCancelled else {
@@ -3905,7 +3921,7 @@ struct CommunityComposerView: View {
         retainedAttachments: [CommunityPhotoAttachment],
         shouldPublishExif: Bool,
         canShareToPlaceGallery: Bool
-    ) -> [CommunityPhotoAttachment] {
+    ) throws -> [CommunityPhotoAttachment] {
         let preservedAttachments = retainedAttachments.map { attachment in
             CommunityPhotoAttachment(
                 id: attachment.id,
@@ -3916,8 +3932,8 @@ struct CommunityComposerView: View {
                 sharesToPlaceGallery: canShareToPlaceGallery && attachment.sharesToPlaceGallery
             )
         }
-        let newAttachments = drafts.map { draft in
-            draft.publicAttachment(
+        let newAttachments = try drafts.map { draft in
+            try draft.publicAttachment(
                 exifVisibility: shouldPublishExif ? .publicInfo : .privateOnly,
                 sharesToPlaceGallery: canShareToPlaceGallery && draft.sharesToPlaceGallery
             )
