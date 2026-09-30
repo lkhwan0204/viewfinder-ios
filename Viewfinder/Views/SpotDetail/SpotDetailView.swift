@@ -1377,7 +1377,13 @@ private struct SpotCommunityPostRow: View {
                 if post.hasStatusInfo || !displayTags.isEmpty {
                     HStack(spacing: 6) {
                         if post.hasStatusInfo {
-                            CommunityCrowdBadge(crowd: post.crowd)
+                            // 바로 위 줄에 작성 시각이 있어서 "작성 당시"만 붙입니다.
+                            CommunityPostCrowdObservation(
+                                crowd: post.crowd,
+                                observedAt: post.createdAt,
+                                badgeStyle: .capsule,
+                                showsTime: false
+                            )
                         }
 
                         ForEach(displayTags, id: \.self) { tag in
@@ -1404,7 +1410,12 @@ private struct SpotCommunityPostRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .appCardSurface(cornerRadius: VFRadius.inner)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(post.authorName), \(communityRelativeTimeText(for: post.createdAt)), 게시글 보기")
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    private var accessibilitySummary: String {
+        let crowd = post.hasStatusInfo ? ", 작성 당시 혼잡도 \(post.crowd.displayName)" : ""
+        return "\(post.authorName), \(communityRelativeTimeText(for: post.createdAt))\(crowd), 게시글 보기"
     }
 }
 

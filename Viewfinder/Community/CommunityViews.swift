@@ -566,7 +566,8 @@ struct CommunityPostCard: View {
     @ViewBuilder
     private var conditionLine: some View {
         HStack(spacing: 6) {
-            VFCrowdBadge(level: VFCrowdLevel.from(post.crowd.displayName))
+            // 카드에서는 사진 · 본문 아래라 위 작성 시각과 떨어져 있어서 시간까지 붙입니다.
+            CommunityPostCrowdObservation(crowd: post.crowd, observedAt: post.createdAt)
 
             if !statusTagChips.isEmpty {
                 Text("·")
@@ -973,7 +974,7 @@ struct CommunityPostDetailView: View {
     @ViewBuilder
     private var conditionLine: some View {
         HStack(spacing: 6) {
-            VFCrowdBadge(level: VFCrowdLevel.from(currentPost.crowd.displayName))
+            CommunityPostCrowdObservation(crowd: currentPost.crowd, observedAt: currentPost.createdAt)
 
             if !statusTagChips.isEmpty {
                 Text("·")
@@ -1263,6 +1264,50 @@ struct CommunityCrowdBadge: View {
     }
 }
 
+/// 게시글에 적힌 혼잡도예요. 배지 옆에 "작성 당시"를 붙여 지금 혼잡도로 착각하지 않게 합니다.
+///
+/// 글의 혼잡도는 글을 쓸 때 본 현장이에요. 지금 혼잡도는 장소 상세 "현재 혼잡도"
+/// (최근 1시간 제보)에서만 보여줘요. 작성 시각이 바로 위에 보이는 좁은 줄에서는
+/// 시간을 빼고 "작성 당시"만 붙입니다(showsTime: false).
+struct CommunityPostCrowdObservation: View {
+    enum BadgeStyle {
+        /// 점 + 라벨. 피드 카드 · 글 상세.
+        case dots
+        /// "혼잡도 · 보통" 알약. 홈 검색 결과 · 장소 상세 글 목록.
+        case capsule
+    }
+
+    let crowd: CommunityPost.Crowd
+    let observedAt: Date
+    var badgeStyle: BadgeStyle = .dots
+    var showsTime = true
+
+    var body: some View {
+        HStack(spacing: 6) {
+            switch badgeStyle {
+            case .dots:
+                VFCrowdBadge(level: VFCrowdLevel.from(crowd.displayName))
+            case .capsule:
+                CommunityCrowdBadge(crowd: crowd)
+            }
+
+            Text(communityCrowdObservedText(for: observedAt, showsTime: showsTime))
+                .vfText(badgeStyle == .dots ? .mono : .caption)
+                .foregroundStyle(AppColors.secondaryText)
+                .lineLimit(1)
+                .fixedSize()
+        }
+        // 배지만 읽으면 "현재 혼잡도 보통"(VFCrowdBadge)으로 들려서, 이 줄 전체를 한 번에 읽어요.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("작성 당시 혼잡도 \(crowd.displayName), \(communityRelativeTimeText(for: observedAt))")
+    }
+}
+
+/// "작성 당시 · 3일 전", 시간을 빼면 "작성 당시".
+func communityCrowdObservedText(for date: Date, showsTime: Bool = true) -> String {
+    showsTime ? "작성 당시 · \(communityRelativeTimeText(for: date))" : "작성 당시"
+}
+
 func communityDisplayTags(
     _ values: [String],
     excluding spot: PhotoSpot?,
@@ -1329,11 +1374,23 @@ private func communityTagLooksLikeAddress(_ tag: String) -> Bool {
 struct CommunityStatusRow: View {
     let crowd: CommunityPost.Crowd
     let tags: [String]
+    /// 게시글의 작성 시각. 있으면 배지 옆에 "작성 당시"를 붙여요.
+    var observedAt: Date? = nil
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                CommunityCrowdBadge(crowd: crowd)
+                if let observedAt {
+                    // 바로 위 줄에 작성 시각이 있어서 "작성 당시"만 붙입니다.
+                    CommunityPostCrowdObservation(
+                        crowd: crowd,
+                        observedAt: observedAt,
+                        badgeStyle: .capsule,
+                        showsTime: false
+                    )
+                } else {
+                    CommunityCrowdBadge(crowd: crowd)
+                }
 
                 ForEach(tags, id: \.self) { tag in
                     Text(tag)
@@ -1347,7 +1404,10 @@ struct CommunityStatusRow: View {
             }
             .padding(.vertical, 1)
         }
-        .scrollDisabled(tags.count <= 2)
+        // "작성 당시"가 붙으면 태그 두 개로도 폭을 넘을 수 있어 스크롤을 열어 둡니다.
+        // 폭 안에 들어오면 튕기지 않아요.
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .scrollDisabled(observedAt == nil && tags.count <= 2)
     }
 }
 
