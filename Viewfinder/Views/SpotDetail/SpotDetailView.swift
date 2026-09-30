@@ -71,8 +71,8 @@ struct SpotDetailView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isDirectionsDialogPresented = false
+    /// 장소 정보 수정 화면. 글 수정은 "커뮤니티에서 이 장소" 시트가 직접 띄워요(SpotCommunityPostsSheet).
     @State private var isCommunityComposerPresented = false
-    @State private var editingCommunityPost: CommunityPost?
     @State private var isEditingUserPlace = false
     @State private var isPlaceDeleteConfirmationPresented = false
     @State private var isDeletingPlace = false
@@ -223,11 +223,8 @@ struct SpotDetailView: View {
                                     handleCrowdTap(crowd)
                                 }
                             },
-                            onEdit: { post in
-                                requireAuthentication {
-                                    editingCommunityPost = post
-                                    isCommunityComposerPresented = true
-                                }
+                            onUpdate: { post, draft in
+                                try await onUpdateCommunity(post, draft)
                             },
                             onDelete: { post in
                                 try await onDeleteCommunity(post)
@@ -322,7 +319,7 @@ struct SpotDetailView: View {
                 spots: spots,
                 selectedSpot: spot,
                 locksSelectedSpot: true,
-                editingPost: editingCommunityPost,
+                editingPost: nil,
                 purpose: isEditingUserPlace ? .editPlace(placeID: spot.id) : .fieldReport,
                 onSubmit: { draft, submissionID in
                     if isEditingUserPlace {
@@ -331,12 +328,9 @@ struct SpotDetailView: View {
                         }
                         try await onUpdatePlace(updatedSpot)
                         isEditingUserPlace = false
-                    } else if let editingCommunityPost {
-                        try await onUpdateCommunity(editingCommunityPost, draft)
                     } else {
                         try await onSubmitCommunity(draft, submissionID)
                     }
-                    self.editingCommunityPost = nil
                 }
             )
             .presentationDetents([.large])
@@ -384,7 +378,6 @@ struct SpotDetailView: View {
     /// 장소 정보 수정. 오른쪽 위 "…" 메뉴와, 마이에서 "수정" 으로 들어왔을 때 같은 길로 엽니다.
     private func beginEditingOwnedPlace() {
         requireAuthentication {
-            editingCommunityPost = nil
             isEditingUserPlace = true
             isCommunityComposerPresented = true
         }
@@ -1257,7 +1250,8 @@ struct SpotDetailCommunitySection: View {
     let isCrowdReportSubmitting: Bool
     let isCrowdReportLoading: Bool
     let onReportCrowd: (CommunityPost.Crowd) -> Void
-    let onEdit: (CommunityPost) -> Void
+    /// 글 수정 저장. 수정 화면은 "커뮤니티에서 이 장소" 시트가 직접 띄워요.
+    let onUpdate: (CommunityPost, CommunityPostDraft) async throws -> Void
     let onDelete: (CommunityPost) async throws -> Void
     @ObservedObject var communityViewModel: CommunityViewModel
     let onToggleLike: (CommunityPost) -> Void
@@ -1347,7 +1341,7 @@ struct SpotDetailCommunitySection: View {
                         spots: spots,
                         currentUserID: currentUserID,
                         communityViewModel: communityViewModel,
-                        onEdit: onEdit,
+                        onUpdate: onUpdate,
                         onDelete: onDelete,
                         onToggleLike: onToggleLike,
                         onToggleFollow: onToggleFollow,
@@ -1404,7 +1398,7 @@ private struct SpotCommunityPostsSheet: View {
     let spots: [PhotoSpot]
     let currentUserID: String
     @ObservedObject var communityViewModel: CommunityViewModel
-    let onEdit: (CommunityPost) -> Void
+    let onUpdate: (CommunityPost, CommunityPostDraft) async throws -> Void
     let onDelete: (CommunityPost) async throws -> Void
     let onToggleLike: (CommunityPost) -> Void
     let onToggleFollow: (CommunityPost) -> Void
@@ -1412,6 +1406,8 @@ private struct SpotCommunityPostsSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var visiblePostCount = SpotCommunityPostsSheet.initialLimit
+    /// 글 상세 "…" → 수정으로 고르는 글. 이 시트 위에 수정 화면을 바로 띄워요.
+    @State private var editingPost: CommunityPost?
 
     private var orderedPosts: [CommunityPost] {
         var seenIDs = Set<String>()
@@ -1491,7 +1487,9 @@ private struct SpotCommunityPostsSheet: View {
                         onSelectSpot: { _ in
                             dismiss()
                         },
-                        onEdit: onEdit,
+                        onEdit: { post in
+                            editingPost = post
+                        },
                         onDelete: onDelete,
                         communityViewModel: communityViewModel
                     )
@@ -1499,6 +1497,22 @@ private struct SpotCommunityPostsSheet: View {
                     EmptyView()
                 }
             }
+        }
+        // 수정 화면은 이 시트 위에 바로 띄워요. 전에는 장소 상세(이 시트를 띄운 화면)가 띄웠는데,
+        // 이 시트가 떠 있는 동안 iOS 는 같은 화면에서 새 시트를 띄우지 않아서 이 시트를 닫아야 나왔어요.
+        .sheet(item: $editingPost) { post in
+            CommunityComposerView(
+                spots: spots,
+                selectedSpot: spot,
+                locksSelectedSpot: true,
+                editingPost: post,
+                purpose: .fieldReport,
+                onSubmit: { draft, _ in
+                    try await onUpdate(post, draft)
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
     }
 
