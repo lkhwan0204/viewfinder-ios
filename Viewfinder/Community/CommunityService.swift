@@ -1385,7 +1385,10 @@ final class CrowdReportStore: ObservableObject {
     private let remoteStore: FirebaseCrowdReportStore
     private var loadedPlaceIDs: Set<String> = []
     @Published private(set) var loadingPlaceIDs: Set<String> = []
-    private var submittingKeys: Set<String> = []
+    /// 저장 중인 사용자+장소. 화면이 이 값으로 혼잡도 버튼과 한 줄 글 "올리기" 버튼을 잠가요.
+    /// 바뀔 때 화면에 알려야 해서 @Published 입니다. 전에는 알리지 않아서, 저장이 끝나도
+    /// 다른 일로 화면이 다시 그려질 때까지 버튼이 잠긴 채로 남았어요(누르면 아무 일도 없음).
+    @Published private var submittingKeys: Set<String> = []
 
     init(remoteStore: FirebaseCrowdReportStore = FirebaseCrowdReportStore()) {
         self.remoteStore = remoteStore
