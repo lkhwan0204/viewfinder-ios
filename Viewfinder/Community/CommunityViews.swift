@@ -2134,8 +2134,6 @@ struct CommunityComposerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedField: ComposerField?
-    /// 키보드가 올라와 있는지. 아래 버튼 옆 "키보드 내리기"를 보일지 정해요.
-    @State private var isKeyboardVisible = false
     @State private var selectedSpotID: String
     @State private var selectedSearchedSpot: PhotoSpot?
     @State private var placeSearchText: String
@@ -2261,6 +2259,10 @@ struct CommunityComposerView: View {
                     } else {
                         contributePhotosForm
                     }
+
+                    // 공유하기는 화면 아래에 붙이지 않고 글 맨 아래(스크롤 안)에 둬요.
+                    // 붙여 두면 키보드를 올렸을 때 버튼과 키보드 사이로 글 내용이 비쳐 보였어요.
+                    composerSubmitSection
                 }
                 .padding(.top, VFSpace.md)
                 .padding(.horizontal, 20)
@@ -2290,7 +2292,7 @@ struct CommunityComposerView: View {
             .toolbar {
                 if purpose == .fieldReport {
                     // 닫기는 앱 전체에서 오른쪽 위 X 예요(로그인 · 사진 뷰어 · 커뮤니티에서 이 장소와 같아요).
-                    // 게시 버튼은 화면 아래에 있어서 오른쪽 위와 겹치지 않아요.
+                    // 게시 버튼은 글 맨 아래(스크롤 안)에 있어서 오른쪽 위와 겹치지 않아요.
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             requestComposerDismissal()
@@ -2303,8 +2305,8 @@ struct CommunityComposerView: View {
                     }
                 }
                 // 키보드 위 "완료" 막대(ToolbarItemGroup .keyboard)는 두지 않아요. iOS 26 은 그 막대가 투명해서
-                // 아래 "공유하기" 버튼과 키보드 사이로 글 내용(사진 등)이 비쳐 보이고 "완료"와 겹쳤어요.
-                // 키보드 내리기는 아래 버튼 옆에 있어요(composerSubmitBar).
+                // 글 내용(사진 등)이 비쳐 보이고 "완료"와 겹쳤어요.
+                // 키보드는 글을 아래로 끌거나(scrollDismissesKeyboard) 빈 곳을 누르면 내려가요.
             }
             .confirmationDialog(
                 isPostSavedRemotely
@@ -2327,17 +2329,6 @@ struct CommunityComposerView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .contentShape(Rectangle())
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                composerSubmitBar
-            }
-            // 키보드가 올라와 있는지. 아래 버튼 옆 "키보드 내리기"를 이때만 보여요.
-            // 입력칸마다 포커스를 따로 두지 않아도(태그 입력 등) 모든 입력칸에서 같이 동작해요.
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-                isKeyboardVisible = true
-            }
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-                isKeyboardVisible = false
-            }
             .onChange(of: selectedPhotoItems) { _, newItems in
                 loadPhotos(from: newItems)
             }
@@ -2579,40 +2570,23 @@ struct CommunityComposerView: View {
         )
     }
 
-    private var composerSubmitBar: some View {
-        VStack(spacing: 0) {
-            Divider()
+    /// 글 맨 아래(스크롤 안)의 공유하기 버튼이에요. 글쓰기에서 버튼이 꺼져 있으면 까닭을 버튼 아래에 보여요.
+    private var composerSubmitSection: some View {
+        VStack(spacing: VFSpace.sm) {
+            submitButton
 
-            HStack(spacing: 10) {
-                // 키보드가 올라와 있을 때만 보여요. 키보드 위 "완료" 막대를 대신해요.
-                if isKeyboardVisible {
-                    Button {
-                        dismissComposerKeyboard()
-                    } label: {
-                        Image(systemName: "keyboard.chevron.compact.down")
-                            // Dynamic Type 제외: 고정 52pt 원 안의 아이콘. 옆 "공유하기" 버튼과 높이를 맞춰요.
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(AppColors.primary)
-                            .frame(width: 52, height: 52)
-                            .background(AppColors.mutedSurface, in: Circle())
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("키보드 내리기")
-                }
-
-                submitButton
+            if let submitDisabledHint {
+                Text(submitDisabledHint)
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
         }
-        // 버튼 아래(홈 표시줄 자리 · 키보드 뒤)까지 바탕을 채워요. 안 채우면 스크롤한 글 내용이
-        // 버튼 아래 틈과 반투명한 iOS 26 키보드 뒤로 비쳐 보여요.
-        .background {
-            AppColors.background
-                .ignoresSafeArea(edges: .bottom)
-        }
+        // 위 칸들이 아래 여백을 이미 갖고 있어서 조금만 더 띄워요.
+        .padding(.top, VFSpace.sm)
+        // 끝까지 스크롤해도 버튼이 화면 끝(홈 표시줄 · 키보드)에 붙지 않게 띄워요.
+        .padding(.bottom, VFSpace.lg)
     }
 
     private var submitButton: some View {
@@ -3226,6 +3200,33 @@ struct CommunityComposerView: View {
         }
 
         return true
+    }
+
+    /// 글쓰기(fieldReport)에서 공유하기가 꺼져 있는 까닭이에요. 버튼 아래에 보여요.
+    /// 버튼을 누를 수 있거나, 올리는 중이거나, 글쓰기가 아닌 화면(장소 추가 등)이면 nil 이에요.
+    /// 글쓰기의 canSubmit 과 같은 조건(바꾼 내용 · 본문)을 봐요.
+    static func submitDisabledReason(
+        isFieldReport: Bool,
+        isPreparing: Bool,
+        isEditing: Bool,
+        hasMessage: Bool,
+        hasChanges: Bool
+    ) -> String? {
+        guard isFieldReport, !isPreparing else { return nil }
+        if !hasChanges { return "바꾼 내용이 없어요" }
+        // 고칠 때는 버튼이 "변경사항 저장"이라 "저장"이라고 해요.
+        if !hasMessage { return isEditing ? "본문을 쓰면 저장할 수 있어요" : "본문을 쓰면 공유할 수 있어요" }
+        return nil
+    }
+
+    private var submitDisabledHint: String? {
+        Self.submitDisabledReason(
+            isFieldReport: purpose == .fieldReport,
+            isPreparing: isPreparingSubmission,
+            isEditing: editingPost != nil,
+            hasMessage: !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            hasChanges: hasChanges
+        )
     }
 
     private var hasPlaceChanges: Bool {
