@@ -398,68 +398,85 @@ struct ContentView: View {
             communityViewModel.finishComposing()
             restoreHomeSearchIfPossible()
         }) {
-            CommunityComposerView(
-                spots: composerPurpose == .fieldReport ? placesRepository.places : selectableSpots,
-                selectedSpot: communityViewModel.composerSpot(in: composerPurpose == .fieldReport ? placesRepository.places : selectableSpots),
-                locksSelectedSpot: (composerPurpose == .addSpot || composerPurpose.isPhotoContribution)
-                    && communityViewModel.composerSpot(in: selectableSpots) != nil,
-                editingPost: communityViewModel.editingPostForComposer,
-                purpose: composerPurpose,
-                onShowRegisteredSpot: { spot in
-                    showDetail(spot, source: .search)
-                },
-                onSubmit: { draft, submissionID in
-                    guard let authenticatedUser = authViewModel.currentUser else {
+            // 한 줄 글(장소 상세에서 혼잡도와 함께 올린 글)은 쓸 때처럼 혼잡도 · 한 줄만 고쳐요.
+            // 커뮤니티 탭 · 마이 → 내 글 · 피드 카드의 수정이 모두 여기로 와요.
+            if composerPurpose == .fieldReport,
+               let post = communityViewModel.editingPostForComposer,
+               post.isQuickCrowdNote {
+                CommunityQuickNoteEditor(
+                    post: post,
+                    spot: placesRepository.places.first(where: { $0.id == post.relatedSpotID })
+                ) { draft in
+                    guard authViewModel.currentUser != nil else {
                         requestAuthentication()
                         throw FirebaseCommunityError.notConfigured
                     }
-
-                    if composerPurpose.isPhotoContribution {
-                        guard let placeID = composerPurpose.photoContributionPlaceID,
-                              let spot = draft.spot,
-                              spot.id == placeID else {
-                            communityViewModel.finishComposing()
-                            appErrorMessage = "사진을 등록할 장소를 찾지 못했어요."
-                            return
-                        }
-                        submitPlacePhotoContribution(
-                            spot: spot,
-                            draft: draft,
-                            submitter: authenticatedUser
-                        )
-                        communityViewModel.finishComposing()
-                    } else if composerPurpose == .addSpot {
-                        guard let spot = submittedSpot(from: draft) else {
-                            throw PlacesRepositoryError.invalidDocument
-                        }
-                        let savedSpot = try await placesRepository.createUserPlace(
-                            spot,
-                            createdBy: authenticatedUser.id
-                        )
-                        let receipt = PlaceSubmissionReceipt(
-                            id: savedSpot.id,
-                            name: savedSpot.name,
-                            submittedAt: ISO8601DateFormatter().string(from: Date()),
-                            alreadyApproved: false,
-                            region: savedSpot.region,
-                            mapQuery: savedSpot.mapQuery,
-                            latitude: savedSpot.latitude,
-                            longitude: savedSpot.longitude,
-                            provider: savedSpot.provider,
-                            providerPlaceID: savedSpot.providerPlaceID
-                        )
-                        placeSubmissionStore.record(receipt)
-                        submissionConfirmation = receipt
-                        communityViewModel.finishComposing()
-                    } else if let post = communityViewModel.editingPostForComposer {
-                        try await communityViewModel.updatePost(post, draft: draft)
-                    } else {
-                        try await communityViewModel.addPost(draft, author: authenticatedUser, id: submissionID)
-                    }
+                    try await communityViewModel.updatePost(post, draft: draft)
                 }
-            )
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
+            } else {
+                CommunityComposerView(
+                    spots: composerPurpose == .fieldReport ? placesRepository.places : selectableSpots,
+                    selectedSpot: communityViewModel.composerSpot(in: composerPurpose == .fieldReport ? placesRepository.places : selectableSpots),
+                    locksSelectedSpot: (composerPurpose == .addSpot || composerPurpose.isPhotoContribution)
+                        && communityViewModel.composerSpot(in: selectableSpots) != nil,
+                    editingPost: communityViewModel.editingPostForComposer,
+                    purpose: composerPurpose,
+                    onShowRegisteredSpot: { spot in
+                        showDetail(spot, source: .search)
+                    },
+                    onSubmit: { draft, submissionID in
+                        guard let authenticatedUser = authViewModel.currentUser else {
+                            requestAuthentication()
+                            throw FirebaseCommunityError.notConfigured
+                        }
+
+                        if composerPurpose.isPhotoContribution {
+                            guard let placeID = composerPurpose.photoContributionPlaceID,
+                                  let spot = draft.spot,
+                                  spot.id == placeID else {
+                                communityViewModel.finishComposing()
+                                appErrorMessage = "사진을 등록할 장소를 찾지 못했어요."
+                                return
+                            }
+                            submitPlacePhotoContribution(
+                                spot: spot,
+                                draft: draft,
+                                submitter: authenticatedUser
+                            )
+                            communityViewModel.finishComposing()
+                        } else if composerPurpose == .addSpot {
+                            guard let spot = submittedSpot(from: draft) else {
+                                throw PlacesRepositoryError.invalidDocument
+                            }
+                            let savedSpot = try await placesRepository.createUserPlace(
+                                spot,
+                                createdBy: authenticatedUser.id
+                            )
+                            let receipt = PlaceSubmissionReceipt(
+                                id: savedSpot.id,
+                                name: savedSpot.name,
+                                submittedAt: ISO8601DateFormatter().string(from: Date()),
+                                alreadyApproved: false,
+                                region: savedSpot.region,
+                                mapQuery: savedSpot.mapQuery,
+                                latitude: savedSpot.latitude,
+                                longitude: savedSpot.longitude,
+                                provider: savedSpot.provider,
+                                providerPlaceID: savedSpot.providerPlaceID
+                            )
+                            placeSubmissionStore.record(receipt)
+                            submissionConfirmation = receipt
+                            communityViewModel.finishComposing()
+                        } else if let post = communityViewModel.editingPostForComposer {
+                            try await communityViewModel.updatePost(post, draft: draft)
+                        } else {
+                            try await communityViewModel.addPost(draft, author: authenticatedUser, id: submissionID)
+                        }
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
         }
         .sheet(isPresented: $isWeatherDetailPresented) {
             WeatherDetailView(
