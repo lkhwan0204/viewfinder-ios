@@ -2287,7 +2287,9 @@ struct CommunityComposerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if purpose == .fieldReport {
-                    ToolbarItem(placement: .topBarLeading) {
+                    // 닫기는 앱 전체에서 오른쪽 위 X 예요(로그인 · 사진 뷰어 · 커뮤니티에서 이 장소와 같아요).
+                    // 게시 버튼은 화면 아래에 있어서 오른쪽 위와 겹치지 않아요.
+                    ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             requestComposerDismissal()
                         } label: {
@@ -4352,10 +4354,14 @@ struct CommunityCaptureLocationPicker: View {
             .navigationTitle("촬영 위치 추가")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("닫기") {
+                // 닫기는 앱 전체에서 오른쪽 위 X 예요.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
                     }
+                    .accessibilityLabel("닫기")
                 }
             }
         }
@@ -4468,10 +4474,14 @@ struct CommunityMapPlacePicker: View {
             .navigationTitle("지도에서 위치 지정")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("닫기") {
+                // 닫기는 앱 전체에서 오른쪽 위 X 예요.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
                     }
+                    .accessibilityLabel("닫기")
                 }
             }
         }

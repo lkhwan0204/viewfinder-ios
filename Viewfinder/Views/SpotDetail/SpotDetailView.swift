@@ -1463,10 +1463,14 @@ private struct SpotCommunityPostsSheet: View {
             .navigationTitle("커뮤니티에서 이 장소")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // 닫기는 앱 전체에서 오른쪽 위 X 예요(로그인 · 사진 뷰어 · 글쓰기와 같아요).
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("닫기") {
+                    Button {
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
                     }
+                    .accessibilityLabel("닫기")
                 }
             }
             .navigationDestination(for: String.self) { postID in
