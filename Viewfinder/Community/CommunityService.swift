@@ -1280,6 +1280,12 @@ final class FirebaseCrowdReportStore {
         ]
         if let communityPostID = report.communityPostID {
             data["communityPostID"] = communityPostID
+        } else {
+            // upsert 는 merge 로 저장해서, 값을 빼기만 하면 예전 글 연결이 문서에 남습니다.
+            // 그러면 그 예전 글을 지울 때(removeCommunityReport(postID:)) 이 새 제보까지
+            // 같이 지워져요. 글 없이 다시 제보하면 연결을 확실히 지웁니다.
+            // (merge 저장에서만 쓸 수 있는 값이에요. 이 함수는 upsert 에서만 씁니다.)
+            data["communityPostID"] = FieldValue.delete()
         }
         return data
     }
