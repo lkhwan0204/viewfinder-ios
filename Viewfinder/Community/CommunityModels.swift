@@ -567,6 +567,25 @@ struct CommunityPost: Identifiable, Equatable, Sendable {
         !publicPhotoAttachments.isEmpty
     }
 
+    /// 한 줄 글 최대 글자 수. 한 줄 글 시트(쓰기)와 한 줄 글 수정이 같이 써요.
+    static let quickNoteMaximumLength = 100
+
+    /// 장소 상세에서 혼잡도와 함께 올린 "한 줄 글" 모양인지.
+    ///
+    /// 한 줄 글은 장소 · 혼잡도 · 한 줄(100자, 줄바꿈 없음)만 있고 제목 · 태그 · 사진 · 촬영 위치가 없어요.
+    /// 고칠 때도 쓸 때와 같은 것만 보여주려고(한 줄 글 수정 화면) 이걸로 나눠요.
+    /// 글쓰기 화면으로 쓴 글이라도 이 모양이면 한 줄 글 수정으로 열어요. 들어 있는 건 모두 고칠 수 있어요.
+    var isQuickCrowdNote: Bool {
+        relatedSpotID != nil
+            && hasStatusInfo
+            && title == nil
+            && tags.isEmpty
+            && captureLocation == nil
+            && !hasPhotos
+            && message.count <= Self.quickNoteMaximumLength
+            && !message.contains(where: \.isNewline)
+    }
+
     /// 새 첨부 구조가 없는 기존 게시물은 legacy photoData 를 한 장의
     /// 첨부사진처럼 읽어 기존 피드/상세 화면과 호환합니다.
     var publicPhotoAttachments: [CommunityPhotoAttachment] {

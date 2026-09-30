@@ -71,8 +71,8 @@ struct SpotDetailView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isDirectionsDialogPresented = false
+    /// 장소 정보 수정 화면. 글 수정은 "커뮤니티에서 이 장소" 시트가 직접 띄워요(SpotCommunityPostsSheet).
     @State private var isCommunityComposerPresented = false
-    @State private var editingCommunityPost: CommunityPost?
     @State private var isEditingUserPlace = false
     @State private var isPlaceDeleteConfirmationPresented = false
     @State private var isDeletingPlace = false
@@ -223,11 +223,8 @@ struct SpotDetailView: View {
                                     handleCrowdTap(crowd)
                                 }
                             },
-                            onEdit: { post in
-                                requireAuthentication {
-                                    editingCommunityPost = post
-                                    isCommunityComposerPresented = true
-                                }
+                            onUpdate: { post, draft in
+                                try await onUpdateCommunity(post, draft)
                             },
                             onDelete: { post in
                                 try await onDeleteCommunity(post)
@@ -322,7 +319,7 @@ struct SpotDetailView: View {
                 spots: spots,
                 selectedSpot: spot,
                 locksSelectedSpot: true,
-                editingPost: editingCommunityPost,
+                editingPost: nil,
                 purpose: isEditingUserPlace ? .editPlace(placeID: spot.id) : .fieldReport,
                 onSubmit: { draft, submissionID in
                     if isEditingUserPlace {
@@ -331,12 +328,9 @@ struct SpotDetailView: View {
                         }
                         try await onUpdatePlace(updatedSpot)
                         isEditingUserPlace = false
-                    } else if let editingCommunityPost {
-                        try await onUpdateCommunity(editingCommunityPost, draft)
                     } else {
                         try await onSubmitCommunity(draft, submissionID)
                     }
-                    self.editingCommunityPost = nil
                 }
             )
             .presentationDetents([.large])
@@ -384,7 +378,6 @@ struct SpotDetailView: View {
     /// 장소 정보 수정. 오른쪽 위 "…" 메뉴와, 마이에서 "수정" 으로 들어왔을 때 같은 길로 엽니다.
     private func beginEditingOwnedPlace() {
         requireAuthentication {
-            editingCommunityPost = nil
             isEditingUserPlace = true
             isCommunityComposerPresented = true
         }
@@ -1257,7 +1250,8 @@ struct SpotDetailCommunitySection: View {
     let isCrowdReportSubmitting: Bool
     let isCrowdReportLoading: Bool
     let onReportCrowd: (CommunityPost.Crowd) -> Void
-    let onEdit: (CommunityPost) -> Void
+    /// 글 수정 저장. 수정 화면은 "커뮤니티에서 이 장소" 시트가 직접 띄워요.
+    let onUpdate: (CommunityPost, CommunityPostDraft) async throws -> Void
     let onDelete: (CommunityPost) async throws -> Void
     @ObservedObject var communityViewModel: CommunityViewModel
     let onToggleLike: (CommunityPost) -> Void
@@ -1347,7 +1341,7 @@ struct SpotDetailCommunitySection: View {
                         spots: spots,
                         currentUserID: currentUserID,
                         communityViewModel: communityViewModel,
-                        onEdit: onEdit,
+                        onUpdate: onUpdate,
                         onDelete: onDelete,
                         onToggleLike: onToggleLike,
                         onToggleFollow: onToggleFollow,
@@ -1404,7 +1398,7 @@ private struct SpotCommunityPostsSheet: View {
     let spots: [PhotoSpot]
     let currentUserID: String
     @ObservedObject var communityViewModel: CommunityViewModel
-    let onEdit: (CommunityPost) -> Void
+    let onUpdate: (CommunityPost, CommunityPostDraft) async throws -> Void
     let onDelete: (CommunityPost) async throws -> Void
     let onToggleLike: (CommunityPost) -> Void
     let onToggleFollow: (CommunityPost) -> Void
@@ -1412,6 +1406,8 @@ private struct SpotCommunityPostsSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var visiblePostCount = SpotCommunityPostsSheet.initialLimit
+    /// 글 상세 "…" → 수정으로 고르는 글. 이 시트 위에 수정 화면을 바로 띄워요.
+    @State private var editingPost: CommunityPost?
 
     private var orderedPosts: [CommunityPost] {
         var seenIDs = Set<String>()
@@ -1463,10 +1459,14 @@ private struct SpotCommunityPostsSheet: View {
             .navigationTitle("커뮤니티에서 이 장소")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // 닫기는 앱 전체에서 오른쪽 위 X 예요(로그인 · 사진 뷰어 · 글쓰기와 같아요).
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("닫기") {
+                    Button {
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
                     }
+                    .accessibilityLabel("닫기")
                 }
             }
             .navigationDestination(for: String.self) { postID in
@@ -1487,13 +1487,38 @@ private struct SpotCommunityPostsSheet: View {
                         onSelectSpot: { _ in
                             dismiss()
                         },
-                        onEdit: onEdit,
+                        onEdit: { post in
+                            editingPost = post
+                        },
                         onDelete: onDelete,
                         communityViewModel: communityViewModel
                     )
                 } else {
                     EmptyView()
                 }
+            }
+        }
+        // 수정 화면은 이 시트 위에 바로 띄워요. 전에는 장소 상세(이 시트를 띄운 화면)가 띄웠는데,
+        // 이 시트가 떠 있는 동안 iOS 는 같은 화면에서 새 시트를 띄우지 않아서 이 시트를 닫아야 나왔어요.
+        .sheet(item: $editingPost) { post in
+            // 한 줄 글은 쓸 때처럼 혼잡도 · 한 줄만 고쳐요. 그 밖의 글은 글쓰기 화면(수정)이에요.
+            if post.isQuickCrowdNote {
+                CommunityQuickNoteEditor(post: post, spot: spot) { draft in
+                    try await onUpdate(post, draft)
+                }
+            } else {
+                CommunityComposerView(
+                    spots: spots,
+                    selectedSpot: spot,
+                    locksSelectedSpot: true,
+                    editingPost: post,
+                    purpose: .fieldReport,
+                    onSubmit: { draft, _ in
+                        try await onUpdate(post, draft)
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -1697,8 +1722,8 @@ struct SpotDetailCrowdNotePrompt: Identifiable, Equatable {
 /// 한 줄 글 시트를 띄울지, 입력을 어떻게 다듬을지 정하는 규칙입니다.
 /// 화면과 떼어 둬서 Foundation 만으로 확인할 수 있어요.
 enum SpotDetailCrowdNotePolicy {
-    /// 한 줄 글 최대 글자 수.
-    static let maximumLength = 100
+    /// 한 줄 글 최대 글자 수. 한 줄 글 수정과 같은 값이에요.
+    static let maximumLength = CommunityPost.quickNoteMaximumLength
     /// 이 글자 수부터 "87/100" 처럼 글자 수를 보여줘요.
     static let counterThreshold = 80
 
@@ -2040,6 +2065,263 @@ private struct SpotDetailCrowdNoteSheet: View {
                 }
                 AppLog.persistence.error(
                     "Crowd note post failed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+    }
+}
+
+/// 한 줄 글(장소 상세에서 혼잡도와 함께 올린 글) 수정 화면이에요.
+///
+/// 쓸 때와 같은 것만 고쳐요: 작성 당시 혼잡도 · 한 줄. 사진 · 태그 · 제목 · 촬영 위치는 없어요.
+/// 한 줄 글인지는 `CommunityPost.isQuickCrowdNote` 로 나누고, 그 밖의 글은 전처럼 글쓰기 화면(수정)으로 열어요.
+/// 커뮤니티 탭 · 마이 → 내 글 · 커뮤니티에서 이 장소 어디서 고쳐도 같은 화면이에요.
+struct CommunityQuickNoteEditor: View {
+    let post: CommunityPost
+    /// 글의 장소. 찾지 못하면(장소가 지워짐 등) 글에 적힌 장소 이름으로 보여줘요.
+    let spot: PhotoSpot?
+    let onSubmit: (CommunityPostDraft) async throws -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var note: String
+    @State private var crowd: CommunityPost.Crowd
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @FocusState private var isNoteFocused: Bool
+
+    init(post: CommunityPost, spot: PhotoSpot?, onSubmit: @escaping (CommunityPostDraft) async throws -> Void) {
+        self.post = post
+        self.spot = spot
+        self.onSubmit = onSubmit
+        _note = State(initialValue: post.message)
+        _crowd = State(initialValue: post.crowd)
+    }
+
+    private var trimmedNote: String {
+        note.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var hasChanges: Bool {
+        trimmedNote != post.message || crowd != post.crowd
+    }
+
+    private var canSave: Bool {
+        !trimmedNote.isEmpty && hasChanges && !isSaving
+    }
+
+    /// 쓴 지 1시간(현장 정보 유효 시간)이 지난 글은 혼잡도를 바꿔도 현재 혼잡도는 그대로예요(CommunityViewModel.updatePost).
+    private var changesLiveCrowd: Bool {
+        CommunityViewModel.editRefreshesLiveCrowd(
+            postCreatedAt: post.createdAt,
+            now: Date(),
+            freshnessWindow: CrowdReportStore.freshnessWindow
+        )
+    }
+
+    private var detents: Set<PresentationDetent> {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [.large]
+        }
+        return [.height(dynamicTypeSize > .large ? 480 : 420), .large]
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: VFSpace.lg) {
+                header
+                crowdSection
+                noteSection
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, AppLayout.pageHorizontalPadding)
+            .padding(.top, VFSpace.lg + VFSpace.sm)
+            .padding(.bottom, VFSpace.md)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            actions
+        }
+        .background(AppColors.background.ignoresSafeArea())
+        .presentationDetents(detents)
+        .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(isSaving)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: VFSpace.xs) {
+            Text("한 줄 글 수정")
+                .vfText(.headline)
+                .foregroundStyle(AppColors.primary)
+
+            Text([spot?.name ?? post.relatedSpotName, communityWrittenTimeText(for: post.createdAt)]
+                .compactMap { $0 }
+                .joined(separator: " · "))
+                .vfText(.subhead)
+                .foregroundStyle(AppColors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var crowdSection: some View {
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            Text("작성 당시 혼잡도")
+                .vfText(.subhead.weight(.semibold))
+                .foregroundStyle(AppColors.primary)
+
+            HStack(spacing: 8) {
+                ForEach(CommunityPost.Crowd.allCases) { level in
+                    VFCrowdLevelButton(
+                        crowd: level,
+                        isSelected: crowd == level,
+                        isDisabled: isSaving
+                    ) {
+                        guard crowd != level else { return }
+                        VFHaptics.selection()
+                        crowd = level
+                    }
+                }
+            }
+
+            if !changesLiveCrowd {
+                Text("쓴 지 1시간이 지나서, 바꿔도 현재 혼잡도에는 반영되지 않아요.")
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var noteSection: some View {
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            Text("한 줄")
+                .vfText(.subhead.weight(.semibold))
+                .foregroundStyle(AppColors.primary)
+
+            TextField("예: 노을은 다리 왼쪽 계단이 명당이에요", text: $note, axis: .vertical)
+                .lineLimit(1...3)
+                .vfText(.body)
+                .tint(AppColors.accent)
+                .submitLabel(.done)
+                .focused($isNoteFocused)
+                .disabled(isSaving)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .frame(maxWidth: .infinity, minHeight: AppLayout.touchTarget, alignment: .leading)
+                .background(
+                    AppColors.mutedSurface,
+                    in: RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous)
+                )
+                .onChange(of: note) { _, newValue in
+                    if newValue.contains(where: \.isNewline) {
+                        // 한 줄 글이라 return 은 입력 끝내기로 씁니다.
+                        isNoteFocused = false
+                    }
+                    let cleaned = SpotDetailCrowdNotePolicy.sanitized(newValue)
+                    if cleaned != newValue {
+                        note = cleaned
+                    }
+                }
+                .accessibilityLabel("한 줄")
+
+            if note.count >= SpotDetailCrowdNotePolicy.counterThreshold {
+                Text("\(note.count)/\(SpotDetailCrowdNotePolicy.maximumLength)")
+                    .monospacedDigit()
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .accessibilityLabel("\(note.count)자, 최대 \(SpotDetailCrowdNotePolicy.maximumLength)자")
+            }
+
+            if let errorMessage {
+                Label {
+                    Text(errorMessage)
+                        .vfText(.caption.weight(.semibold))
+                        .foregroundStyle(AppColors.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: VFSpace.sm + 2) {
+            Button {
+                dismiss()
+            } label: {
+                Text("취소")
+                    .vfText(.callout.weight(.semibold))
+                    .foregroundStyle(AppColors.primary)
+                    .frame(maxWidth: .infinity, minHeight: AppLayout.touchTarget)
+                    .background(AppColors.mutedSurface, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(isSaving)
+
+            Button(action: save) {
+                HStack(spacing: 6) {
+                    if isSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(AppColors.secondaryText)
+                    }
+
+                    Text(isSaving ? "저장 중…" : "저장")
+                        .vfText(.callout.weight(.semibold))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(canSave ? AppColors.onAccent : AppColors.secondaryText)
+                .frame(maxWidth: .infinity, minHeight: AppLayout.touchTarget)
+                .background(canSave ? AppColors.accent : AppColors.mutedSurface, in: Capsule())
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSave)
+        }
+        .padding(.horizontal, AppLayout.pageHorizontalPadding)
+        .padding(.top, VFSpace.sm)
+        .padding(.bottom, VFSpace.md)
+        .background(AppColors.background)
+    }
+
+    private func save() {
+        guard canSave else { return }
+        isNoteFocused = false
+        isSaving = true
+        errorMessage = nil
+        // 한 줄 글에는 제목 · 태그 · 사진 · 촬영 위치가 없어서 비워 둔 채로 보내요(그대로예요).
+        let draft = CommunityPostDraft(
+            spot: spot,
+            title: nil,
+            relatedSpotID: post.relatedSpotID,
+            relatedSpotName: spot?.name ?? post.relatedSpotName,
+            message: trimmedNote,
+            crowd: crowd
+        )
+
+        Task {
+            do {
+                try await onSubmit(draft)
+                isSaving = false
+                VFHaptics.success()
+                dismiss()
+            } catch {
+                isSaving = false
+                VFHaptics.error()
+                if let communityError = error as? FirebaseCommunityError,
+                   case .crowdReportPending = communityError {
+                    errorMessage = "글은 저장됐지만 현재 혼잡도에는 반영하지 못했어요. 다시 저장해 주세요."
+                } else {
+                    errorMessage = "저장하지 못했어요. 고친 내용은 그대로 있어요. 다시 시도해 주세요."
+                }
+                AppLog.persistence.error(
+                    "Quick note edit failed: \(error.localizedDescription, privacy: .public)"
                 )
             }
         }
