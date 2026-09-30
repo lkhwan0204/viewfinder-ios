@@ -1183,18 +1183,26 @@ final class FirebaseCrowdReportStore {
             .sorted { $0.updatedAt > $1.updatedAt }
     }
 
-    func latestReport(
+    /// 같은 사용자+장소의 canonical 문서와, 그 밖의 최근(`freshSince` 이후) 문서를
+    /// 한 번에 읽습니다. canonical 문서는 오래됐어도 돌려줍니다. 서버 규칙이
+    /// canonical 문서의 createdAt 을 바꾸지 못하게 하므로, 재제보할 때 그 값이 필요합니다.
+    func existingReports(
         placeID: String,
         authorID: String,
-        since: Date
-    ) async throws -> CrowdReport? {
-        guard FirebaseApp.app() != nil else { return nil }
+        canonicalID: String,
+        freshSince: Date
+    ) async throws -> (canonical: CrowdReport?, fresh: [CrowdReport]) {
+        guard FirebaseApp.app() != nil else { return (nil, []) }
 
         let documents = try await userReportDocuments(placeID: placeID, authorID: authorID)
-        return documents
+        let canonical = documents
+            .first(where: { $0.documentID == canonicalID })
+            .flatMap(Self.decode)
+        let fresh = documents
+            .filter { $0.documentID != canonicalID }
             .compactMap(Self.decode)
-            .filter { $0.updatedAt >= since }
-            .max { $0.updatedAt < $1.updatedAt }
+            .filter { $0.updatedAt >= freshSince }
+        return (canonical, fresh)
     }
 
     func canonicalReport(placeID: String, authorID: String, id: String) async throws -> CrowdReport? {
@@ -1513,12 +1521,13 @@ final class CrowdReportStore: ObservableObject {
 
         Task { [weak self, remoteStore] in
             let lookupDate = Date()
-            var remoteExisting: CrowdReport?
+            var remoteExisting: (canonical: CrowdReport?, fresh: [CrowdReport]) = (nil, [])
             do {
-                remoteExisting = try await remoteStore.latestReport(
+                remoteExisting = try await remoteStore.existingReports(
                     placeID: placeID,
                     authorID: authorID,
-                    since: lookupDate.addingTimeInterval(-Self.freshnessWindow)
+                    canonicalID: fallbackReportID,
+                    freshSince: lookupDate.addingTimeInterval(-Self.freshnessWindow)
                 )
             } catch {
                 AppLog.persistence.error(
@@ -1526,9 +1535,6 @@ final class CrowdReportStore: ObservableObject {
                 )
             }
 
-            let existing = [localExisting, remoteExisting]
-                .compactMap { $0 }
-                .max { $0.updatedAt < $1.updatedAt }
             let submissionDate = Date()
             // 기존 random ID 문서가 발견되어도 항상 canonical ID로 저장합니다.
             // 그래야 다음 상태 변경이 새 문서를 만들지 않고 같은 문서를 갱신합니다.
@@ -1537,7 +1543,11 @@ final class CrowdReportStore: ObservableObject {
                 placeID: placeID,
                 crowd: crowd,
                 authorID: authorID,
-                createdAt: existing?.createdAt ?? submissionDate,
+                createdAt: Self.createdAtToPreserve(
+                    canonical: remoteExisting.canonical,
+                    freshReports: [localExisting].compactMap { $0 } + remoteExisting.fresh,
+                    submissionDate: submissionDate
+                ),
                 updatedAt: submissionDate,
                 source: reportSource,
                 communityPostID: communityPostID
@@ -1655,6 +1665,25 @@ final class CrowdReportStore: ObservableObject {
 
     private func submissionKey(placeID: String, authorID: String) -> String {
         "\(placeID)\u{001F}\(authorID)"
+    }
+
+    /// 재제보할 때 저장할 createdAt 을 고릅니다.
+    ///
+    /// 서버 규칙(firestore.rules `crowdReports` update)은 canonical 문서의 createdAt 을
+    /// 바꾸지 못하게 합니다. 그래서 canonical 문서가 있으면 오래됐어도 그 값을 그대로 씁니다.
+    /// 전에는 1시간 안의 제보만 찾아서, 1시간이 지난 재제보는 createdAt 이 지금 시각으로
+    /// 바뀌어 서버에서 거절됐어요(실패는 로그에만 남았어요).
+    /// canonical 문서가 없을 때(처음 제보 · 예전 random ID 문서만 있을 때)만 최근 제보를
+    /// 이어받고, 그것도 없으면 지금 시각을 씁니다.
+    static func createdAtToPreserve(
+        canonical: CrowdReport?,
+        freshReports: [CrowdReport],
+        submissionDate: Date
+    ) -> Date {
+        if let canonical {
+            return canonical.createdAt
+        }
+        return freshReports.max { $0.updatedAt < $1.updatedAt }?.createdAt ?? submissionDate
     }
 
     private static func deterministicReportID(placeID: String, authorID: String) -> String {
