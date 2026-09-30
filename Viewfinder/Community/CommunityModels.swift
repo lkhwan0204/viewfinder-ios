@@ -351,6 +351,18 @@ struct CommunityPhotoDraft: Identifiable, Equatable, Sendable {
             sharesToPlaceGallery: sharesToPlaceGallery
         )
     }
+
+    /// 촬영 정보를 공개하지 않는 사진(한 줄 글)을 올릴 모양으로 만들어요.
+    /// 사진 줄이기는 시간이 걸려서 화면을 막지 않게 따로 돌려요.
+    func preparedAttachment(sharesToPlaceGallery: Bool) async throws -> CommunityPhotoAttachment {
+        let draft = self
+        return try await Task.detached(priority: .userInitiated) {
+            try draft.publicAttachment(
+                exifVisibility: .privateOnly,
+                sharesToPlaceGallery: sharesToPlaceGallery
+            )
+        }.value
+    }
 }
 
 enum CommunityPhotoEXIFReader {
