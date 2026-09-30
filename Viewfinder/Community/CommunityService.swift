@@ -1424,13 +1424,14 @@ final class CrowdReportStore: ObservableObject {
 
     /// 같은 상태를 다시 누르면 기존 제보를 취소하고,
     /// 다른 상태를 누르면 같은 사용자+장소 문서를 갱신합니다.
+    /// 무엇을 했는지 돌려줘서, 장소 상세가 새로 제보했을 때만 한 줄 글 시트를 띄울 수 있게 합니다.
     @discardableResult
     func toggle(
         placeID: String,
         crowd: CommunityPost.Crowd,
         authorID: String,
         source: CrowdReportSource
-    ) -> Bool {
+    ) -> CrowdReportToggleOutcome {
         let now = Date()
         if let existing = latestFreshReport(
             in: reports,
@@ -1438,15 +1439,16 @@ final class CrowdReportStore: ObservableObject {
             authorID: authorID,
             now: now
         ), existing.crowd == crowd {
-            return remove(placeID: placeID, authorID: authorID)
+            return remove(placeID: placeID, authorID: authorID) ? .removed : .ignored
         }
 
-        return submit(
+        let didSubmit = submit(
             placeID: placeID,
             crowd: crowd,
             authorID: authorID,
             source: source
         )
+        return didSubmit ? .submitted : .ignored
     }
 
     /// 사용자의 장소별 active 제보를 즉시 로컬에서 제거한 뒤,

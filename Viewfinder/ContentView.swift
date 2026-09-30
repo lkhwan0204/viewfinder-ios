@@ -1465,8 +1465,8 @@ struct ContentView: View {
                 }
             },
             onSubmitCrowdReport: { crowd in
-                guard let user = authViewModel.currentUser else { return }
-                crowdReportStore.toggle(
+                guard let user = authViewModel.currentUser else { return .ignored }
+                return crowdReportStore.toggle(
                     placeID: spot.id,
                     crowd: crowd,
                     authorID: user.id,

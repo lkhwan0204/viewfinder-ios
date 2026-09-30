@@ -55,7 +55,8 @@ struct SpotDetailView: View {
     let onToggleSave: () -> Void
     let onOpenMap: () -> Void
     let onReportPhoto: () -> Void
-    let onSubmitCrowdReport: (CommunityPost.Crowd) -> Void
+    /// 혼잡도를 제보하거나 취소합니다. 무엇을 했는지 돌려줘서, 새로 제보했을 때만 한 줄 글 시트를 띄워요.
+    let onSubmitCrowdReport: (CommunityPost.Crowd) -> CrowdReportToggleOutcome
     let onSubmitCommunity: (CommunityPostDraft, String) async throws -> Void
     let onUpdateCommunity: (CommunityPost, CommunityPostDraft) async throws -> Void
     let onDeleteCommunity: (CommunityPost) async throws -> Void
@@ -79,6 +80,8 @@ struct SpotDetailView: View {
     @State private var didOpenPlaceEditorOnAppear = false
     @State private var authenticationDestination: AuthenticationDestination?
     @State private var pendingAuthenticatedAction: (() -> Void)?
+    /// 혼잡도를 새로 제보한 뒤 띄우는 한 줄 글 시트.
+    @State private var crowdNotePrompt: SpotDetailCrowdNotePrompt?
     @State private var isVisitInformationExpanded = false
     @State private var sessionGalleryPhotos: [PlacePhoto]
     @State private var selectedGalleryIndex = 0
@@ -100,7 +103,7 @@ struct SpotDetailView: View {
         onToggleSave: @escaping () -> Void,
         onOpenMap: @escaping () -> Void,
         onReportPhoto: @escaping () -> Void,
-        onSubmitCrowdReport: @escaping (CommunityPost.Crowd) -> Void = { _ in },
+        onSubmitCrowdReport: @escaping (CommunityPost.Crowd) -> CrowdReportToggleOutcome = { _ in .ignored },
         onSubmitCommunity: @escaping (CommunityPostDraft, String) async throws -> Void,
         onUpdateCommunity: @escaping (CommunityPost, CommunityPostDraft) async throws -> Void,
         onDeleteCommunity: @escaping (CommunityPost) async throws -> Void,
@@ -147,6 +150,7 @@ struct SpotDetailView: View {
     private var isDetailOverlayPresented: Bool {
         isDirectionsDialogPresented
             || isCommunityComposerPresented
+            || crowdNotePrompt != nil
             || authenticationDestination != nil
             || isPlaceDeleteConfirmationPresented
             || isDeletingPlace
@@ -210,7 +214,7 @@ struct SpotDetailView: View {
                             isCrowdReportLoading: isCrowdReportLoading,
                             onReportCrowd: { crowd in
                                 requireAuthentication {
-                                    onSubmitCrowdReport(crowd)
+                                    reportCrowdAndOfferNote(crowd)
                                 }
                             },
                             onEdit: { post in
@@ -306,6 +310,15 @@ struct SpotDetailView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
+        .sheet(item: $crowdNotePrompt) { prompt in
+            SpotDetailCrowdNoteSheet(
+                spot: spot,
+                crowd: prompt.crowd,
+                authorID: prompt.authorID,
+                crowdReportStore: crowdReportStore,
+                onSubmit: onSubmitCommunity
+            )
+        }
         .fullScreenCover(
             item: $authenticationDestination,
             onDismiss: resumePendingAuthenticatedActionIfPossible
@@ -353,6 +366,27 @@ struct SpotDetailView: View {
         guard opensPlaceEditorOnAppear, !didOpenPlaceEditorOnAppear, isCurrentUserPlace else { return }
         didOpenPlaceEditorOnAppear = true
         beginEditingOwnedPlace()
+    }
+
+    /// 혼잡도를 제보하고, 새로 제보했으면 한 줄 글 시트를 띄웁니다.
+    ///
+    /// 로그인하지 않았으면 로그인한 뒤 이어서 실행돼요(requireAuthentication). 그때는
+    /// 이 화면이 로그인 전 값을 들고 있을 수 있어서, 사용자는 authViewModel 에서 바로 읽습니다.
+    private func reportCrowdAndOfferNote(_ crowd: CommunityPost.Crowd) {
+        let outcome = onSubmitCrowdReport(crowd)
+        guard let authorID = authViewModel.currentUser?.id else { return }
+
+        let recentOwnPostDates = communityPosts
+            .filter { $0.relatedSpotID == spot.id && $0.authorID == authorID }
+            .map(\.createdAt)
+        guard SpotDetailCrowdNotePolicy.shouldOffer(
+            outcome: outcome,
+            recentOwnPostDates: recentOwnPostDates,
+            now: Date(),
+            freshnessWindow: CrowdReportStore.freshnessWindow
+        ) else { return }
+
+        crowdNotePrompt = SpotDetailCrowdNotePrompt(crowd: crowd, authorID: authorID)
     }
 
     private func requireAuthentication(action: @escaping () -> Void) {
@@ -1433,6 +1467,315 @@ private struct SpotDetailCrowdReportControl: View {
                         onSelect(crowd)
                     }
                 }
+            }
+        }
+    }
+}
+
+// MARK: - 혼잡도 제보 뒤 한 줄 글
+
+/// 혼잡도 버튼으로 새로 제보한 뒤 띄우는 한 줄 글 시트의 내용입니다.
+/// 띄울 때마다 id 가 새로 생겨서, 다시 띄우면 입력칸과 글 ID 가 새로 시작해요.
+struct SpotDetailCrowdNotePrompt: Identifiable, Equatable {
+    let id = UUID()
+    let crowd: CommunityPost.Crowd
+    /// 시트를 띄울 때 로그인한 사용자. 방금 누른 혼잡도 제보가 저장 중인지 볼 때 씁니다.
+    let authorID: String
+}
+
+/// 한 줄 글 시트를 띄울지, 입력을 어떻게 다듬을지 정하는 규칙입니다.
+/// 화면과 떼어 둬서 Foundation 만으로 확인할 수 있어요.
+enum SpotDetailCrowdNotePolicy {
+    /// 한 줄 글 최대 글자 수.
+    static let maximumLength = 100
+    /// 이 글자 수부터 "87/100" 처럼 글자 수를 보여줘요.
+    static let counterThreshold = 80
+
+    /// 새로 제보했거나 다른 단계로 바꿨을 때만 띄워요. 같은 버튼을 다시 눌러 취소했거나
+    /// 아무 일도 없었으면 띄우지 않아요. 현장 정보가 유효한 시간(1시간) 안에 이 장소에
+    /// 이미 글을 올렸다면, 혼잡도를 바꿔도 다시 띄우지 않아요(매번 뜨면 귀찮아요).
+    static func shouldOffer(
+        outcome: CrowdReportToggleOutcome,
+        recentOwnPostDates: [Date],
+        now: Date,
+        freshnessWindow: TimeInterval
+    ) -> Bool {
+        guard outcome == .submitted else { return false }
+        let cutoff = now.addingTimeInterval(-freshnessWindow)
+        return !recentOwnPostDates.contains { $0 >= cutoff }
+    }
+
+    /// 한 줄 글이라 줄바꿈은 빼요. 붙여 넣은 여러 줄은 한 칸 띄어 이어 붙이고,
+    /// 최대 글자 수까지만 남겨요.
+    static func sanitized(_ text: String) -> String {
+        let singleLine = text
+            .split(omittingEmptySubsequences: true, whereSeparator: \.isNewline)
+            .joined(separator: " ")
+        return String(singleLine.prefix(maximumLength))
+    }
+
+    /// "여유로 · 보통으로 · 혼잡으로 제보했어요".
+    static func reportedTitle(displayName: String) -> String {
+        "\(displayName)\(directionalParticle(after: displayName)) 제보했어요"
+    }
+
+    /// 받침이 없거나 ㄹ 받침이면 "로", 그 밖의 받침이면 "으로".
+    static func directionalParticle(after word: String) -> String {
+        guard let scalar = word.unicodeScalars.last,
+              (0xAC00...0xD7A3).contains(scalar.value) else {
+            return "(으)로"
+        }
+        let finalConsonant = (scalar.value - 0xAC00) % 28
+        // 0: 받침 없음, 8: ㄹ 받침
+        return finalConsonant == 0 || finalConsonant == 8 ? "로" : "으로"
+    }
+
+    /// "1시간" 처럼 현장 정보가 유효한 시간을 글로 나타내요.
+    static func durationText(_ interval: TimeInterval) -> String {
+        let minutes = max(1, Int((interval / 60).rounded()))
+        if minutes % 60 == 0 {
+            return "\(minutes / 60)시간"
+        }
+        return "\(minutes)분"
+    }
+}
+
+/// 혼잡도를 새로 제보한 뒤 한 번 떠요. 한 줄을 남기면 그 혼잡도와 함께 커뮤니티에 올라가요.
+///
+/// - 제보는 버튼을 누른 순간 이미 저장돼요. "나중에"를 눌러도 혼잡도 제보는 남아요.
+/// - 올리기는 커뮤니티 글쓰기와 같은 길(onSubmitCommunity → CommunityViewModel.addPost)을
+///   씁니다. 장소 · 혼잡도가 글에 같이 저장되고, 혼잡도 제보가 이 글과 연결돼요.
+/// - 사진은 사진 업로드 작업 때 이 시트에 붙여요.
+private struct SpotDetailCrowdNoteSheet: View {
+    let spot: PhotoSpot
+    let crowd: CommunityPost.Crowd
+    let authorID: String
+    @ObservedObject var crowdReportStore: CrowdReportStore
+    let onSubmit: (CommunityPostDraft, String) async throws -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var note = ""
+    /// 다시 시도해도 글이 하나만 생기게 시트마다 한 번 만들어 둡니다.
+    /// (addPost 는 같은 ID 의 글이 이미 있으면 새로 만들지 않아요)
+    @State private var submissionID = UUID().uuidString
+    @State private var isPosting = false
+    /// 글은 올라갔는데 혼잡도 연결만 못 했을 때. 같은 글로 다시 시도하도록 입력을 잠가요.
+    @State private var isPostSavedRemotely = false
+    @State private var errorMessage: String?
+    @FocusState private var isNoteFocused: Bool
+
+    private var trimmedNote: String {
+        note.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// 방금 누른 혼잡도 제보가 아직 저장 중인지. 저장 중에 글을 올리면 같은 제보 문서를
+    /// 동시에 두 번 쓰게 되어 실패해요(CrowdReportStore.submitCommunityReport → alreadyInProgress).
+    private var isCrowdReportSaving: Bool {
+        crowdReportStore.isSubmitting(placeID: spot.id, authorID: authorID)
+    }
+
+    private var canPost: Bool {
+        !trimmedNote.isEmpty && !isPosting && !isCrowdReportSaving
+    }
+
+    private var postButtonTitle: String {
+        if isPosting { return "올리는 중…" }
+        if isCrowdReportSaving { return "제보 저장 중…" }
+        if isPostSavedRemotely { return "다시 시도" }
+        return "커뮤니티에 올리기"
+    }
+
+    /// 내용에 맞춘 낮은 높이로 올라와요. 글자를 크게 쓰면 더 높이, 손쉬운 사용 크기면 전체 높이로.
+    /// 넘치면 스크롤되고, 위로 끌어 전체 높이로 펼칠 수도 있어요.
+    private var detents: Set<PresentationDetent> {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [.large]
+        }
+        return [.height(dynamicTypeSize > .large ? 400 : 340), .large]
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: VFSpace.lg) {
+                header
+                noteSection
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, AppLayout.pageHorizontalPadding)
+            .padding(.top, VFSpace.lg + VFSpace.sm)
+            .padding(.bottom, VFSpace.md)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            actions
+        }
+        .background(AppColors.background.ignoresSafeArea())
+        .presentationDetents(detents)
+        .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(isPosting)
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: VFSpace.md) {
+            Image(systemName: "checkmark.circle.fill")
+                .vfIcon(22, relativeTo: .headline)
+                .foregroundStyle(crowd.tint)
+
+            VStack(alignment: .leading, spacing: VFSpace.xs) {
+                Text(SpotDetailCrowdNotePolicy.reportedTitle(displayName: crowd.displayName))
+                    .vfText(.headline)
+                    .foregroundStyle(AppColors.primary)
+
+                Text("\(SpotDetailCrowdNotePolicy.durationText(CrowdReportStore.freshnessWindow)) 동안 이 장소의 현재 혼잡도에 반영돼요.")
+                    .vfText(.subhead)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var noteSection: some View {
+        VStack(alignment: .leading, spacing: VFSpace.sm) {
+            Text("지금 현장은 어때요?")
+                .vfText(.subhead.weight(.semibold))
+                .foregroundStyle(AppColors.primary)
+
+            TextField("예: 노을은 다리 왼쪽 계단이 명당이에요", text: $note, axis: .vertical)
+                .lineLimit(1...3)
+                .vfText(.body)
+                .tint(AppColors.accent)
+                .submitLabel(.done)
+                .focused($isNoteFocused)
+                .disabled(isPosting || isPostSavedRemotely)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .frame(maxWidth: .infinity, minHeight: AppLayout.touchTarget, alignment: .leading)
+                .background(
+                    AppColors.mutedSurface,
+                    in: RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous)
+                )
+                .onChange(of: note) { _, newValue in
+                    if newValue.contains(where: \.isNewline) {
+                        // 한 줄 글이라 return 은 입력 끝내기로 씁니다.
+                        isNoteFocused = false
+                    }
+                    let cleaned = SpotDetailCrowdNotePolicy.sanitized(newValue)
+                    if cleaned != newValue {
+                        note = cleaned
+                    }
+                }
+                .accessibilityLabel("한 줄 남기기")
+                .accessibilityHint("한 줄을 남기면 커뮤니티에도 함께 올라가요")
+
+            HStack(alignment: .firstTextBaseline, spacing: VFSpace.sm) {
+                Text("한 줄을 남기면 커뮤니티에도 함께 올라가요.")
+                    .vfText(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 0)
+
+                if note.count >= SpotDetailCrowdNotePolicy.counterThreshold {
+                    Text("\(note.count)/\(SpotDetailCrowdNotePolicy.maximumLength)")
+                        .monospacedDigit()
+                        .vfText(.caption)
+                        .foregroundStyle(AppColors.secondaryText)
+                        .accessibilityLabel("\(note.count)자, 최대 \(SpotDetailCrowdNotePolicy.maximumLength)자")
+                }
+            }
+
+            if let errorMessage {
+                Label {
+                    Text(errorMessage)
+                        .vfText(.caption.weight(.semibold))
+                        .foregroundStyle(AppColors.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: VFSpace.sm + 2) {
+            Button {
+                dismiss()
+            } label: {
+                Text(isPostSavedRemotely ? "닫기" : "나중에")
+                    .vfText(.callout.weight(.semibold))
+                    .foregroundStyle(AppColors.primary)
+                    .frame(maxWidth: .infinity, minHeight: AppLayout.touchTarget)
+                    .background(AppColors.mutedSurface, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(isPosting)
+
+            Button(action: post) {
+                HStack(spacing: 6) {
+                    if isPosting || isCrowdReportSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(AppColors.secondaryText)
+                    }
+
+                    Text(postButtonTitle)
+                        .vfText(.callout.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+                .foregroundStyle(canPost ? AppColors.onAccent : AppColors.secondaryText)
+                .frame(maxWidth: .infinity, minHeight: AppLayout.touchTarget)
+                .background(canPost ? AppColors.accent : AppColors.mutedSurface, in: Capsule())
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canPost)
+        }
+        .padding(.horizontal, AppLayout.pageHorizontalPadding)
+        .padding(.top, VFSpace.sm)
+        .padding(.bottom, VFSpace.md)
+        .background(AppColors.background)
+    }
+
+    private func post() {
+        guard canPost else { return }
+        let message = trimmedNote
+        isNoteFocused = false
+        isPosting = true
+        errorMessage = nil
+
+        Task {
+            do {
+                try await onSubmit(
+                    CommunityPostDraft(spot: spot, title: nil, message: message, crowd: crowd),
+                    submissionID
+                )
+                isPosting = false
+                VFHaptics.success()
+                dismiss()
+            } catch {
+                isPosting = false
+                VFHaptics.error()
+                if let communityError = error as? FirebaseCommunityError,
+                   case .crowdReportPending = communityError {
+                    // 글은 이미 올라갔어요. 같은 ID 로 다시 시도하면 글이 하나 더 생기지 않고
+                    // 혼잡도 연결만 마저 해요.
+                    isPostSavedRemotely = true
+                    errorMessage = communityError.localizedDescription
+                } else {
+                    errorMessage = "올리지 못했어요. 쓴 내용은 그대로 있어요. 다시 시도해 주세요."
+                }
+                AppLog.persistence.error(
+                    "Crowd note post failed: \(error.localizedDescription, privacy: .public)"
+                )
             }
         }
     }
