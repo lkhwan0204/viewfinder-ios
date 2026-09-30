@@ -2134,6 +2134,8 @@ struct CommunityComposerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedField: ComposerField?
+    /// 키보드가 올라와 있는지. 아래 버튼 옆 "키보드 내리기"를 보일지 정해요.
+    @State private var isKeyboardVisible = false
     @State private var selectedSpotID: String
     @State private var selectedSearchedSpot: PhotoSpot?
     @State private var placeSearchText: String
@@ -2300,10 +2302,9 @@ struct CommunityComposerView: View {
                         .accessibilityLabel("글쓰기 닫기")
                     }
                 }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("완료") { dismissComposerKeyboard() }
-                }
+                // 키보드 위 "완료" 막대(ToolbarItemGroup .keyboard)는 두지 않아요. iOS 26 은 그 막대가 투명해서
+                // 아래 "공유하기" 버튼과 키보드 사이로 글 내용(사진 등)이 비쳐 보이고 "완료"와 겹쳤어요.
+                // 키보드 내리기는 아래 버튼 옆에 있어요(composerSubmitBar).
             }
             .confirmationDialog(
                 isPostSavedRemotely
@@ -2328,6 +2329,14 @@ struct CommunityComposerView: View {
             .contentShape(Rectangle())
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 composerSubmitBar
+            }
+            // 키보드가 올라와 있는지. 아래 버튼 옆 "키보드 내리기"를 이때만 보여요.
+            // 입력칸마다 포커스를 따로 두지 않아도(태그 입력 등) 모든 입력칸에서 같이 동작해요.
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                isKeyboardVisible = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                isKeyboardVisible = false
             }
             .onChange(of: selectedPhotoItems) { _, newItems in
                 loadPhotos(from: newItems)
@@ -2574,37 +2583,65 @@ struct CommunityComposerView: View {
         VStack(spacing: 0) {
             Divider()
 
-            Button {
-                submit()
-            } label: {
-                // 주 동작이므로 앰버입니다.
-                // 전에는 AppColors.primary 였는데 다크에서 흰색이라
-                // 제출 버튼이 화면에서 가장 밝은 면이 됐습니다.
-                // VFDesign 의 앰버 허용 목록에 "주 동작" 이 있습니다.
-                HStack(spacing: 8) {
-                    if isPreparingSubmission { ProgressView() }
-                    Text(isPreparingSubmission
-                         ? submissionProgressTitle
-                         : submitButtonTitle)
+            HStack(spacing: 10) {
+                // 키보드가 올라와 있을 때만 보여요. 키보드 위 "완료" 막대를 대신해요.
+                if isKeyboardVisible {
+                    Button {
+                        dismissComposerKeyboard()
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                            // Dynamic Type 제외: 고정 52pt 원 안의 아이콘. 옆 "공유하기" 버튼과 높이를 맞춰요.
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(AppColors.primary)
+                            .frame(width: 52, height: 52)
+                            .background(AppColors.mutedSurface, in: Circle())
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("키보드 내리기")
                 }
-                    .vfText(.headline)
-                    .foregroundStyle((canSubmit || isPreparingSubmission) ? AppColors.onAccent : AppColors.secondaryText.opacity(0.45))
-                    .tint(AppColors.onAccent)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .frame(minHeight: 52)
-                    .background(
-                        (canSubmit || isPreparingSubmission) ? AppColors.accent : AppColors.mutedSurface,
-                        in: Capsule()
-                    )
+
+                submitButton
             }
-            .buttonStyle(.plain)
-            .disabled(!canSubmit)
             .padding(.horizontal, 20)
             .padding(.top, 12)
             .padding(.bottom, 8)
         }
-        .background(AppColors.background)
+        // 버튼 아래(홈 표시줄 자리 · 키보드 뒤)까지 바탕을 채워요. 안 채우면 스크롤한 글 내용이
+        // 버튼 아래 틈과 반투명한 iOS 26 키보드 뒤로 비쳐 보여요.
+        .background {
+            AppColors.background
+                .ignoresSafeArea(edges: .bottom)
+        }
+    }
+
+    private var submitButton: some View {
+        Button {
+            submit()
+        } label: {
+            // 주 동작이므로 앰버입니다.
+            // 전에는 AppColors.primary 였는데 다크에서 흰색이라
+            // 제출 버튼이 화면에서 가장 밝은 면이 됐습니다.
+            // VFDesign 의 앰버 허용 목록에 "주 동작" 이 있습니다.
+            HStack(spacing: 8) {
+                if isPreparingSubmission { ProgressView() }
+                Text(isPreparingSubmission
+                     ? submissionProgressTitle
+                     : submitButtonTitle)
+            }
+                .vfText(.headline)
+                .foregroundStyle((canSubmit || isPreparingSubmission) ? AppColors.onAccent : AppColors.secondaryText.opacity(0.45))
+                .tint(AppColors.onAccent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .frame(minHeight: 52)
+                .background(
+                    (canSubmit || isPreparingSubmission) ? AppColors.accent : AppColors.mutedSurface,
+                    in: Capsule()
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSubmit)
     }
 
     @ViewBuilder
