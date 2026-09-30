@@ -3561,7 +3561,8 @@ struct CommunityComposerView: View {
 
     private func submit() {
         guard canSubmit else { return }
-        if purpose == .fieldReport, !photoDrafts.isEmpty {
+        // 사진 올리기가 꺼져 있으면(CommunityPhotoUpload) 새 사진이 있는 글은 올리지 않고 알려요.
+        if purpose == .fieldReport, !CommunityPhotoUpload.isAvailable, !photoDrafts.isEmpty {
             isPhotoUnavailablePresented = true
             return
         }

@@ -180,7 +180,9 @@ final class FirebaseCommunityPostStore {
         guard FirebaseApp.app() != nil else {
             throw FirebaseCommunityError.notConfigured
         }
-        guard !draft.photoAttachments.contains(where: { $0.imageData != nil }) else {
+        // 새로 올려야 하는 사진(파일이 있음)은 사진 올리기가 켜져 있을 때만 받아요(CommunityPhotoUpload).
+        guard CommunityPhotoUpload.isAvailable
+                || !draft.photoAttachments.contains(where: { $0.imageData != nil }) else {
             throw FirebaseCommunityError.photoUploadUnavailable
         }
 
@@ -264,7 +266,9 @@ final class FirebaseCommunityPostStore {
     }
 
     func updatePost(_ post: CommunityPost, draft: CommunityPostDraft) async throws -> CommunityPost {
-        guard !draft.photoAttachments.contains(where: { $0.imageData != nil }) else {
+        // 새로 올려야 하는 사진(파일이 있음)은 사진 올리기가 켜져 있을 때만 받아요(CommunityPhotoUpload).
+        guard CommunityPhotoUpload.isAvailable
+                || !draft.photoAttachments.contains(where: { $0.imageData != nil }) else {
             throw FirebaseCommunityError.photoUploadUnavailable
         }
         let attachments = try await uploadAttachments(
@@ -734,6 +738,17 @@ private extension CommunityPost {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
+}
+
+/// 커뮤니티 글에 사진 올리기를 켤지 정하는 한 곳이에요.
+///
+/// 지금은 꺼 둬요. Storage 준비(Blaze 요금제 · US 버킷 · `storage.rules` 배포, 또는 에뮬레이터)가 끝나면
+/// `true` 로 바꿔요. 이 값 하나로 커뮤니티 글쓰기 · 한 줄 글 시트 · 한 줄 글 수정 · 저장
+/// (`FirebaseCommunityPostStore.addPost` · `updatePost`)의 막음이 같이 풀려요.
+/// 꺼져 있어도 사진을 고르고 보는 것까지는 돼요. 올리려고 하면 "준비 중"이라고 알려요.
+/// 장소 상세 "사진 추가"(사진 등록)는 이 값과 상관없이 전부터 바로 올려요.
+enum CommunityPhotoUpload {
+    static let isAvailable = false
 }
 
 /// 글을 다시 저장할 때(같은 글 ID 로 다시 시도) 사진을 어떻게 볼지 정해요.
