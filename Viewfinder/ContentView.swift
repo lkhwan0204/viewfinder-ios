@@ -107,6 +107,8 @@ struct ContentView: View {
     @State private var pendingAuthenticatedAction: ((AuthUser) -> Void)?
     @State private var isHomeSearchPresented = false
     @State private var shouldRestoreHomeSearch = false
+    /// 홈 검색에서 고른 커뮤니티 글. 커뮤니티 탭이 이 글 상세를 열어요.
+    @State private var communityRequestedPostID: String?
     @State private var pendingHomeSearchAction: (() -> Void)?
     @State private var pendingDetailDismissAction: (() -> Void)?
     @StateObject private var homeRecommendations: HomeRecommendationsViewModel
@@ -663,6 +665,7 @@ struct ContentView: View {
                 onAddAISpot: addAISpot,
                 onShowDetail: { showDetail($0, source: .home) },
                 onShowSearchDetail: { showDetail($0, source: .search) },
+                onOpenCommunityPost: openCommunityPostFromSearch,
                 onReportMissingPhoto: { spot in
                     performAuthenticatedAction(loginPresentationContext: .contributePhotos) { _ in
                         presentComposer(.contributePhotos(placeID: spot.id), spot: spot)
@@ -768,7 +771,8 @@ struct ContentView: View {
                         communityViewModel.addComment(message, to: post, author: user)
                     }
                 },
-                communityViewModel: communityViewModel
+                communityViewModel: communityViewModel,
+                requestedPostID: $communityRequestedPostID
             )
             .tint(AppColors.accent)
             .tag(AppTab.community)
@@ -1018,6 +1022,20 @@ struct ContentView: View {
         let action = pendingHomeSearchAction
         pendingHomeSearchAction = nil
         action?()
+    }
+
+    /// 홈 검색에서 고른 커뮤니티 글을 커뮤니티 탭에서 열어요. 장소 없는 글도 열려요.
+    /// 검색 화면이 닫힌 뒤에 불려요(performAfterHomeSearchDismissal).
+    private func openCommunityPostFromSearch(_ post: CommunityPost) {
+        // 검색을 떠나 다른 탭으로 가요. 나중에 홈에서 다른 시트를 닫을 때 검색이 다시 뜨지 않게 해요.
+        shouldRestoreHomeSearch = false
+        selectedTab = .community
+
+        // 커뮤니티 탭이 화면에 올라온 뒤 글을 열어요(저장한 장소 목록을 지도 탭에서 열 때와 같은 방식이에요).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            guard selectedTab == .community else { return }
+            communityRequestedPostID = post.id
+        }
     }
 
     private func restoreHomeSearchIfPossible() {

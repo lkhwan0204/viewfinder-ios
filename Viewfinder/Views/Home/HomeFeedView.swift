@@ -190,6 +190,8 @@ struct HomeFeedView: View {
     let onAddAISpot: (PhotoSpot) -> Void
     let onShowDetail: (PhotoSpot) -> Void
     let onShowSearchDetail: (PhotoSpot) -> Void
+    /// 검색 결과의 커뮤니티 글을 열어요.
+    let onOpenCommunityPost: (CommunityPost) -> Void
     let onReportMissingPhoto: (PhotoSpot) -> Void
     let onAddPlace: () -> Void
     let onToggleSave: (PhotoSpot) -> Void
@@ -459,9 +461,12 @@ struct HomeFeedView: View {
                     performSearchAction(action: onAddPlace)
                 },
                 onSelectCommunityPost: { post in
-                    guard let spot = spot(for: post) else { return }
-                    performSearchAction {
-                        onShowSearchDetail(spot)
+                    // 글을 누르면 그 글을 열어요(커뮤니티 탭). 전에는 글이 아니라 장소 상세가 열렸고,
+                    // 장소 없는 글은 눌러도 아무 일이 없었어요.
+                    // 검색으로 돌아오지 않아서(다른 탭) 돌아올 자리는 비워요.
+                    searchReturnAnchor = nil
+                    onPerformSearchAction {
+                        onOpenCommunityPost(post)
                     }
                 },
                 onQueryChange: performLocalKeywordSearch
@@ -791,10 +796,6 @@ struct HomeFeedView: View {
                 isSearchResultsPresented = true
             }
         }
-    }
-
-    private func spot(for post: CommunityPost) -> PhotoSpot? {
-        searchableSpots.first { $0.id == post.spotID }
     }
 
     // Phase 2A: 272x352 고정 카드 카로셀을 full-bleed Hero 로 교체했습니다.
@@ -1193,6 +1194,35 @@ struct HomeSearchResultsView: View {
         static let historyTopSpacing: CGFloat = 24
     }
 
+    /// "커뮤니티 글 결과" 머리글 자리. 맨 위 바로가기가 여기로 내려가요.
+    private static let communityResultsID = "home-search-community-results"
+
+    private func communityResultsShortcut(scrollProxy: ScrollViewProxy) -> some View {
+        Button {
+            withAnimation(VFMotion.standard) {
+                scrollProxy.scrollTo(Self.communityResultsID, anchor: .top)
+            }
+        } label: {
+            HStack(spacing: VFSpace.sm) {
+                Image(systemName: "text.bubble")
+                    .vfIcon(14, relativeTo: .callout)
+
+                Text("커뮤니티 글 \(communityPosts.count)개 보기")
+                    .vfText(.callout.weight(.semibold))
+
+                Image(systemName: "chevron.down")
+                    .vfIcon(11, weight: .bold, relativeTo: .callout)
+            }
+            .foregroundStyle(AppColors.primary)
+            .padding(.horizontal, 14)
+            .frame(minHeight: AppLayout.touchTarget)
+            .background(AppColors.mutedSurface, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("아래 커뮤니티 글 결과로 가요")
+    }
+
     // ═══════════════════════════════════════════════════════════════
     //  홈 검색이 세 갈래로 나뉩니다.
     //
@@ -1297,6 +1327,12 @@ struct HomeSearchResultsView: View {
                         .padding(.top, VFSpace.md)
                     } else {
                         VStack(alignment: .leading, spacing: 18) {
+                            // 커뮤니티 글은 장소 결과 아래에 있어서, 장소가 많이 나오는 말(노을 · 야경 등)이면
+                            // 한참 내려야 보였어요. 글이 있으면 맨 위에서 바로 내려갈 수 있게 해요.
+                            if !communityPosts.isEmpty, !spotRecommendations.isEmpty || !unknownPlaces.isEmpty {
+                                communityResultsShortcut(scrollProxy: scrollProxy)
+                            }
+
                             if !spotRecommendations.isEmpty {
                                 SearchResultSectionHeader(title: "출사지 결과", count: spotRecommendations.count)
 
@@ -1342,6 +1378,7 @@ struct HomeSearchResultsView: View {
 
                             if !communityPosts.isEmpty {
                                 SearchResultSectionHeader(title: "커뮤니티 글 결과", count: communityPosts.count)
+                                    .id(Self.communityResultsID)
 
                                 LazyVStack(spacing: 8) {
                                     ForEach(communityPosts) { post in

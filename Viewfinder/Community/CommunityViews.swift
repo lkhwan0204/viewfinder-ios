@@ -24,6 +24,8 @@ struct CommunityTabView: View {
     let onToggleFollow: (CommunityPost) -> Void
     let onAddComment: (String, CommunityPost) -> Bool
     let communityViewModel: CommunityViewModel
+    /// 다른 화면(홈 검색)에서 열어 달라고 한 글의 ID. 값이 들어오면 그 글 상세를 열어요.
+    @Binding var requestedPostID: String?
 
     // ═══════════════════════════════════════════════════════════════
     //  "지금 주목받는 현장" 가로 레일을 제거했습니다.
@@ -130,10 +132,46 @@ struct CommunityTabView: View {
                     .accessibilityLabel("커뮤니티 글쓰기")
                 }
             }
+            // 홈 검색에서 고른 글. 피드 카드를 누를 때와 같은 상세를 열어요. 뒤로 가면 피드예요.
+            .navigationDestination(item: $requestedPostID) { postID in
+                requestedPostDetail(postID: postID, spotsByID: spotsByID)
+            }
             .onAppear {
                 onTabBarVisibilityChange(false)
                 communityViewModel.refreshPosts()
             }
+        }
+    }
+
+    @ViewBuilder
+    private func requestedPostDetail(postID: String, spotsByID: [String: PhotoSpot]) -> some View {
+        if let post = posts.first(where: { $0.id == postID }) {
+            CommunityPostDetailView(
+                post: post,
+                spot: spotsByID[post.spotID],
+                captureLocationSpot: post.captureLocation?.placeID.flatMap { spotsByID[$0] },
+                currentUserID: currentUserID,
+                isLiked: likedPostIDs.contains(post.id),
+                likeCount: displayedLikeCount(for: post),
+                isFollowing: followedAuthorIDs.contains(post.authorID),
+                comments: commentsByPostID[post.id] ?? [],
+                focusCommentComposerOnAppear: false,
+                onToggleLike: onToggleLike,
+                onToggleFollow: onToggleFollow,
+                onAddComment: onAddComment,
+                onSelectSpot: onSelectSpot,
+                onEdit: onEditPost,
+                onDelete: onDeletePost,
+                communityViewModel: communityViewModel
+            )
+        } else {
+            // 그 사이 글이 지워졌을 때예요.
+            AppStatePanel(
+                symbolName: "text.bubble",
+                title: "글을 찾을 수 없어요",
+                message: "지워졌거나 아직 불러오지 못한 글이에요."
+            )
+            .padding(.horizontal, VFSpace.lg)
         }
     }
 
