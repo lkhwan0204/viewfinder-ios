@@ -1157,7 +1157,8 @@ struct SpotDetailCommunitySection: View {
 
                 SpotDetailCrowdReportControl(
                     selection: selectedCrowd,
-                    isSubmitting: isCrowdReportSubmitting || isCrowdReportLoading,
+                    isSaving: isCrowdReportSubmitting,
+                    isLoading: isCrowdReportLoading,
                     onSelect: onReportCrowd
                 )
             }
@@ -1461,27 +1462,56 @@ private struct SpotCommunityPostThumbnail: View {
 
 private struct SpotDetailCrowdReportControl: View {
     let selection: CommunityPost.Crowd?
-    let isSubmitting: Bool
+    /// 방금 누른 제보(또는 취소)를 저장하는 중.
+    let isSaving: Bool
+    /// 이 장소의 제보를 처음 불러오는 중.
+    let isLoading: Bool
     let onSelect: (CommunityPost.Crowd) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isBusy: Bool {
+        isSaving || isLoading
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("지금 얼마나 붐비나요?")
-                .font(AppTypography.metadata.weight(.semibold))
-                .foregroundStyle(AppColors.secondaryText)
+            HStack(spacing: 6) {
+                Text("지금 얼마나 붐비나요?")
+                    .font(AppTypography.metadata.weight(.semibold))
+                    .foregroundStyle(AppColors.secondaryText)
+
+                Spacer(minLength: 0)
+
+                // 저장하는 동안(보통 1초 안쪽) 버튼이 잠겨요. 모양이 그대로면 누른 게
+                // 무시된 것처럼 보여서, 잠긴 동안에는 여기에 표시하고 버튼을 조금 옅게 둬요.
+                if isBusy {
+                    HStack(spacing: 4) {
+                        ProgressView()
+                            .controlSize(.mini)
+                        Text(isSaving ? "저장 중…" : "불러오는 중…")
+                            .font(AppTypography.metadata)
+                            .foregroundStyle(AppColors.secondaryText)
+                    }
+                    .transition(.opacity)
+                    .accessibilityElement(children: .combine)
+                }
+            }
 
             HStack(spacing: 8) {
                 ForEach(CommunityPost.Crowd.allCases) { crowd in
                     VFCrowdLevelButton(
                         crowd: crowd,
                         isSelected: selection == crowd,
-                        isDisabled: isSubmitting
+                        isDisabled: isBusy
                     ) {
                         onSelect(crowd)
                     }
                 }
             }
+            .opacity(isBusy ? 0.6 : 1)
         }
+        .animation(reduceMotion ? nil : VFMotion.quick, value: isBusy)
     }
 }
 
