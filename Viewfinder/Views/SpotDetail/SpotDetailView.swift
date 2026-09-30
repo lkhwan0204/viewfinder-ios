@@ -82,6 +82,11 @@ struct SpotDetailView: View {
     @State private var pendingAuthenticatedAction: (() -> Void)?
     /// 혼잡도를 새로 제보한 뒤 띄우는 한 줄 글 시트.
     @State private var crowdNotePrompt: SpotDetailCrowdNotePrompt?
+    /// 혼잡도를 취소하려는데 이 제보와 함께 올린 글이 있을 때 먼저 묻는 확인.
+    @State private var pendingCrowdChange: SpotDetailCrowdChangeRequest?
+    /// 함께 올린 글을 지우는 중. 그동안 혼잡도 버튼을 "저장 중…"으로 잠가요.
+    @State private var isApplyingCrowdChange = false
+    @State private var crowdChangeError: String?
     @State private var isVisitInformationExpanded = false
     @State private var sessionGalleryPhotos: [PlacePhoto]
     @State private var selectedGalleryIndex = 0
@@ -151,6 +156,7 @@ struct SpotDetailView: View {
         isDirectionsDialogPresented
             || isCommunityComposerPresented
             || crowdNotePrompt != nil
+            || pendingCrowdChange != nil
             || authenticationDestination != nil
             || isPlaceDeleteConfirmationPresented
             || isDeletingPlace
@@ -210,11 +216,11 @@ struct SpotDetailView: View {
                             crowdReports: crowdReports,
                             currentUserID: currentUserID,
                             spots: spots,
-                            isCrowdReportSubmitting: isCrowdReportSubmitting,
+                            isCrowdReportSubmitting: isCrowdReportSubmitting || isApplyingCrowdChange,
                             isCrowdReportLoading: isCrowdReportLoading,
                             onReportCrowd: { crowd in
                                 requireAuthentication {
-                                    reportCrowdAndOfferNote(crowd)
+                                    handleCrowdTap(crowd)
                                 }
                             },
                             onEdit: { post in
@@ -241,6 +247,32 @@ struct SpotDetailView: View {
                                 onAddCommunityComment(message, post)
                             }
                         )
+                        // 혼잡도를 취소할 때 이 제보와 함께 올린 글이 있으면 먼저 물어봐요.
+                        // 상세 본문 끝의 확인 · 알림과 섞이지 않게 이 섹션에 붙입니다.
+                        .confirmationDialog(
+                            crowdChangeDialogTitle,
+                            isPresented: Binding(
+                                get: { pendingCrowdChange != nil },
+                                set: { if !$0 { pendingCrowdChange = nil } }
+                            ),
+                            titleVisibility: .visible,
+                            presenting: pendingCrowdChange
+                        ) { request in
+                            crowdChangeDialogActions(for: request)
+                        } message: { request in
+                            Text(crowdChangeDialogMessage(for: request))
+                        }
+                        .alert(
+                            "처리하지 못했어요",
+                            isPresented: Binding(
+                                get: { crowdChangeError != nil },
+                                set: { if !$0 { crowdChangeError = nil } }
+                            )
+                        ) {
+                            Button("확인", role: .cancel) { crowdChangeError = nil }
+                        } message: {
+                            Text(crowdChangeError ?? "다시 시도해 주세요.")
+                        }
                     }
                     .frame(width: contentWidth, alignment: .leading)
                     .padding(.horizontal, horizontalPadding)
@@ -366,6 +398,93 @@ struct SpotDetailView: View {
         guard opensPlaceEditorOnAppear, !didOpenPlaceEditorOnAppear, isCurrentUserPlace else { return }
         didOpenPlaceEditorOnAppear = true
         beginEditingOwnedPlace()
+    }
+
+    /// 혼잡도 버튼을 눌렀을 때. 지금 내 제보가 내가 올린 글과 연결돼 있고 같은 단계를 다시 눌러
+    /// 취소하려는 거면, 글도 지울지 먼저 물어봐요. 그 밖에는 바로 제보 · 취소해요.
+    ///
+    /// 로그인한 뒤 이어서 실행될 때도 있어서, 사용자는 authViewModel 에서 바로 읽습니다.
+    private func handleCrowdTap(_ crowd: CommunityPost.Crowd) {
+        guard let authorID = authViewModel.currentUser?.id else {
+            reportCrowdAndOfferNote(crowd)
+            return
+        }
+
+        let ownPosts = communityPosts.filter { $0.relatedSpotID == spot.id && $0.authorID == authorID }
+        guard let question = SpotDetailCrowdLinkedPostPolicy.question(
+            tapped: crowd,
+            reports: crowdReports,
+            placeID: spot.id,
+            userID: authorID,
+            ownPostIDs: Set(ownPosts.map(\.id)),
+            now: Date(),
+            freshnessWindow: CrowdReportStore.freshnessWindow
+        ),
+              case .cancel = question,
+              let post = ownPosts.first(where: { $0.id == question.postID }) else {
+            reportCrowdAndOfferNote(crowd)
+            return
+        }
+
+        pendingCrowdChange = SpotDetailCrowdChangeRequest(tapped: crowd, question: question, post: post)
+    }
+
+    private var crowdChangeDialogTitle: String {
+        guard let request = pendingCrowdChange else { return "" }
+        switch request.question {
+        case .cancel:
+            return "혼잡도 제보를 취소할까요?"
+        case .change:
+            let name = request.tapped.displayName
+            return "\(name)\(SpotDetailCrowdNotePolicy.directionalParticle(after: name)) 바꿀까요?"
+        }
+    }
+
+    private func crowdChangeDialogMessage(for request: SpotDetailCrowdChangeRequest) -> String {
+        switch request.question {
+        case .cancel:
+            return "이 제보와 함께 올린 글이 있어요. 글도 삭제하면 커뮤니티에서 사라져요."
+        case .change(_, let previous):
+            let name = previous.displayName
+            return "함께 올린 글에는 \"작성 당시 \(name)\"\(SpotDetailCrowdNotePolicy.directionalParticle(after: name)) 남아 있어요."
+        }
+    }
+
+    @ViewBuilder
+    private func crowdChangeDialogActions(for request: SpotDetailCrowdChangeRequest) -> some View {
+        switch request.question {
+        case .cancel:
+            Button("글도 함께 삭제", role: .destructive) {
+                deleteLinkedPost(request.post)
+            }
+            Button("제보만 취소") {
+                reportCrowdAndOfferNote(request.tapped)
+            }
+        case .change:
+            Button("제보만 바꾸기") {
+                reportCrowdAndOfferNote(request.tapped)
+            }
+        }
+        Button("닫기", role: .cancel) {}
+    }
+
+    /// "글도 함께 삭제". 글을 지우면 이 글과 연결된 혼잡도 제보도 같이 지워져요
+    /// (CommunityViewModel.deletePost → CrowdReportStore.removeCommunityReport).
+    private func deleteLinkedPost(_ post: CommunityPost) {
+        isApplyingCrowdChange = true
+        Task {
+            do {
+                try await onDeleteCommunity(post)
+                VFHaptics.success()
+            } catch {
+                crowdChangeError = "글을 삭제하지 못했어요. 혼잡도 제보도 그대로 있어요. 다시 시도해 주세요."
+                VFHaptics.error()
+                AppLog.persistence.error(
+                    "Linked post delete failed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+            isApplyingCrowdChange = false
+        }
     }
 
     /// 혼잡도를 제보하고, 새로 제보했으면 한 줄 글 시트를 띄웁니다.
@@ -1581,6 +1700,60 @@ enum SpotDetailCrowdNotePolicy {
         }
         return "\(minutes)분"
     }
+}
+
+/// 혼잡도 버튼을 눌렀을 때, 이 제보와 함께 올린 내 글이 있으면 어떻게 할지 먼저 물어볼지 정합니다.
+/// 화면과 떼어 둬서 Foundation 만으로 확인할 수 있어요.
+enum SpotDetailCrowdLinkedPostPolicy {
+    enum Question: Equatable {
+        /// 같은 단계를 다시 눌러 취소하려는데, 이 제보와 함께 올린 글이 있어요.
+        case cancel(postID: String)
+        /// 다른 단계로 바꾸려는데, 이 제보와 함께 올린 글이 있어요.
+        case change(postID: String, from: CommunityPost.Crowd)
+
+        var postID: String {
+            switch self {
+            case .cancel(let postID), .change(let postID, _):
+                return postID
+            }
+        }
+    }
+
+    /// 지금 내 제보(현장 정보가 유효한 1시간 안)가 내가 올린 글과 연결돼 있을 때만 물어요.
+    /// 글 없이 한 제보, 처음 누르는 경우, 연결된 글이 목록에 없는 경우는 nil 이라 바로 제보 · 취소해요.
+    /// 제보를 바꾸면(글 없이) 글과의 연결이 풀려서, 그 뒤로는 묻지 않아요.
+    static func question(
+        tapped: CommunityPost.Crowd,
+        reports: [CrowdReport],
+        placeID: String,
+        userID: String,
+        ownPostIDs: Set<String>,
+        now: Date,
+        freshnessWindow: TimeInterval
+    ) -> Question? {
+        guard !userID.isEmpty else { return nil }
+        let cutoff = now.addingTimeInterval(-freshnessWindow)
+        guard let current = reports
+            .filter({ $0.placeID == placeID && $0.authorID == userID && $0.updatedAt >= cutoff })
+            .max(by: { $0.updatedAt < $1.updatedAt }),
+              let postID = current.communityPostID,
+              ownPostIDs.contains(postID) else {
+            return nil
+        }
+        return current.crowd == tapped
+            ? .cancel(postID: postID)
+            : .change(postID: postID, from: current.crowd)
+    }
+}
+
+/// 혼잡도를 취소 · 변경하기 전에 띄우는 확인의 내용입니다.
+struct SpotDetailCrowdChangeRequest: Identifiable {
+    let id = UUID()
+    /// 사용자가 누른 단계.
+    let tapped: CommunityPost.Crowd
+    let question: SpotDetailCrowdLinkedPostPolicy.Question
+    /// 이 제보와 함께 올린 내 글.
+    let post: CommunityPost
 }
 
 /// 혼잡도를 새로 제보한 뒤 한 번 떠요. 한 줄을 남기면 그 혼잡도와 함께 커뮤니티에 올라가요.
