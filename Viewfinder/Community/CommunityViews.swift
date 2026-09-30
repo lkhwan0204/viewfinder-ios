@@ -923,9 +923,10 @@ struct CommunityPostDetailView: View {
                                 Label("삭제", systemImage: "trash")
                             }
                         } label: {
+                            // 위쪽 막대 버튼은 틀을 주지 않아요. iOS 26 은 아이콘만 있는 버튼을 동그란
+                            // 유리 버튼으로 그리는데, 44pt 틀을 주면 그 위에 여백이 더해져 타원이 돼요.
+                            // 누르는 영역은 시스템이 44pt 로 잡아요(마이 톱니바퀴 · 글쓰기 버튼과 같아요).
                             Image(systemName: "ellipsis")
-                                .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
-                                .contentShape(Rectangle())
                         }
                         .accessibilityLabel("게시글 메뉴")
                     }
@@ -2290,8 +2291,8 @@ struct CommunityComposerView: View {
                         Button {
                             requestComposerDismissal()
                         } label: {
+                            // 틀 없이 둬요. 44pt 틀을 주면 iOS 26 유리 버튼이 타원이 돼요.
                             Image(systemName: "xmark")
-                                .frame(width: AppLayout.touchTarget, height: AppLayout.touchTarget)
                         }
                         .disabled(isPreparingSubmission)
                         .accessibilityLabel("글쓰기 닫기")
